@@ -24,7 +24,7 @@ import { FiArrowRight } from "react-icons/fi";
 }
  */
 
-const TextInput = () => {
+const PromptTextInput = () => {
    return (
       <div className="flex h-full w-full items-center justify-center bg-transparent px-4">
          <BeamInput />
@@ -85,4 +85,4 @@ const BeamInput = () => {
    );
 };
 
-export default TextInput;
+export default PromptTextInput;

@@ -9,10 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@rainbow-me/rainbowkit": "^2.2.8",
+    "@privy-io/react-auth": "^2.24.0",
     "@tanstack/react-query": "^5.86.0",
-    "color-name": "1.1.4",
     "clsx": "^2.1.1",
+    "color-name": "1.1.4",
     "motion": "^12.23.12",
     "next": "15.5.2",
     "pino": "^9.9.2",
@@ -20,9 +20,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-icons": "^5.5.0",
-    "tailwind-merge": "^3.3.1",
-    "viem": "^2.37.3",
-    "wagmi": "^2.16.9"
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
