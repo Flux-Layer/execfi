@@ -1,3 +1,5 @@
+"use client";
+
 import React, {
   Dispatch,
   ReactNode,
@@ -8,7 +10,7 @@ import React, {
 import { AnimatePresence, motion } from "framer-motion";
 import { FiMenu } from "react-icons/fi";
 
-export const RoundedDrawerNavExample = () => {
+export const NavDrawer = () => {
   return (
     <div className="bg-neutral-950">
       <RoundedDrawerNav
@@ -102,11 +104,7 @@ export const RoundedDrawerNavExample = () => {
         navBackground="bg-neutral-950"
         bodyBackground="bg-white"
       >
-        <div className="flex flex-col items-center justify-center px-12 py-32">
-          <p className="text-center">
-            Your hero section content goes here {":)"}
-          </p>
-        </div>
+        
       </RoundedDrawerNav>
     </div>
   );

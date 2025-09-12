@@ -3,6 +3,7 @@ import "./globals.css";
 import "@rainbow-me/rainbowkit/styles.css";
 import { RKProvider } from "../providers/rainbow-kit.provider";
 import { QCProvider } from "../providers/query-client.provider";
+import { NavDrawer } from "../components/rounded-drawer-nav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +27,11 @@ export default function RootLayout({
       >
       <QCProvider>
 
-      <RKProvider>{children}</RKProvider>
+      <RKProvider>
+      <NavDrawer/>
+      {children}
+
+      </RKProvider>
       </QCProvider>
       </body>
     </html>
