@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiMenu } from "react-icons/fi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 export const NavDrawer = () => {
   return (
@@ -152,9 +153,7 @@ const RoundedDrawerNav = ({
               activeSublinks={activeSublinks}
             />
           </div>
-          <button className="hidden rounded-md bg-indigo-500 px-3 py-1.5 text-sm text-neutral-50 transition-colors hover:bg-indigo-600 md:block">
-            <span className="font-bold">Get started - </span> no CC required
-          </button>
+          <ConnectButton/>
           <button
             onClick={() => setMobileNavOpen((pv) => !pv)}
             className="mt-0.5 block text-2xl text-neutral-50 md:hidden"
