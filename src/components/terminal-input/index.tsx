@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 import { usePrivyEOA } from "../../hooks/usePrivyEOA";
-import { usePrivy } from "@privy-io/react-auth";
+import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "../loader";
 type ChatMessage = {
   role: "user" | "assistant";
@@ -66,6 +66,10 @@ const TerminalHeader = ({ headerTitle }: { headerTitle: string }) => {
 
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   const { authenticated, ready } = usePrivy();
+  const { sendCode, loginWithCode } = useLoginWithEmail();
+
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
 
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState("");
@@ -80,19 +84,33 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   useEffect(() => {
     if (ready && authenticated && questions?.length) {
       console.log("HERE?");
-      setQuestions([QUESTIONS?.[QUESTIONS?.length - 1]]);
-      setCurQuestion(QUESTIONS[QUESTIONS?.length-1]);
+      setQuestions([]);
+      setCurQuestion("");
     } else if (ready && !authenticated && questions?.length) {
       setQuestions(QUESTIONS);
       setCurQuestion(QUESTIONS?.[0]);
     }
   }, [ready, authenticated]);
 
+  const [aiResponding, setAiResponding] = useState(false);
+
   const handleSubmitLine = async (value: string) => {
+    console.log({ curQuestion });
     if (curQuestion) {
+      if (curQuestion?.key === "email") {
+        sendCode({ email: value });
+        setEmail(value);
+      } else if (curQuestion?.key === "code") {
+        loginWithCode({ code: value });
+        setCode(code);
+      }
+      let nextQuestion;
       setQuestions((pv) =>
-        pv.map((q) => {
+        pv.map((q, i) => {
           if (q.key === curQuestion.key) {
+            nextQuestion = pv[i + 1];
+            setCurQuestion(nextQuestion);
+            console.log({ nextQuestion });
             return {
               ...q,
               complete: true,
@@ -107,6 +125,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       setText("");
 
       try {
+        setAiResponding(true);
         const res = await fetch("/api/prompt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -118,11 +137,13 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           ...prev,
           { role: "assistant", content: data.output },
         ]);
+        setAiResponding(false);
       } catch (err) {
         setChat((prev) => [
           ...prev,
           { role: "assistant", content: "⚠️ Error connecting to AI" },
         ]);
+        setAiResponding(false);
       }
     }
   };
@@ -145,8 +166,24 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
               handleSubmitLine={handleSubmitLine}
               containerRef={containerRef}
             />
+          ) : authenticated ? (
+            <>
+              <ChatHistory chat={chat} />
+
+              <CurLine
+                text={text}
+                focused={focused}
+                setText={setText}
+                setFocused={setFocused}
+                inputRef={inputRef}
+                command="ask-ai"
+                handleSubmitLine={handleSubmitLine}
+                containerRef={containerRef}
+                loading={aiResponding}
+              />
+            </>
           ) : (
-            <Summary questions={questions} setQuestions={setQuestions} />
+            <PageBarLoader />
           )}
         </>
       ) : (
@@ -192,7 +229,9 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
       {chat.map((c, i) => (
         <p
           key={i}
-          className={c.role === "assistant" ? "text-emerald-300" : "text-cyan-300"}
+          className={
+            c.role === "assistant" ? "text-emerald-300" : "text-cyan-300"
+          }
         >
           {c.role === "assistant" ? "🤖 " : "🧑 "} {c.content}
         </p>
@@ -240,60 +279,6 @@ const CurrentQuestion = ({ curQuestion }: CurrentQuestionProps) => {
   );
 };
 
-const Summary = ({ questions, setQuestions }: SummaryProps) => {
-  const [complete, setComplete] = useState(false);
-
-  const handleReset = () => {
-    setQuestions((pv) => pv.map((q) => ({ ...q, value: "", complete: false })));
-  };
-
-  const handleSend = () => {
-    const formData = questions.reduce((acc, val) => {
-      return { ...acc, [val.key]: val.value };
-    }, {});
-
-    // Send this data to your server or whatever :)
-    console.log(formData);
-
-    setComplete(true);
-  };
-
-  return (
-    <>
-      <p>Beautiful! Here&apos;s what we&apos;ve got:</p>
-      {questions.map((q) => {
-        return (
-          <p key={q.key}>
-            <span className="text-blue-300">{q.key}:</span> {q.value}
-          </p>
-        );
-      })}
-      <p>Look good?</p>
-      {complete ? (
-        <p className="text-emerald-300">
-          <FiCheckCircle className="inline-block mr-2" />
-          <span>Sent! We&apos;ll get back to you ASAP 😎</span>
-        </p>
-      ) : (
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={handleReset}
-            className="px-3 py-1 text-base hover:opacity-90 transition-opacity rounded bg-slate-100 text-black"
-          >
-            Restart
-          </button>
-          <button
-            onClick={handleSend}
-            className="px-3 py-1 text-base hover:opacity-90 transition-opacity rounded bg-indigo-500 text-white"
-          >
-            Send it!
-          </button>
-        </div>
-      )}
-    </>
-  );
-};
-
 const CurLine = ({
   text,
   focused,
@@ -303,6 +288,7 @@ const CurLine = ({
   command,
   handleSubmitLine,
   containerRef,
+  loading,
 }: CurrentLineProps) => {
   const scrollToBottom = () => {
     if (containerRef.current) {
@@ -328,38 +314,52 @@ const CurLine = ({
     return () => setFocused(false);
   }, []);
 
+  useEffect(() => {
+    if (!loading) setFocused(true);
+    inputRef.current?.focus()
+  }, [loading]);
+
   return (
     <>
       <form onSubmit={onSubmit}>
-        <input
-          ref={inputRef}
-          onChange={onChange}
-          value={text}
-          type="text"
-          className="sr-only"
-          autoComplete="off"
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-        />
-      </form>
-      <p>
-        <span className="text-emerald-400">➜</span>{" "}
-        <span className="text-cyan-300">~</span>{" "}
-        {command && <span className="opacity-50">Enter {command}: </span>}
-        {text}
-        {focused && (
-          <motion.span
-            animate={{ opacity: [1, 1, 0, 0] }}
-            transition={{
-              repeat: Infinity,
-              duration: 1,
-              ease: "linear",
-              times: [0, 0.5, 0.5, 1],
-            }}
-            className="inline-block w-2 h-5 bg-slate-400 translate-y-1 ml-0.5"
+        {loading ? (
+          <PageBarLoader />
+        ) : (
+          <input
+            ref={inputRef}
+            onChange={onChange}
+            value={text}
+            type="text"
+            className="sr-only"
+            autoComplete="off"
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
           />
         )}
-      </p>
+      </form>
+      {
+         !loading && (
+            <p>
+            <span className="text-emerald-400">➜</span>{" "}
+            <span className="text-cyan-300">~</span>{" "}
+            {command && <span className="opacity-50">Enter {command}: </span>}
+            {text}
+            {focused && (
+               <motion.span
+               animate={{ opacity: [1, 1, 0, 0] }}
+               transition={{
+                  repeat: Infinity,
+                  duration: 1,
+                  ease: "linear",
+                  times: [0, 0.5, 0.5, 1],
+               }}
+               className="inline-block w-2 h-5 bg-slate-400 translate-y-1 ml-0.5"
+               />
+            )}
+            </p>
+
+         )
+      }
     </>
   );
 };
@@ -381,13 +381,6 @@ const QUESTIONS: QuestionType[] = [
     complete: false,
     value: "",
   },
-  {
-    key: "first_prompt",
-    text: "Perfect, ",
-    postfix: "what would you like to do?",
-    complete: false,
-    value: "",
-  },
 ];
 
 interface CurrentLineProps {
@@ -399,6 +392,7 @@ interface CurrentLineProps {
   command: string;
   handleSubmitLine: (line: string) => any;
   containerRef: MutableRefObject<HTMLDivElement | null>;
+  loading?: boolean;
 }
 
 type QuestionType = {

@@ -42,7 +42,7 @@ function EOAInitializer() {
   const { authenticated, ready } = usePrivy();
 
   useEffect(() => {
-    if (authenticated && ready && ensureEOA) ensureEOA();
+    if (authenticated && !ready && ensureEOA) ensureEOA();
   }, [ready, ensureEOA, authenticated]);
 
   return null;
