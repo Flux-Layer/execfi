@@ -16,7 +16,10 @@ import {
 import { usePrivyEOA } from "../../hooks/usePrivyEOA";
 import { usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "../loader";
-
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
 const TerminalContact = () => {
   const { ready } = usePrivy();
 
@@ -66,10 +69,11 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   const [text, setText] = useState("");
 
   const [questions, setQuestions] = useState(QUESTIONS);
+  const [chat, setChat] = useState<ChatMessage[]>([]); // state chat AI
 
   const curQuestion = questions.find((q) => !q.complete);
 
-  const handleSubmitLine = (value: string) => {
+  const handleSubmitLine = async (value: string) => {
     if (curQuestion) {
       setQuestions((pv) =>
         pv.map((q) => {
@@ -83,6 +87,28 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           return q;
         }),
       );
+    } else {
+      setChat((prev) => [...prev, { role: "user", content: value }]);
+      setText("");
+
+      try {
+        const res = await fetch("/api/prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: value }),
+        });
+
+        const data = await res.json();
+        setChat((prev) => [
+          ...prev,
+          { role: "assistant", content: data.output },
+        ]);
+      } catch (err) {
+        setChat((prev) => [
+          ...prev,
+          { role: "assistant", content: "⚠️ Error connecting to AI" },
+        ]);
+      }
     }
   };
 
@@ -91,6 +117,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       <InitialText />
       <PreviousQuestions questions={questions} />
       <CurrentQuestion curQuestion={curQuestion} />
+
       {curQuestion ? (
         <CurLine
           text={text}
@@ -103,7 +130,20 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           containerRef={containerRef}
         />
       ) : (
-        <Summary questions={questions} setQuestions={setQuestions} />
+        <>
+          <Summary questions={questions} setQuestions={setQuestions} />
+          <ChatHistory chat={chat} />
+          <CurLine
+            text={text}
+            focused={focused}
+            setText={setText}
+            setFocused={setFocused}
+            inputRef={inputRef}
+            command="ask-ai"
+            handleSubmitLine={handleSubmitLine}
+            containerRef={containerRef}
+          />
+        </>
       )}
     </div>
   );
@@ -137,6 +177,21 @@ const InitialText = () => {
         </>
       )}
     </>
+  );
+};
+
+const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
+  return (
+    <div className="mt-4">
+      {chat.map((c, i) => (
+        <p
+          key={i}
+          className={c.role === "assistant" ? "text-emerald-300" : "text-cyan-300"}
+        >
+          {c.role === "assistant" ? "🤖 " : "🧑 "} {c.content}
+        </p>
+      ))}
+    </div>
   );
 };
 
