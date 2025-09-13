@@ -1,6 +1,8 @@
 "use client";
 import { usePrivy } from "@privy-io/react-auth";
+import { usePrivyEOA } from "../../hooks/usePrivyEOA";
 import useZeroDevSA from "../../hooks/useZeroDevSA";
+import { useEffect } from "react";
 
 export default function Page() {
   const { ready, authenticated, login } = usePrivy();
@@ -21,7 +23,7 @@ export default function Page() {
         onClick={async () => {
           const hash = await kernelAccountClient.sendTransaction({
             to: "0x0000000000000000000000000000000000000000",
-            value: 0n as any, // first op will deploy SA if needed
+            value: BigInt(0) as any, // first op will deploy SA if needed
           });
           console.log("UserOp/tx hash:", hash);
         }}
