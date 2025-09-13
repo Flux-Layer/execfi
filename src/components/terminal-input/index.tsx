@@ -65,13 +65,28 @@ const TerminalHeader = ({ headerTitle }: { headerTitle: string }) => {
 };
 
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
+  const { authenticated, ready } = usePrivy();
+
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState("");
 
   const [questions, setQuestions] = useState(QUESTIONS);
   const [chat, setChat] = useState<ChatMessage[]>([]); // state chat AI
 
-  const curQuestion = questions.find((q) => !q.complete);
+  const [curQuestion, setCurQuestion] = useState<any>([
+    questions.find((q) => !q.complete),
+  ]);
+
+  useEffect(() => {
+    if (ready && authenticated && questions?.length) {
+      console.log("HERE?");
+      setQuestions([QUESTIONS?.[QUESTIONS?.length - 1]]);
+      setCurQuestion(QUESTIONS[QUESTIONS?.length-1]);
+    } else if (ready && !authenticated && questions?.length) {
+      setQuestions(QUESTIONS);
+      setCurQuestion(QUESTIONS?.[0]);
+    }
+  }, [ready, authenticated]);
 
   const handleSubmitLine = async (value: string) => {
     if (curQuestion) {
@@ -114,36 +129,28 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
   return (
     <div className="p-2 text-slate-100 text-lg">
-      <InitialText />
-      <PreviousQuestions questions={questions} />
-      <CurrentQuestion curQuestion={curQuestion} />
-
-      {curQuestion ? (
-        <CurLine
-          text={text}
-          focused={focused}
-          setText={setText}
-          setFocused={setFocused}
-          inputRef={inputRef}
-          command={curQuestion?.key || ""}
-          handleSubmitLine={handleSubmitLine}
-          containerRef={containerRef}
-        />
-      ) : (
+      {ready ? (
         <>
-          <Summary questions={questions} setQuestions={setQuestions} />
-          <ChatHistory chat={chat} />
-          <CurLine
-            text={text}
-            focused={focused}
-            setText={setText}
-            setFocused={setFocused}
-            inputRef={inputRef}
-            command="ask-ai"
-            handleSubmitLine={handleSubmitLine}
-            containerRef={containerRef}
-          />
+          <InitialText />
+          <PreviousQuestions questions={questions} />
+          <CurrentQuestion curQuestion={curQuestion} />
+          {curQuestion ? (
+            <CurLine
+              text={text}
+              focused={focused}
+              setText={setText}
+              setFocused={setFocused}
+              inputRef={inputRef}
+              command={curQuestion?.key || ""}
+              handleSubmitLine={handleSubmitLine}
+              containerRef={containerRef}
+            />
+          ) : (
+            <Summary questions={questions} setQuestions={setQuestions} />
+          )}
         </>
+      ) : (
+        <PageBarLoader />
       )}
     </div>
   );
@@ -163,7 +170,7 @@ const InitialText = () => {
           <p className="whitespace-nowrap overflow-hidden font-light">
             ------------------------------------------------------------------------
           </p>
-                  </>
+        </>
       ) : (
         <>
           <p>
@@ -173,7 +180,6 @@ const InitialText = () => {
             ------------------------------------------------------------------------
           </p>
           <p>Logged in with email, {String(user?.email?.address || "")}.</p>
-          
         </>
       )}
     </>
@@ -369,16 +375,16 @@ const QUESTIONS: QuestionType[] = [
     value: "",
   },
   {
-    key: "name",
-    text: "Awesome! And what's ",
-    postfix: "your name?",
+    key: "code",
+    text: "Enter the code sent to ",
+    postfix: "your email",
     complete: false,
     value: "",
   },
   {
-    key: "description",
-    text: "Perfect, and ",
-    postfix: "how can we help you?",
+    key: "first_prompt",
+    text: "Perfect, ",
+    postfix: "what would you like to do?",
     complete: false,
     value: "",
   },
