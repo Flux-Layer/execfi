@@ -1,8 +1,6 @@
 "use client";
 import { usePrivy } from "@privy-io/react-auth";
-import { usePrivyEOA } from "../../hooks/usePrivyEOA";
-import useZeroDevSA from "../../hooks/useZeroDevSA";
-import { useEffect } from "react";
+import useZeroDevSA from "@hooks/useZeroDevSA";
 
 export default function Page() {
   const { ready, authenticated, login } = usePrivy();

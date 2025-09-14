@@ -2,12 +2,10 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { QCProvider } from "../providers/query-client.provider";
-import { NavDrawer } from "../components/rounded-drawer-nav";
-import PrivyAppProvider from "../providers/privy-provider";
-import { WagmiProvider } from "@privy-io/wagmi";
-import { wagmiConfig } from "../../wagmiConfig";
-import { usePrivyEOA } from "../hooks/usePrivyEOA";
+import { QCProvider } from "@providers/query-client.provider";
+import { NavDrawer } from "@components/rounded-drawer-nav";
+import PrivyAppProvider from "@providers/privy-provider";
+import { usePrivyEOA } from "@hooks/usePrivyEOA";
 import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
@@ -21,7 +19,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>

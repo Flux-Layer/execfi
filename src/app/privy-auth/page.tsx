@@ -2,8 +2,8 @@
 
 import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import {  useState } from "react";
-import TextInput from "../../components/text-input";
-import SplashButton from "../../components/splash-button";
+import TextInput from "@components/text-input";
+import SplashButton from "@components/splash-button";
 
 export default function Page() {
   const { authenticated, logout } = usePrivy();

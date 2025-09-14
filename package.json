@@ -1,5 +1,9 @@
 {
   "name": "hq-hackathon-project-1",
+  "_moduleAliases": {
+            "@components": "dist/components",
+            "@utils": "dist/utils"
+          },
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -16,6 +20,7 @@
     "@zerodev/sdk": "^5.4.41",
     "clsx": "^2.1.1",
     "color-name": "1.1.4",
+    "module-alias": "^2.2.3",
     "motion": "^12.23.12",
     "next": "15.5.2",
     "permissionless": "0.1",

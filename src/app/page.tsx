@@ -1,9 +1,9 @@
 "use client";
 
-import useZeroDevSA from "../hooks/useZeroDevSA";
-import PageBarLoader from "../components/loader";
+import useZeroDevSA from "@hooks/useZeroDevSA";
+import PageBarLoader from "@components/loader";
 import { usePrivy, } from "@privy-io/react-auth";
-import PromptTerminal from "../components/terminal-input"
+import PromptTerminal from "@components/terminal-input"
 
 export default function Home() {
   const privyInstance = usePrivy();
