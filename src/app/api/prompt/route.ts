@@ -1,3 +1,4 @@
+import { metaprompt } from "@/constants/ai-meta-prompt";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -19,15 +20,28 @@ export async function POST(req: Request) {
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: "You are a helpful assistant." },
-          { role: "user", content: prompt },
+          { role: "user", content: metaprompt + `User prompt: > ${prompt}` },
         ],
       }),
     });
 
     const data = await res.json();
+    console.log({ aiResponse: res });
+
+
+    const rawResponse = data?.choices?.[0]?.message?.content
+
+    const cleaned = rawResponse
+      .replace(/'\s*\+\s*'/g, "") // remove "' + '"
+      .replace(/^'/, "")          // strip leading quote
+      .replace(/'$/, "");
+
+      const cleanedAsJson = JSON.parse(cleaned)
+
+    console.log({ cleanedAsJson });
 
     return NextResponse.json({
-      output: data?.choices?.[0]?.message?.content ?? "No response",
+      output: cleanedAsJson,
     });
   } catch (err: any) {
     console.error("OpenRouter API error:", err);

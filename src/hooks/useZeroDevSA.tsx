@@ -12,6 +12,7 @@ import {
   generateKernelAccountClient,
 } from "@/lib/aa/zero-dev";
 import type { Address } from "viem";
+import { a } from "motion/react-client";
 
 type UseZeroDevSAReturn = {
   loading: boolean;
@@ -23,6 +24,7 @@ type UseZeroDevSAReturn = {
   ecdsaValidator?: any;
   kernelAccount?: any;
   kernelAccountClient?: any;
+  sendTx: (params: { data?: string; value: string; to: string }) => any;
   refresh: () => Promise<void>;
 };
 
@@ -43,7 +45,8 @@ export default function useZeroDevSA(): UseZeroDevSAReturn {
     setError(undefined);
     setLoading(true);
     try {
-      if (!privyReady || !authenticated) throw new Error("Privy not ready or user not logged in");
+      if (!privyReady || !authenticated)
+        throw new Error("Privy not ready or user not logged in");
 
       const eip1193 = await getEip1193();
 
@@ -66,8 +69,9 @@ export default function useZeroDevSA(): UseZeroDevSAReturn {
       });
       setKernelAccountClient(client);
 
-      const addr: Address =
-        (acc.getAddress ? await acc.getAddress() : acc.address) as Address;
+      const addr: Address = (
+        acc.getAddress ? await acc.getAddress() : acc.address
+      ) as Address;
       setSaAddress(addr);
     } catch (e: any) {
       setError(e?.message ?? "Failed to initialize ZeroDev smart account");
@@ -75,6 +79,30 @@ export default function useZeroDevSA(): UseZeroDevSAReturn {
       setLoading(false);
     }
   }, [privyReady, authenticated, getEip1193]);
+
+  const sendTx = useCallback(
+    async (request: {
+      to: string;
+      value: string;
+      data?: string;
+    }) => {
+      if (kernelAccountClient) {
+        try {
+           console.log({request})
+          const response = kernelAccountClient.sendTransaction({
+            to: request?.to,
+            data: request?.data,
+            value: request?.value,
+          });
+          console.log({ txResponse: response });
+          return response;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    },
+    [kernelAccountClient],
+  );
 
   useEffect(() => {
     if (privyReady && authenticated) {
@@ -92,7 +120,7 @@ export default function useZeroDevSA(): UseZeroDevSAReturn {
     ecdsaValidator,
     kernelAccount,
     kernelAccountClient,
+    sendTx,
     refresh: init,
   };
 }
-
