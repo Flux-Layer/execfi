@@ -16,11 +16,12 @@ import {
 import { usePrivyEOA } from "../../hooks/usePrivyEOA";
 import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "../loader";
+import { splitLongWords } from "@/lib/utils";
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
 };
-const TerminalContact = () => {
+const PromptTerminal = () => {
   const { ready } = usePrivy();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -34,7 +35,7 @@ const TerminalContact = () => {
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
-      className="px-4 py-12 bg-violet-600"
+      className="w-full h-full px-4 py-12 bg-violet-600"
     >
       {ready ? (
         <div
@@ -230,10 +231,11 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
         <p
           key={i}
           className={
-            c.role === "assistant" ? "text-emerald-300" : "text-cyan-300"
+            c.role === "assistant" ? "text-emerald-300" : "text-cyan-300"+ "text-wrap"
           }
         >
-          {c.role === "assistant" ? "🤖 " : "🧑 "} {c.content}
+          {c.role === "assistant" ? "🤖 " : "🧑 "}{" "}
+          {splitLongWords(c?.content || "")}
         </p>
       ))}
     </div>
@@ -316,7 +318,7 @@ const CurLine = ({
 
   useEffect(() => {
     if (!loading) setFocused(true);
-    inputRef.current?.focus()
+    inputRef.current?.focus();
   }, [loading]);
 
   return (
@@ -337,34 +339,31 @@ const CurLine = ({
           />
         )}
       </form>
-      {
-         !loading && (
-            <p>
-            <span className="text-emerald-400">➜</span>{" "}
-            <span className="text-cyan-300">~</span>{" "}
-            {command && <span className="opacity-50">Enter {command}: </span>}
-            {text}
-            {focused && (
-               <motion.span
-               animate={{ opacity: [1, 1, 0, 0] }}
-               transition={{
-                  repeat: Infinity,
-                  duration: 1,
-                  ease: "linear",
-                  times: [0, 0.5, 0.5, 1],
-               }}
-               className="inline-block w-2 h-5 bg-slate-400 translate-y-1 ml-0.5"
-               />
-            )}
-            </p>
-
-         )
-      }
+      {!loading && (
+        <p>
+          <span className="text-emerald-400">➜</span>{" "}
+          <span className="text-cyan-300">~</span>{" "}
+          {command && <span className="opacity-50">Enter {command}: </span>}
+          {text}
+          {focused && (
+            <motion.span
+              animate={{ opacity: [1, 1, 0, 0] }}
+              transition={{
+                repeat: Infinity,
+                duration: 1,
+                ease: "linear",
+                times: [0, 0.5, 0.5, 1],
+              }}
+              className="inline-block w-2 h-5 bg-slate-400 translate-y-1 ml-0.5"
+            />
+          )}
+        </p>
+      )}
     </>
   );
 };
 
-export default TerminalContact;
+export default PromptTerminal;
 
 const QUESTIONS: QuestionType[] = [
   {
