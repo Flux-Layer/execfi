@@ -43,9 +43,7 @@ export function usePrivyEOA(): UsePrivyEOA {
 
   const ensureEOA = useCallback(async () => {
     // 1) Must be ready before doing anything
-    if (!walletsReady) {
-      throw new Error("Privy wallets not ready yet");
-    }
+
 
     // 2) If we already have a wallet, return it
     if (eoa) {
@@ -97,6 +95,6 @@ export function usePrivyEOA(): UsePrivyEOA {
       creating,
       error,
     }),
-    [walletsReady, eoa?.address, getEip1193, ensureEOA, creating, error],
+    [walletsReady, eoa?.address, getEip1193, ensureEOA, creating, error]
   );
 }

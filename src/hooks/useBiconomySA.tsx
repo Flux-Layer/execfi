@@ -28,11 +28,17 @@ type UseBiconomySAReturn = {
   ownerAddress?: Address;
   saAddress?: Address;
   client?: any;
-  sendTx: (params: { to: string; value?: string; data?: string }) => Promise<any>;
+  sendTx: (params: {
+    to: string;
+    value?: string;
+    data?: string;
+  }) => Promise<any>;
   refresh: (chainId?: number) => Promise<void>;
 };
 
-export default function useBiconomySA(defaultChainId = 8453): UseBiconomySAReturn {
+export default function useBiconomySA(
+  defaultChainId = 8453
+): UseBiconomySAReturn {
   const { ready: privyReady, authenticated } = usePrivy();
   const { ensureEOA, address: ownerAddress } = usePrivyEOA();
 
@@ -41,57 +47,62 @@ export default function useBiconomySA(defaultChainId = 8453): UseBiconomySARetur
   const [client, setClient] = useState<any>();
   const [saAddress, setSaAddress] = useState<Address>();
   const [currentChainId, setCurrentChainId] = useState<number>(defaultChainId);
-  
 
   const init = useCallback(
     async (chainId: number = defaultChainId) => {
       setError(undefined);
       setLoading(true);
 
-      try {
-        if (!privyReady || !authenticated) {
-          throw new Error("Privy not ready or user not logged in");
+      if (privyReady && ownerAddress) {
+        try {
+          if (!privyReady || !authenticated) {
+            throw new Error("Privy not ready or user not logged in");
+          }
+
+          const eoaRes = await ensureEOA();
+          if (!eoaRes) {
+            throw new Error("Failed to ensure EOA");
+          }
+          const { address: eoaAddr, provider } = eoaRes;
+
+          console.log({ eoaRes });
+
+          const rpcUrl = RPC_URLS[chainId];
+          if (!rpcUrl) throw new Error(`Unsupported chainId: ${chainId}`);
+          console.log({ rpcUrl });
+
+          const chain = CHAIN_MAP[chainId];
+          if (!chain) throw new Error(`No viem chain config for ${chainId}`);
+          console.log({ chain });
+
+          const viemSigner = createWalletClient({
+            account: eoaAddr,
+            chain,
+            transport: custom(provider),
+          });
+
+          const saClient = await createSmartAccountClient({
+            signer: viemSigner,
+            bundlerUrl: process.env.NEXT_PUBLIC_BICONOMY_BUNDLER!,
+            rpcUrl,
+            chainId,
+          });
+
+          setClient(saClient);
+          setCurrentChainId(chainId);
+
+          const addr = await saClient.getAddress();
+          console.log({ addr });
+          setSaAddress(addr as Address);
+        } catch (e: any) {
+          console.error("Biconomy init error:", e);
+          setError(e?.message ?? "Failed to initialize Biconomy smart account");
+        } finally {
+          setLoading(false);
         }
-
-        const eoaRes = await ensureEOA();
-        if (!eoaRes) {
-          throw new Error("Failed to ensure EOA");
-        }
-        const { address: eoaAddr, provider } = eoaRes;
-        
-
-        const rpcUrl = RPC_URLS[chainId];
-        if (!rpcUrl) throw new Error(`Unsupported chainId: ${chainId}`);
-
-        const chain = CHAIN_MAP[chainId];
-        if (!chain) throw new Error(`No viem chain config for ${chainId}`);
-
-        const viemSigner = createWalletClient({
-          account: eoaAddr,
-          chain,
-          transport: custom(provider),
-        });
-
-        const saClient = await createSmartAccountClient({
-          signer: viemSigner,
-          bundlerUrl: process.env.NEXT_PUBLIC_BICONOMY_BUNDLER!,
-          rpcUrl,
-          chainId,
-        });
-
-        setClient(saClient);
-        setCurrentChainId(chainId);
-
-        const addr = await saClient.getAddress();
-        setSaAddress(addr as Address);
-      } catch (e: any) {
-        console.error("Biconomy init error:", e);
-        setError(e?.message ?? "Failed to initialize Biconomy smart account");
-      } finally {
-        setLoading(false);
       }
     },
-    [privyReady, authenticated, defaultChainId], // ✅ ensureEOA tidak masuk deps
+    [privyReady, authenticated, defaultChainId, ownerAddress] // ✅ ensureEOA tidak masuk deps
   );
 
   const sendTx = useCallback(
@@ -111,7 +122,7 @@ export default function useBiconomySA(defaultChainId = 8453): UseBiconomySARetur
         throw err;
       }
     },
-    [client, currentChainId],
+    [client, currentChainId]
   );
 
   useEffect(() => {
