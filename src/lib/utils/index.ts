@@ -3,6 +3,9 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+// Re-export balance utilities
+export * from './balance';
+
 // Env & configs
 export function isProductionMode() {
    return process.env.MODE === 'production';

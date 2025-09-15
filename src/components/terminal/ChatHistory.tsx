@@ -19,6 +19,26 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
             >
               {c.content}
             </p>
+          ) : c.content?.type === "intent-summary" ? (
+            <div className="space-y-1">
+              <p className="text-emerald-300 font-semibold">Parsed Intent:</p>
+              <div className="bg-slate-800/50 rounded p-3 space-y-1 text-sm">
+                <p><span className="text-cyan-400">Action:</span> {c.content.action}</p>
+                <p><span className="text-cyan-400">Chain:</span> {c.content.chain}</p>
+                <p><span className="text-cyan-400">Token:</span> {c.content.token}</p>
+                <p><span className="text-cyan-400">Amount:</span> {c.content.amount}</p>
+                <p><span className="text-cyan-400">Recipient:</span> {c.content.recipient}</p>
+              </div>
+            </div>
+          ) : c.content?.type === "clarification" ? (
+            <div className="space-y-2">
+              <p className="text-yellow-300 font-semibold">❓ {c.content.question}</p>
+              {c.content.missing.length > 0 && (
+                <p className="text-orange-300 text-sm">
+                  Missing: {c.content.missing.join(", ")}
+                </p>
+              )}
+            </div>
           ) : c.content?.type === "token-table" ? (
             <div className="overflow-x-auto space-y-2">
               {c.content.message && (

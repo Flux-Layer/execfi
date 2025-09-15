@@ -8,7 +8,7 @@ export type TRelayGetTokenRequest = {
 
 export async function POST(request: Request) {
   try {
-    const requestData = await request.json();
+    const requestData = await request.json() as TRelayGetTokenRequest;
 
     console.log({ requestData });
 

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await req.json() as { prompt: string };
     const prompt = body.prompt;
 
     if (!prompt) {
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       }),
     });
 
-    const data = await res.json();
+    const data = await res.json() as any;
     console.log({ aiResponse: res });
 
 

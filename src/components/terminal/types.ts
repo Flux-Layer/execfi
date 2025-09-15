@@ -12,6 +12,19 @@ export type ChatContent =
         logoURI?: string;
         verified?: boolean;
       }[];
+    }
+  | {
+      type: "intent-summary";
+      action: string;
+      chain: string;
+      token: string;
+      amount: string;
+      recipient: string;
+    }
+  | {
+      type: "clarification";
+      question: string;
+      missing: string[];
     };
 
 export type ChatMessage = {

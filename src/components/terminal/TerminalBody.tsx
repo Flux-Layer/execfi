@@ -4,6 +4,14 @@ import PageBarLoader from "@components/loader";
 import useZeroDevSA from "@/hooks/useZeroDevSA";
 import { fetcher } from "@/lib/utils/fetcher";
 import {
+  parseIntent,
+  IntentParseError,
+  isIntentSuccess,
+  isIntentClarify,
+  isTransferIntent,
+  type Intent,
+} from "@/lib/ai";
+import {
   ChatMessage,
   TerminalBodyProps,
   QuestionType,
@@ -14,7 +22,7 @@ import CurrentQuestion from "./CurrentQuestion";
 import ChatHistory from "./ChatHistory";
 import CurLine from "./CurLine";
 import { useBalance } from "wagmi";
-import { formatUnits } from "viem";
+import { formatBalanceDisplay, formatBalance } from "@/lib/utils/balance";
 
 const QUESTIONS: QuestionType[] = [
   { key: "email", text: "To start, could you give us ", postfix: "your email?", complete: false, value: "" },
@@ -66,6 +74,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   const balanceQuery = useBalance({
     address: saAddress as `0x${string}` | undefined,
     token: selectedToken?.symbol === "ETH" ? undefined : (selectedToken?.address as `0x${string}` | undefined),
+    chainId: selectedToken?.chainId,
     query: {
       enabled: Boolean(saAddress && selectedToken),
       refetchOnWindowFocus: false,
@@ -84,13 +93,14 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
     if (!balanceQuery.data || !selectedToken) return;
 
-    const balance = parseFloat(
-      formatUnits(balanceQuery.data.value, balanceQuery.data.decimals)
-    );
+    const balanceFormatted = formatBalance(balanceQuery.data.value, balanceQuery.data.decimals);
+    const balanceDisplay = formatBalanceDisplay(balanceQuery.data.value, balanceQuery.data.decimals, selectedToken.symbol);
+    const balance = parseFloat(balanceFormatted);
 
     console.log("🔎 Selected token:", selectedToken);
     console.log("🔎 Balance raw:", balanceQuery.data.value.toString());
     console.log("🔎 Decimals:", balanceQuery.data.decimals);
+    console.log("🔎 Formatted balance:", balanceFormatted);
     console.log("🔎 Parsed balance:", balance);
     console.log("🔎 Transfer amount:", transferAmount);
 
@@ -107,7 +117,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         ...prev,
         {
           role: "assistant",
-          content: `⚠️ Insufficient balance. You only have ${balance} ${selectedToken.symbol}, but you want to send ${transferAmount}.`,
+          content: `⚠️ Insufficient balance. You only have ${balanceDisplay}, but you want to send ${transferAmount}.`,
         },
       ]);
     } else if (transferAmount !== null) {
@@ -115,7 +125,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         ...prev,
         {
           role: "assistant",
-          content: `✅ You have ${balance} ${selectedToken.symbol}, enough to send ${transferAmount}.`,
+          content: `✅ You have ${balanceDisplay}, enough to send ${transferAmount}.`,
         },
       ]);
     }
@@ -131,6 +141,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         setCode(value);
       } else if (curQuestion?.key === "token-address-selection") {
         const token = tokenSelections?.find((t) => t?.id === Number(value));
+        console.log("🪙 Selected token:", token);
         setSelectedToken(token);
       }
 
@@ -149,84 +160,178 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
       try {
         setAiResponding(true);
-        const res = await fetch("/api/prompt", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: value }),
-        });
-        const data = await res.json();
 
-        const detectedSymbol = data?.output?.[0]?.token?.symbol;
-        const detectedAmount = data?.output?.[0]?.amount;
-        const detectedRecipient = data?.output?.[0]?.recipient;
+        // Parse intent using our new AI system
+        const intentResult: Intent = await parseIntent(value);
 
-        setTransferAmount(
-          detectedAmount !== undefined && detectedAmount !== null
-            ? Number(detectedAmount)
-            : null
-        );
-        setTransferRecipient(detectedRecipient || "");
+        // Debug: Log the AI response
+        console.log("🤖 AI Response:", JSON.stringify(intentResult, null, 2));
 
-        const tokens: TokenResponse | null = detectedSymbol
-          ? (await fetcher("", "/api/relay", {
-              method: "POST",
-              body: { chainIds: [8453], term: detectedSymbol, limit: 15 },
-            } as any)) as TokenResponse
-          : null;
-
-        if (tokens && Array.isArray(tokens.data)) {
-          setTokenSelections(tokens.data.map((t, i) => ({ id: i + 1, ...t })));
-
+        if (isIntentClarify(intentResult)) {
+          // Handle clarification request
           setChat((prev) => [
             ...prev,
             {
               role: "assistant",
               content: {
-                message: "👉 Please choose the token by number (No).",
-                type: "token-table",
-                tokens: tokens.data.map((t, i) => ({
-                  id: i + 1,
-                  chainId: t.chainId,
-                  address: t.address,
-                  name: t.name,
-                  symbol: t.symbol,
-                  logoURI: t.metadata?.logoURI,
-                  verified: t.metadata?.verified,
-                })),
+                type: "clarification",
+                question: intentResult.clarify,
+                missing: intentResult.missing,
               },
             },
           ]);
-          
-          
+          setAiResponding(false);
+          return;
+        }
 
-          setQuestions([
+        if (isIntentSuccess(intentResult) && isTransferIntent(intentResult.intent)) {
+          const { intent } = intentResult;
+
+          // Extract transfer details
+          const detectedSymbol = intent.token.symbol;
+          const detectedAmount = intent.amount;
+          const detectedRecipient = intent.recipient;
+
+          setTransferAmount(
+            detectedAmount !== "MAX" ? Number(detectedAmount) : null
+          );
+          setTransferRecipient(detectedRecipient || "");
+
+          // Show parsed intent summary
+          setChat((prev) => [
+            ...prev,
             {
+              role: "assistant",
+              content: {
+                type: "intent-summary",
+                action: intent.action,
+                chain: intent.chain.toString(),
+                token: detectedSymbol,
+                amount: detectedAmount,
+                recipient: detectedRecipient,
+              },
+            },
+          ]);
+
+          // Map chain names to chainIds for token fetching
+          const getChainId = (chain: string | number) => {
+            if (typeof chain === "number") return chain;
+            const chainMap: Record<string, number> = {
+              "base": 8453,
+              "baseSepolia": 84532,
+              "base-sepolia": 84532,
+              "baseMainnet": 8453,
+              "base-mainnet": 8453,
+            };
+            return chainMap[chain] || 8453; // Default to Base mainnet
+          };
+
+          const targetChainId = getChainId(intent.chain);
+          console.log("🔍 Fetching tokens for symbol:", detectedSymbol, "on chain:", targetChainId);
+
+          // Always fetch tokens to show selection table
+          const tokens: TokenResponse | null = detectedSymbol
+            ? (await fetcher("", "/api/relay", {
+                method: "POST",
+                body: { chainIds: [targetChainId], term: detectedSymbol, limit: 15 },
+              } as any)) as TokenResponse
+            : null;
+
+          if (tokens && Array.isArray(tokens.data) && tokens.data.length > 0) {
+            // Add native ETH as first option for ETH transfers
+            let tokenOptions = tokens.data;
+            if (intent.token.type === "native" && intent.token.symbol === "ETH") {
+              const nativeETH = {
+                chainId: targetChainId,
+                address: "native",
+                symbol: "ETH",
+                name: "Ethereum (Native)",
+                metadata: { logoURI: "", verified: true }
+              };
+              tokenOptions = [nativeETH, ...tokens.data];
+            }
+
+            setTokenSelections(tokenOptions.map((t, i) => ({ id: i + 1, ...t })));
+
+            setChat((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: {
+                  message: "👉 Please choose the token by number (No).",
+                  type: "token-table",
+                  tokens: tokenOptions.map((t, i) => ({
+                    id: i + 1,
+                    chainId: t.chainId,
+                    address: t.address,
+                    name: t.name,
+                    symbol: t.symbol,
+                    logoURI: t.metadata?.logoURI,
+                    verified: t.metadata?.verified,
+                  })),
+                },
+              },
+            ]);
+
+            setQuestions([
+              {
+                key: "token-address-selection",
+                text: "Choose the token ",
+                postfix: "by number",
+                complete: false,
+                value: "",
+              },
+            ]);
+            setCurQuestion({
               key: "token-address-selection",
               text: "Choose the token ",
               postfix: "by number",
               complete: false,
               value: "",
+            });
+          } else {
+            // No tokens found
+            setChat((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `⚠️ No tokens found for "${detectedSymbol}" on ${intent.chain}. Please try a different token symbol.`,
+              },
+            ]);
+          }
+        } else {
+          // Handle unsupported intent types
+          setChat((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "⚠️ Only native ETH transfers on Base are supported in this MVP."
             },
           ]);
-          setCurQuestion({
-            key: "token-address-selection",
-            text: "Choose the token ",
-            postfix: "by number",
-            complete: false,
-            value: "",
-          });
+        }
+
+        setAiResponding(false);
+      } catch (err) {
+        console.error("Intent parsing error:", err);
+
+        let errorMessage = "⚠️ Error parsing your request.";
+
+        if (err instanceof IntentParseError) {
+          switch (err.code) {
+            case "OFF_POLICY_JSON":
+              errorMessage = `⚠️ ${err.message}`;
+              break;
+            case "MISSING_API_KEY":
+              errorMessage = "⚠️ AI service not configured.";
+              break;
+            default:
+              errorMessage = `⚠️ ${err.message}`;
+          }
         }
 
         setChat((prev) => [
           ...prev,
-          { role: "assistant", content: JSON.stringify(data.output) },
-        ]);
-
-        setAiResponding(false);
-      } catch (err) {
-        setChat((prev) => [
-          ...prev,
-          { role: "assistant", content: "⚠️ Error connecting to AI" },
+          { role: "assistant", content: errorMessage },
         ]);
         setAiResponding(false);
       }
