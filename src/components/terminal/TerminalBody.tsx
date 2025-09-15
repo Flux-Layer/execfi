@@ -131,7 +131,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         setCode(value);
       } else if (curQuestion?.key === "token-address-selection") {
         const token = tokenSelections?.find((t) => t?.id === Number(value));
-        setSelectedToken(token); // cek saldo akan jalan otomatis
+        setSelectedToken(token);
       }
 
       setQuestions((pv) =>
@@ -144,7 +144,6 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         return questions[idx + 1] || null;
       });
     } else {
-      // user prompt ke AI
       setChat((prev) => [...prev, { role: "user", content: value }]);
       setText("");
 
@@ -183,6 +182,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
             {
               role: "assistant",
               content: {
+                message: "👉 Please choose the token by number (No).",
                 type: "token-table",
                 tokens: tokens.data.map((t, i) => ({
                   id: i + 1,
@@ -196,6 +196,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
               },
             },
           ]);
+          
+          
 
           setQuestions([
             {
@@ -215,7 +217,6 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           });
         }
 
-        // tambahin raw output AI juga, tapi append
         setChat((prev) => [
           ...prev,
           { role: "assistant", content: JSON.stringify(data.output) },

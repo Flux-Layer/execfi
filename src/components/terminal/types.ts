@@ -2,6 +2,7 @@ export type ChatContent =
   | string
   | {
       type: "token-table";
+      message?: string;
       tokens: {
         id: number;
         chainId: number;

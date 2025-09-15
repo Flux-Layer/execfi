@@ -1,4 +1,9 @@
 import { ChatMessage } from "./types";
+import { NETWORK_TO_CHAIN_ID } from "@/constants/chainIds";
+
+const CHAIN_ID_TO_NAME: Record<number, string> = Object.fromEntries(
+  Object.entries(NETWORK_TO_CHAIN_ID).map(([name, id]) => [id, name])
+);
 
 const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
   return (
@@ -9,31 +14,42 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
           {typeof c.content === "string" ? (
             <p
               className={
-                c.role === "assistant"
-                  ? "text-emerald-300"
-                  : "text-cyan-300"
+                c.role === "assistant" ? "text-emerald-300" : "text-cyan-300"
               }
             >
               {c.content}
             </p>
           ) : c.content?.type === "token-table" ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto space-y-2">
+              {c.content.message && (
+                <p className="text-yellow-300 font-semibold">
+                  {c.content.message}
+                </p>
+              )}
               <table className="w-full border-collapse border border-slate-700 text-sm">
                 <thead className="bg-slate-800 text-slate-200">
                   <tr>
-                    <th>No</th>
-                    <th>Logo</th>
-                    <th>Name</th>
-                    <th>Symbol</th>
-                    <th>Chain</th>
-                    <th>Address</th>
+                    <th className="border border-slate-700 px-3 py-2">No</th>
+                    <th className="border border-slate-700 px-3 py-2">Logo</th>
+                    <th className="border border-slate-700 px-3 py-2">Name</th>
+                    <th className="border border-slate-700 px-3 py-2">
+                      Symbol
+                    </th>
+                    <th className="border border-slate-700 px-3 py-2">
+                      Network
+                    </th>
+                    <th className="border border-slate-700 px-3 py-2">
+                      Address
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {c.content.tokens.map((t) => (
                     <tr key={t.id} className="hover:bg-slate-800/50">
-                      <td>{t.id}</td>
-                      <td>
+                      <td className="border border-slate-700 px-3 py-2">
+                        {t.id}
+                      </td>
+                      <td className="border border-slate-700 px-3 py-2">
                         {t.logoURI ? (
                           <img
                             src={t.logoURI}
@@ -44,15 +60,21 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
                           "—"
                         )}
                       </td>
-                      <td>{t.name}</td>
-                      <td>
+                      <td className="border border-slate-700 px-3 py-2">
+                        {t.name}
+                      </td>
+                      <td className="border border-slate-700 px-3 py-2">
                         {t.symbol}
                         {t.verified && (
                           <span className="ml-1 text-emerald-400">✔</span>
                         )}
                       </td>
-                      <td>{t.chainId}</td>
-                      <td className="font-mono text-xs break-all">{t.address}</td>
+                      <td className="border border-slate-700 px-3 py-2">
+                        {CHAIN_ID_TO_NAME[t.chainId] || `Chain ${t.chainId}`}
+                      </td>
+                      <td className="border border-slate-700 px-3 py-2 font-mono text-[0.6rem] break-all">
+                        {t.address}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
