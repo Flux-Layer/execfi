@@ -13,13 +13,14 @@ import PreviousQuestions from "./PreviousQuestions";
 import CurrentQuestion from "./CurrentQuestion";
 import ChatHistory from "./ChatHistory";
 import CurLine from "./CurLine";
+import { useBalance } from "wagmi";
+import { formatUnits } from "viem";
 
 const QUESTIONS: QuestionType[] = [
   { key: "email", text: "To start, could you give us ", postfix: "your email?", complete: false, value: "" },
   { key: "code", text: "Enter the code sent to ", postfix: "your email", complete: false, value: "" },
 ];
 
-// ✅ type hasil dari fetcher
 interface TokenResponse {
   data: {
     chainId: number;
@@ -32,7 +33,7 @@ interface TokenResponse {
 }
 
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
-  const { sendTx } = useZeroDevSA();
+  const { saAddress } = useZeroDevSA();
   const { authenticated, ready } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
 
@@ -47,6 +48,10 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   const [selectedToken, setSelectedToken] = useState<any>(null);
   const [aiResponding, setAiResponding] = useState(false);
 
+  // transfer intent dari AI
+  const [transferAmount, setTransferAmount] = useState<number | null>(null);
+  const [transferRecipient, setTransferRecipient] = useState<string>("");
+
   useEffect(() => {
     if (ready && authenticated) {
       setQuestions([]);
@@ -57,6 +62,65 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
     }
   }, [ready, authenticated]);
 
+  // wagmi balance hook
+  const balanceQuery = useBalance({
+    address: saAddress as `0x${string}` | undefined,
+    token: selectedToken?.symbol === "ETH" ? undefined : (selectedToken?.address as `0x${string}` | undefined),
+    query: {
+      enabled: Boolean(saAddress && selectedToken),
+      refetchOnWindowFocus: false,
+    },
+  });
+  
+
+  // cek saldo setiap kali balance berubah
+  useEffect(() => {
+
+    console.log("▶ useEffect fired");
+    console.log("selectedToken:", selectedToken);
+    console.log("balanceQuery.data:", balanceQuery.data);
+    console.log("transferAmount:", transferAmount);
+
+
+    if (!balanceQuery.data || !selectedToken) return;
+
+    const balance = parseFloat(
+      formatUnits(balanceQuery.data.value, balanceQuery.data.decimals)
+    );
+
+    console.log("🔎 Selected token:", selectedToken);
+    console.log("🔎 Balance raw:", balanceQuery.data.value.toString());
+    console.log("🔎 Decimals:", balanceQuery.data.decimals);
+    console.log("🔎 Parsed balance:", balance);
+    console.log("🔎 Transfer amount:", transferAmount);
+
+    if (balance <= 0) {
+      setChat((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `⚠️ Insufficient balance. You only have 0 ${selectedToken.symbol}`,
+        },
+      ]);
+    } else if (transferAmount !== null && balance < transferAmount) {
+      setChat((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `⚠️ Insufficient balance. You only have ${balance} ${selectedToken.symbol}, but you want to send ${transferAmount}.`,
+        },
+      ]);
+    } else if (transferAmount !== null) {
+      setChat((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `✅ You have ${balance} ${selectedToken.symbol}, enough to send ${transferAmount}.`,
+        },
+      ]);
+    }
+  }, [balanceQuery.data, selectedToken, transferAmount]);
+
   const handleSubmitLine = async (value: string) => {
     if (curQuestion) {
       if (curQuestion?.key === "email") {
@@ -66,11 +130,12 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         loginWithCode({ code: value });
         setCode(value);
       } else if (curQuestion?.key === "token-address-selection") {
-        setSelectedToken(tokenSelections?.find((t) => t?.id === Number(value)));
+        const token = tokenSelections?.find((t) => t?.id === Number(value));
+        setSelectedToken(token); // cek saldo akan jalan otomatis
       }
 
       setQuestions((pv) =>
-        pv.map((q, i) =>
+        pv.map((q) =>
           q.key === curQuestion.key ? { ...q, complete: true, value } : q
         )
       );
@@ -79,6 +144,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         return questions[idx + 1] || null;
       });
     } else {
+      // user prompt ke AI
       setChat((prev) => [...prev, { role: "user", content: value }]);
       setText("");
 
@@ -90,9 +156,18 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           body: JSON.stringify({ prompt: value }),
         });
         const data = await res.json();
-        const detectedSymbol = data?.output?.[0]?.token?.symbol;
 
-        // ✅ pastikan tokens di-cast ke TokenResponse
+        const detectedSymbol = data?.output?.[0]?.token?.symbol;
+        const detectedAmount = data?.output?.[0]?.amount;
+        const detectedRecipient = data?.output?.[0]?.recipient;
+
+        setTransferAmount(
+          detectedAmount !== undefined && detectedAmount !== null
+            ? Number(detectedAmount)
+            : null
+        );
+        setTransferRecipient(detectedRecipient || "");
+
         const tokens: TokenResponse | null = detectedSymbol
           ? (await fetcher("", "/api/relay", {
               method: "POST",
@@ -101,11 +176,10 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           : null;
 
         if (tokens && Array.isArray(tokens.data)) {
-          // Simpan ke state selections
           setTokenSelections(tokens.data.map((t, i) => ({ id: i + 1, ...t })));
 
-          // Simpan ke chat sebagai tabel
-          setChat([
+          setChat((prev) => [
+            ...prev,
             {
               role: "assistant",
               content: {
@@ -123,9 +197,14 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
             },
           ]);
 
-          // Tambah pertanyaan follow-up
           setQuestions([
-            { key: "token-address-selection", text: "Choose the token ", postfix: "by number", complete: false, value: "" },
+            {
+              key: "token-address-selection",
+              text: "Choose the token ",
+              postfix: "by number",
+              complete: false,
+              value: "",
+            },
           ]);
           setCurQuestion({
             key: "token-address-selection",
@@ -136,7 +215,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           });
         }
 
-        // Simpan raw output AI juga
+        // tambahin raw output AI juga, tapi append
         setChat((prev) => [
           ...prev,
           { role: "assistant", content: JSON.stringify(data.output) },

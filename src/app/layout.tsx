@@ -2,12 +2,13 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { QCProvider } from "@providers/query-client.provider";
 import { NavDrawer } from "@components/rounded-drawer-nav";
 import PrivyAppProvider from "@providers/privy-provider";
 import { usePrivyEOA } from "@hooks/usePrivyEOA";
 import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { WagmiAppProvider } from "@providers/wagmi-provider"; // ⬅️ import baru
+import { QCProvider } from "@providers/query-client.provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,14 +26,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
         <PrivyAppProvider>
-          <QCProvider>
-            <NavDrawer />
-            <EOAInitializer />
-            {children}
-          </QCProvider>
+          <WagmiAppProvider>
+            <QCProvider>
+              <NavDrawer />
+              <EOAInitializer />
+              {children}
+            </QCProvider>
+          </WagmiAppProvider>
         </PrivyAppProvider>
       </body>
     </html>
