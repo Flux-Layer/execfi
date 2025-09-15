@@ -1,11 +1,11 @@
 "use client";
 import { usePrivy } from "@privy-io/react-auth";
-import useZeroDevSA from "@hooks/useZeroDevSA";
+import useBiconomySA from "@hooks/useBiconomySA";
 
 export default function Page() {
   const { ready, authenticated, login } = usePrivy();
-  const { loading, error, ownerAddress, saAddress, kernelAccountClient } =
-    useZeroDevSA();
+  const { loading, error, ownerAddress, saAddress, client, sendTx } =
+    useBiconomySA();
 
   if (!ready) return null;
   if (!authenticated) return <button onClick={login}>Log in</button>;
@@ -17,9 +17,9 @@ export default function Page() {
       {error && <div className="text-red-500">{error}</div>}
 
       <button
-        disabled={!kernelAccountClient || loading}
+        disabled={!client || loading}
         onClick={async () => {
-          const hash = await kernelAccountClient.sendTransaction({
+          const hash = await sendTx({
             to: "0x0000000000000000000000000000000000000000",
             value: BigInt(0) as any, // first op will deploy SA if needed
           });

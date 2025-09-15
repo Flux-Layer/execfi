@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       chainIds: requestData?.chainIds || [8453],
       term: requestData?.term || "",
       defaultList: false,
-      limit: requestData?.limit || 10,
+      limit: requestData?.limit || 5,
       depositAddressOnly: false,
       referrer: "relay.link",
     };

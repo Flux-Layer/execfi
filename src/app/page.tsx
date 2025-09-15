@@ -1,13 +1,13 @@
 "use client";
 
-import useZeroDevSA from "@hooks/useZeroDevSA";
+import useBiconomySA from "@/hooks/useBiconomySA";
 import PageBarLoader from "@components/loader";
 import { usePrivy } from "@privy-io/react-auth";
 import PromptTerminal from "@/components/terminal/PromptTerminal";
 
 export default function Home() {
   const privyInstance = usePrivy();
-  const { saAddress } = useZeroDevSA();
+  const { saAddress } = useBiconomySA();
 
   console.log({ saAddress });
   return (

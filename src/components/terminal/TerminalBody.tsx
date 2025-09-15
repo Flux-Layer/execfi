@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "@components/loader";
-import useZeroDevSA from "@/hooks/useZeroDevSA";
+import useBiconomySA from "@/hooks/useBiconomySA";
 import { fetcher } from "@/lib/utils/fetcher";
 import {
   parseIntent,
@@ -41,7 +41,7 @@ interface TokenResponse {
 }
 
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
-  const { saAddress } = useZeroDevSA();
+  const { saAddress } = useBiconomySA();
   const { authenticated, ready } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
 
