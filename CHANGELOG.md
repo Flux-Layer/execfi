@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - AbstractJS Transaction Execution API (2025-09-17 15:00 UTC)
+
+#### Critical Transaction Flow Fix
+- **Fixed "Invalid response from Biconomy client - missing wait method" error** by implementing correct AbstractJS API pattern
+- **Updated transaction execution** from legacy `sendTransaction` to AbstractJS `sendUserOperation` pattern
+- **Implemented proper receipt handling** using `waitForUserOperationReceipt` method
+- **Resolved API mismatch** between expected Biconomy v3 pattern and actual AbstractJS v4 API
+
+#### Technical Changes
+- **Updated useBiconomySA.tsx sendTx method**:
+  ```typescript
+  // ❌ Old: const { wait } = await client.sendTransaction({...});
+  // ✅ New: const hash = await client.sendUserOperation({ calls: [{...}] });
+  //         const receipt = await client.waitForUserOperationReceipt({ hash });
+  ```
+- **Updated execute.ts transaction flow**:
+  ```typescript
+  // ❌ Old: const result = await biconomyClient.sendTransaction(txParams);
+  // ✅ New: const hash = await biconomyClient.sendUserOperation({ calls: [...] });
+  //         const receipt = await biconomyClient.waitForUserOperationReceipt({ hash });
+  ```
+- **Enhanced client validation** to check for `sendUserOperation` and `waitForUserOperationReceipt` methods
+- **Improved error handling** specific to AbstractJS user operation patterns
+- **Updated success validation** to use AbstractJS receipt structure
+
+#### AbstractJS API Compliance
+- **Calls pattern**: Transactions now use `calls` array format as required by AbstractJS
+- **Hash-based waiting**: Proper hash-based receipt polling instead of legacy wait method
+- **Receipt extraction**: Correctly extract transaction hash from user operation receipt
+- **Error codes**: Updated error codes to reflect user operation vs transaction distinction
+
+### Fixed - AbstractJS getAddress Method Compatibility (2025-09-17 14:30 UTC)
+
+#### Critical Method Call Fix
+- **Fixed "e.getAddress is not a function" error** in transaction execution
+- **Updated address retrieval pattern** to use AbstractJS client structure instead of legacy getAddress() method
+- **Enhanced parameter passing** to provide userAddress to execution functions
+- **Maintained logging compatibility** with smart account address display
+
+#### Technical Changes
+- **Updated executeNativeTransfer()** to accept optional userAddress parameter
+- **Modified executeTransferPipeline()** to pass userAddress from orchestration context
+- **Fixed address resolution pattern**:
+  ```typescript
+  // ❌ Old: const saAddress = await biconomyClient.getAddress();
+  // ✅ New: const saAddress = userAddress || biconomyClient.account?.address || "unknown";
+  ```
+- **Maintained backward compatibility** for logging and debugging output
+
+### Fixed - Biconomy v4 AbstractJS Migration (2025-09-17 14:15 UTC)
+
+#### Critical SDK Migration - Biconomy v3 → v4 AbstractJS
+- **Fixed "undefined has no properties" error** by migrating from legacy Biconomy v3 SDK to v4 AbstractJS
+- **Updated smart account creation** to use `toNexusAccount` with proper `chainConfiguration` pattern
+- **Migrated transaction execution** to use Nexus smart account client pattern
+- **Resolved API compatibility issues** that were causing transaction failures after token selection
+
+#### Package Dependencies
+- **Replaced legacy packages**:
+  - ❌ `@biconomy/account@^4.5.7`
+  - ❌ `@biconomy/bundler@^3.1.4`
+  - ❌ `@biconomy/paymaster@^3.1.4`
+  - ❌ `@biconomy/use-aa@^1.1.1`
+  - ✅ `@biconomy/abstractjs@^1.1.6` (unified SDK)
+
+#### Smart Account Implementation Updates
+- **New Nexus account creation pattern**:
+  ```typescript
+  const nexusAccount = await toNexusAccount({
+    signer: viemSigner,
+    chainConfiguration: {
+      chain,
+      transport: http(rpcUrl),
+      version: getMEEVersion(MEEVersion.V2_1_0)
+    }
+  });
+  ```
+- **Updated smart account client**:
+  ```typescript
+  const saClient = createSmartAccountClient({
+    account: nexusAccount,
+    transport: http(bundlerUrl)
+  });
+  ```
+- **Removed manual validation module setup** (Nexus handles internally)
+- **Simplified provider architecture** (AbstractJS doesn't require provider wrapper)
+
+#### Transaction Execution
+- **Maintained compatible transaction pattern** that works with both v3 and v4:
+  ```typescript
+  const { wait } = await client.sendTransaction({...});
+  const { receipt: { transactionHash }, success } = await wait();
+  ```
+- **Enhanced error handling** with detailed transaction response validation
+- **Improved debugging output** for better error diagnosis
+
+#### Architecture Improvements
+- **Removed legacy BiconomyProvider** dependency from `@biconomy/use-aa`
+- **Updated imports** to use unified AbstractJS SDK exports
+- **Fixed TypeScript compilation** with correct v4 type definitions
+- **Maintained backward compatibility** for existing transaction flows
+
 ### Fixed - Biconomy Transaction Execution (2025-09-17 17:30 UTC)
 
 #### Critical API Fix - Biconomy SDK Integration

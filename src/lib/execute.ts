@@ -14,7 +14,8 @@ export class ExecutionError extends Error {
  */
 export async function executeNativeTransfer(
   biconomyClient: any,
-  norm: NormalizedNativeTransfer
+  norm: NormalizedNativeTransfer,
+  userAddress?: `0x${string}`
 ): Promise<string> {
   try {
     // Validate client
@@ -26,7 +27,8 @@ export async function executeNativeTransfer(
     }
 
     // Get smart account address for logging
-    const saAddress = await biconomyClient.getAddress();
+    // With AbstractJS, we get the address from the client's account property or use the passed userAddress
+    const saAddress = userAddress || biconomyClient.account?.address || "unknown";
     console.log(
       `Executing transfer from SA ${saAddress} to ${norm.to} on chain ${
         norm.chainId
@@ -43,33 +45,77 @@ export async function executeNativeTransfer(
       data: "0x", // No data for native transfer
     });
 
-    console.log({ biconomyClient });
-    const signerAddress = await biconomyClient?.signer?.getAddress?.()
-    console.log({ signerAddress})
-    // Execute transaction via Biconomy Smart Account using correct SDK format
-    const biconomyTransactionResponse = await biconomyClient.sendTransaction({
-          to: norm.to,
-          value: norm.amountWei,
-          data: "0x", // No data for native transfer
+    console.log("🔍 Debug biconomyClient:", {
+      biconomyClient,
+      sendUserOperationMethod: typeof biconomyClient?.sendUserOperation,
+      waitForUserOperationReceiptMethod: typeof biconomyClient?.waitForUserOperationReceipt,
+      keys: biconomyClient ? Object.keys(biconomyClient) : []
     });
 
-    console.log({ biconomyTransactionResponse });
+    // Check if client has the correct AbstractJS methods
+    if (!biconomyClient?.sendUserOperation || typeof biconomyClient.sendUserOperation !== 'function') {
+      throw new ExecutionError(
+        "Biconomy client missing sendUserOperation method - client not properly initialized",
+        "CLIENT_MISSING_METHOD"
+      );
+    }
 
+    if (!biconomyClient?.waitForUserOperationReceipt || typeof biconomyClient.waitForUserOperationReceipt !== 'function') {
+      throw new ExecutionError(
+        "Biconomy client missing waitForUserOperationReceipt method - client not properly initialized",
+        "CLIENT_MISSING_METHOD"
+      );
+    }
 
-    console.log({ wait: biconomyTransactionResponse?.wait });
+    const userOpParams = {
+      calls: [{
+        to: norm.to,
+        value: norm.amountWei,
+        data: "0x", // No data for native transfer
+      }]
+    };
 
-    // Wait for transaction and get the hash
-    const {
-      receipt: { transactionHash },
-      success,
-    } = await biconomyTransactionResponse?.wait();
+    console.log("🚀 Sending user operation with params:", userOpParams);
 
-    console.log({ transactionHash, success });
+    // Execute transaction via Biconomy Smart Account using correct AbstractJS pattern
+    const hash = await biconomyClient.sendUserOperation(userOpParams);
+
+    console.log("📧 User operation hash:", hash);
+
+    if (!hash) {
+      throw new ExecutionError(
+        "Transaction failed: No hash returned from sendUserOperation",
+        "NO_TRANSACTION_HASH"
+      );
+    }
+
+    console.log("⏳ Waiting for user operation receipt...");
+
+    // Wait for user operation receipt using AbstractJS pattern
+    const receipt = await biconomyClient.waitForUserOperationReceipt({ hash });
+
+    console.log("📋 User operation receipt:", receipt);
+
+    if (!receipt) {
+      throw new ExecutionError(
+        "Transaction wait failed: No receipt returned",
+        "NO_RECEIPT"
+      );
+    }
+
+    // Extract transaction hash from receipt
+    const transactionHash = receipt.receipt?.transactionHash || hash;
+
+    // Check if the user operation was successful (AbstractJS pattern)
+    const success = receipt.success !== false; // Default to true if success field is not present
+
+    console.log({ transactionHash, success, receipt });
 
     if (!success) {
       throw new ExecutionError(
-        "Transaction failed during execution",
-        "TRANSACTION_FAILED"
+        "User operation execution failed",
+        "USER_OPERATION_FAILED",
+        transactionHash
       );
     }
 
@@ -237,15 +283,16 @@ export async function executeTransferPipeline(
   options: {
     waitForConfirmation?: boolean;
     timeoutMs?: number;
+    userAddress?: `0x${string}`;
   } = {}
 ): Promise<{
   txHash: string;
   confirmed?: boolean;
 }> {
-  const { waitForConfirmation = true, timeoutMs = 30000 } = options;
+  const { waitForConfirmation = true, timeoutMs = 30000, userAddress } = options;
 
   // Execute the transaction
-  const txHash = await executeNativeTransfer(biconomyClient, norm);
+  const txHash = await executeNativeTransfer(biconomyClient, norm, userAddress);
 
   // Optionally wait for confirmation
   if (waitForConfirmation) {

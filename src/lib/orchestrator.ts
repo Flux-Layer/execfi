@@ -134,6 +134,7 @@ export async function orchestrateTransaction(
     const { txHash } = await executeTransferPipeline(ctx.biconomyClient, norm, {
       waitForConfirmation: true,
       timeoutMs: 30000,
+      userAddress: ctx.userAddress,
     });
 
     // Update idempotency status

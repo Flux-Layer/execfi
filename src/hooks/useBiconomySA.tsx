@@ -3,12 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { usePrivyEOA } from "./usePrivyEOA";
-import { createSmartAccountClient } from "@biconomy/account";
+import { createSmartAccountClient, toNexusAccount, getMEEVersion, MEEVersion } from "@biconomy/abstractjs";
 import type { Address } from "viem";
 import { createWalletClient, custom, http } from "viem";
 import { base, mainnet, polygon, arbitrum } from "viem/chains";
 import { getEmbeddedConnectedWallet } from "@privy-io/react-auth";
-import { ECDSAOwnershipValidationModule, DEFAULT_ECDSA_OWNERSHIP_MODULE } from "@biconomy/account";
 
 const RPC_URLS: Record<number, string> = {
   8453: `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
@@ -95,36 +94,37 @@ export default function useBiconomySA(
 
 
 
-          const signer = provider?.getSigner?.()
-
-          console.log({provider})
-
-          console.log({signer})
-
-         const validationModule = await ECDSAOwnershipValidationModule.create({
-    signer: viemSigner,
-    moduleAddress: DEFAULT_ECDSA_OWNERSHIP_MODULE // This is a Biconomy constant
-});
-
-
-          const saClient = await createSmartAccountClient({
-             provider ,
+          // Create Nexus account using the new AbstractJS pattern
+          const nexusAccount = await toNexusAccount({
             signer: viemSigner,
-            bundlerUrl: process.env.NEXT_PUBLIC_BICONOMY_BUNDLER!,
-            paymasterUrl: process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER, // Optional for MVP
-            rpcUrl,
-            chainId,
-            defaultValidationModule: validationModule, // Use the `validationModule` we initialized above
-    activeValidationModule: validationModule // Use the `validationModule` we initialized above
-
+            chainConfiguration: {
+              chain,
+              transport: http(rpcUrl),
+              version: getMEEVersion(MEEVersion.V2_1_0) // Use the latest MEE version
+            }
+            // Nexus handles validation modules automatically
           });
 
-          console.log({viemSigner})
+
+          const bundlerUrl = process.env.NEXT_PUBLIC_BICONOMY_BUNDLER!;
+          const paymasterUrl = process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER;
+
+          console.log({ bundlerUrl, paymasterUrl, chainId, rpcUrl });
+
+          // Create smart account client with Nexus account
+          const saClient = createSmartAccountClient({
+            account: nexusAccount,
+            transport: http(bundlerUrl),
+            // Paymaster configuration can be added here if needed
+          });
+
+          console.log("✅ Nexus account created:", nexusAccount.address)
 
           setClient(saClient);
           setCurrentChainId(chainId);
 
-          const addr = await saClient.getAddress();
+          // Use the Nexus account address directly
+          const addr = nexusAccount.address;
           console.log({ addr });
           setSaAddress(addr as Address);
         } catch (e: any) {
@@ -143,21 +143,27 @@ export default function useBiconomySA(
       if (!client) throw new Error("Client not initialized");
 
       try {
-        // Use the correct Biconomy SDK format
-        const { wait } = await client.sendTransaction({
-          to: request.to,
-          data: request?.data ?? "0x",
-          value: request?.value ? BigInt(request.value) : BigInt(0),
+        // Use the correct AbstractJS pattern with sendUserOperation
+        const hash = await client.sendUserOperation({
+          calls: [{
+            to: request.to,
+            data: request?.data ?? "0x",
+            value: request?.value ? BigInt(request.value) : BigInt(0),
+          }]
         });
 
-        // Wait for transaction and get the hash
-        const {
-          receipt: { transactionHash },
-          success,
-        } = await wait();
+        console.log("📧 User operation hash:", hash);
 
-        if (!success) {
-          throw new Error("Transaction failed during execution");
+        // Wait for the user operation receipt using AbstractJS pattern
+        const receipt = await client.waitForUserOperationReceipt({ hash });
+
+        console.log("📋 User operation receipt:", receipt);
+
+        // Extract transaction hash from receipt
+        const transactionHash = receipt.receipt?.transactionHash || hash;
+
+        if (!transactionHash) {
+          throw new Error("Transaction failed: No transaction hash in receipt");
         }
 
         console.log(`✅ Tx sent on chain ${currentChainId}:`, transactionHash);
