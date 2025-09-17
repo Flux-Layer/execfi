@@ -25,6 +25,12 @@ export type ChatContent =
       type: "clarification";
       question: string;
       missing: string[];
+    }
+  | {
+      type: "explorer-link";
+      url: string;
+      text: string;
+      explorerName: string;
     };
 
 export type ChatMessage = {

@@ -9,11 +9,25 @@ const NativeTokenSchema = z.object({
   decimals: z.literal(18),
 });
 
+// Token schema for ERC-20 transfers
+const ERC20TokenSchema = z.object({
+  type: z.literal('erc20'),
+  symbol: z.string(),
+  decimals: z.number().optional(), // Will be resolved during normalization
+  address: z.string().optional(), // Will be resolved during normalization
+});
+
+// Union token schema
+const TokenSchema = z.union([
+  NativeTokenSchema,
+  ERC20TokenSchema,
+]);
+
 // Transfer intent schema
 const TransferIntentSchema = z.object({
   action: z.literal('transfer'),
   chain: z.union([z.string(), z.number()]), // "base" | 8453
-  token: NativeTokenSchema,
+  token: TokenSchema,
   amount: z.string(), // decimal string or "MAX"
   recipient: z.string(), // 0x address or ENS
 });

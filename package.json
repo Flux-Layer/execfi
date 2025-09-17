@@ -16,6 +16,7 @@
     "@biconomy/account": "^4.5.7",
     "@biconomy/bundler": "^3.1.4",
     "@biconomy/paymaster": "^3.1.4",
+    "@biconomy/use-aa": "^1.1.1",
     "@privy-io/react-auth": "^2.24.0",
     "@privy-io/wagmi": "^1.0.6",
     "@tanstack/react-query": "^5.87.4",
@@ -33,8 +34,9 @@
     "react-dom": "19.1.0",
     "react-icons": "^5.5.0",
     "tailwind-merge": "^3.3.1",
-    "viem": "^2.37.5",
-    "wagmi": "^2.16.9"
+    "viem": "^2.36.1",
+    "wagmi": "^2.16.9",
+    "zod": "^4.1.9"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

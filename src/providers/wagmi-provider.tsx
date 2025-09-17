@@ -7,7 +7,7 @@ import { base } from "wagmi/chains";
 const config = createConfig({
   chains: [base],
   transports: {
-    [base.id]: http("https://base-mainnet.g.alchemy.com/v2/RPaPFgRE5Jopa1P1mHlyf_Bil8k_dbyq"),
+    [base.id]: http(),
   },
 });
 

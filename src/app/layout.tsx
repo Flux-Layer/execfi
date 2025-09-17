@@ -9,6 +9,8 @@ import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { WagmiAppProvider } from "@providers/wagmi-provider"; // ⬅️ import baru
 import { QCProvider } from "@providers/query-client.provider";
+import { createConfig, http } from "wagmi";
+import { base } from "viem/chains";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,9 +33,10 @@ export default function RootLayout({
         <PrivyAppProvider>
           <WagmiAppProvider>
             <QCProvider>
-              <NavDrawer />
-              <EOAInitializer />
-              {children}
+
+            <NavDrawer />
+            <EOAInitializer />
+            {children}
             </QCProvider>
           </WagmiAppProvider>
         </PrivyAppProvider>

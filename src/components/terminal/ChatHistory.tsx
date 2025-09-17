@@ -100,6 +100,17 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
                 </tbody>
               </table>
             </div>
+          ) : c.content?.type === "explorer-link" ? (
+            <div className="space-y-2">
+              <a
+                href={c.content.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 underline transition-colors"
+              >
+                🔗 {c.content.text}
+              </a>
+            </div>
           ) : null}
         </div>
       ))}

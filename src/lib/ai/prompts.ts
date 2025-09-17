@@ -21,6 +21,18 @@ SUCCESS SCHEMA (when all fields are clear):
   }
 }
 
+OR for ERC-20 tokens:
+{
+  "ok": true,
+  "intent": {
+    "action": "transfer",
+    "chain": "base",
+    "token": {"type": "erc20", "symbol": "USDC"},
+    "amount": "10.5",
+    "recipient": "0x..."
+  }
+}
+
 CLARIFY SCHEMA (when fields missing/ambiguous):
 {
   "ok": false,
@@ -31,15 +43,28 @@ CLARIFY SCHEMA (when fields missing/ambiguous):
 SUPPORTED:
 - Actions: "transfer" only (MVP)
 - Chains: "base", "baseSepolia", or "base-sepolia" (all map to Base network)
-- Tokens: native ETH only
+- Tokens:
+  * Native: {"type": "native", "symbol": "ETH", "decimals": 18}
+  * ERC-20: {"type": "erc20", "symbol": "USDC"} or {"type": "erc20", "symbol": "WETH"}, etc.
 - Amount: decimal string or "MAX"
 
+TOKEN PARSING RULES:
+- If user says "ETH" without context → use native ETH
+- If user says "eth", "usdc", "weth", "dai" → use erc20 type
+- If unclear which token → return clarify
+
 EXAMPLES:
-Input: "send 0.01 eth to 0x1234..."
+Input: "send 0.01 ETH to 0x1234..."
 Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.01","recipient":"0x1234..."}}
 
-Input: "send 0.0002 ETH on baseSepolia to 0x1411..."
-Output: {"ok":true,"intent":{"action":"transfer","chain":"baseSepolia","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.0002","recipient":"0x1411..."}}
+Input: "transfer 0.0001 eth on base sepolia to 0x1411..."
+Output: {"ok":true,"intent":{"action":"transfer","chain":"baseSepolia","token":{"type":"erc20","symbol":"ETH"},"amount":"0.0001","recipient":"0x1411..."}}
+
+Input: "send 10 USDC to 0x1234..."
+Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"erc20","symbol":"USDC"},"amount":"10","recipient":"0x1234..."}}
+
+Input: "transfer 0.5 weth on base sepolia to 0x1411..."
+Output: {"ok":true,"intent":{"action":"transfer","chain":"baseSepolia","token":{"type":"erc20","symbol":"WETH"},"amount":"0.5","recipient":"0x1411..."}}
 
 Input: "transfer some eth"
 Output: {"ok":false,"clarify":"How much ETH should I transfer?","missing":["amount","recipient"]}

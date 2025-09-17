@@ -1,10 +1,14 @@
-# AGENTS.md — Prompt→Transaction Agent System (Kentank)
+# AGENTS.md — Prompt→Transaction Agent System (Kentank, Biconomy)
 
-> **Mission.** Turn natural language into **safe, verifiable on‑chain actions** using Privy (embedded EOA) → ZeroDev/Kernel (EP‑0.7, Kernel v3.1) → LI.FI (routing). This document specifies the **agent roster**, **state machine**, **schemas**, **policies**, and **execution wiring**. It is the authoritative reference for the runtime orchestrator.
+> **Mission.** Turn natural language into **safe, verifiable on-chain actions** using Privy (embedded EOA) → Biconomy Smart Accounts (ERC-4337) → LI.FI (routing).  
+> This document specifies the **agent roster**, **state machine**, **schemas**, **policies**, and **execution wiring**. It is the authoritative reference for the runtime orchestrator.
 
 > **Prime directives**
 >
-> 1. Non‑custodial by construction. 2) Smart‑accounts‑only. 3) JSON contracts over prose. 4) Safety > convenience.
+> 1. Non-custodial by construction.
+> 2. Smart-accounts-only.
+> 3. JSON contracts over prose.
+> 4. Safety > convenience.
 
 ---
 
@@ -16,14 +20,14 @@ User (Terminal)
     → Normalizer (chains/tokens/amounts/addresses)
       → Policy/Validator (caps, allowlists, balances, invariants)
         → Planner (choose op: transfer | swap | bridge | bridge_swap)
-          → Simulator (dry‑run / estimation / quote staleness)
-            → Executor (ZeroDev Kernel client / LI.FI)
+          → Simulator (gas estimate / quote freshness)
+            → Executor (Biconomy client / LI.FI)
               → Monitor (receipts, LI.FI status)
                 → Notifier (terminal lines)
                   → Journal (telemetry, idempotency store)
 ```
 
-Data never stored: private keys, mnemonics, session secrets.
+**Never stored**: private keys, mnemonics, session secrets.
 
 ---
 
@@ -37,16 +41,9 @@ Data never stored: private keys, mnemonics, session secrets.
                    ok=false   │               │                 │                  │                    │                     │                │
                            ┌──▼───┐           │                 │                  │                    │                fail │           success/fail
                            │CLARIFY│──────────┘                 │                  │                    │                     │                │
-                           └──────┘                              │               retry/backoff        re‑quote               ▼                ▼
+                           └──────┘                              │               retry/backoff        re-quote               ▼                ▼
                                                               FAIL_POLICY/INPUT  ───────────────────────────▶        ERROR ◀────────────── DONE
 ```
-
-**Transitions**
-
-- `INTENT → CLARIFY` when required fields are missing/ambiguous.
-- `VALIDATE → ERROR` on policy/balance violations.
-- `SIMULATE → PLAN` if quote expired or parameters change.
-- `EXECUTE → MONITOR` after UserOp hash / route execution starts.
 
 ---
 
@@ -60,7 +57,7 @@ export type IntentSuccess = {
   intent:
     | {
         action: "transfer";
-        chain: string | number; // "base" | 8453
+        chain: string | number;
         token: { type: "native"; symbol: "ETH"; decimals: 18 };
         amount: string; // decimal or "MAX"
         recipient: string; // 0x.. or ENS
@@ -68,28 +65,28 @@ export type IntentSuccess = {
     | {
         action: "swap" | "bridge" | "bridge_swap";
         fromChain: string | number;
-        toChain?: string | number; // required for bridge/bridge_swap
-        fromToken: string; // symbol or address
-        toToken: string; // symbol or address
-        amount: string; // decimal or "MAX"
+        toChain?: string | number;
+        fromToken: string;
+        toToken: string;
+        amount: string;
       };
 };
 
 export type IntentClarify = {
   ok: false;
-  clarify: string; // one short question
-  missing: string[]; // fields needed
+  clarify: string;
+  missing: string[];
 };
 ```
 
-### 2.2 NormalizedIntent (app internal)
+### 2.2 NormalizedIntent (internal)
 
 ```ts
 export type NormalizedIntent =
   | {
       kind: "native-transfer";
       chainId: number;
-      amountWei: bigint; // resolves MAX -> balance - gasHeadroom
+      amountWei: bigint;
       to: `0x${string}`;
     }
   | {
@@ -102,12 +99,12 @@ export type NormalizedIntent =
   | {
       kind: "swap" | "bridge" | "bridge-swap";
       fromChainId: number;
-      toChainId: number; // = fromChainId for same-chain swap
+      toChainId: number;
       fromToken: { address: `0x${string}`; symbol: string; decimals: number };
       toToken: { address: `0x${string}`; symbol: string; decimals: number };
       amountWei: bigint;
-      slippageBps: number; // default 50 bps
-      deadlineSec: number; // default now + 15m
+      slippageBps: number;
+      deadlineSec: number;
     };
 ```
 
@@ -116,7 +113,7 @@ export type NormalizedIntent =
 ```ts
 export type ExecEnvelope = {
   userId: string;
-  promptId: string; // idempotency key
+  promptId: string;
   intent: IntentSuccess["intent"];
   norm: NormalizedIntent;
   policySnapshot: PolicySnapshot;
@@ -127,233 +124,195 @@ export type ExecEnvelope = {
 
 ## 3) Normalizer
 
-**Responsibilities**
+- Resolve chain (e.g. `"base" → 8453`).
+- Resolve tokens (symbol → address/decimals via registry).
+- ENS → 0x; checksum all addresses.
+- Parse `amount` → wei; if `"MAX"`, compute `balance - gasHeadroom`.
 
-- Resolve chain identifiers (name→chainId)
-- Resolve tokens (symbol/address→address/decimals) using a registry per chain
-- ENS→0x (if ENS provided); checksum addresses
-- Parse `amount` → `amountWei`; if `MAX`, compute from balances minus gas headroom
-
-**Inputs**: `IntentSuccess.intent`
-
-**Outputs**: `NormalizedIntent`
-
-**Failure**: `UNSUPPORTED_CHAIN`, `TOKEN_UNKNOWN`, `ADDRESS_INVALID`, `BALANCE_QUERY_FAILED`
+Failures: `CHAIN_UNSUPPORTED`, `TOKEN_UNKNOWN`, `ADDRESS_INVALID`.
 
 ---
 
 ## 4) Policy/Validator
 
-**Hard checks**
+- Chain allowlist.
+- EIP-55 checksum; not zero address.
+- Amount > 0 and ≤ balance-gas.
+- Caps: per-tx/day in USD.
+- Token/contract allowlists.
 
-- Chain allowlist
-- Address: EIP‑55 checksum, not zero, not disallowed
-- Amount: `> 0` and `≤ balance - gasHeadroom`
-- Caps: per‑tx and per‑day USD equivalent (if price feed present)
-- Token/contract allowlists; method allowlist (for execution)
-
-**Outcomes**: pass → Planner; fail → ERROR with actionable message
+Fail → error with actionable message.
 
 ---
 
 ## 5) Planner
 
-**Mapping**
+- `transfer` + native → native transfer.
+- `transfer` + ERC-20 → erc20 transfer (future).
+- `swap` / `bridge` / `bridge_swap` → LI.FI route.
 
-- `transfer` + native → `native-transfer`
-- `transfer` + ERC‑20 (future) → `erc20-transfer`
-- `swap`/`bridge`/`bridge_swap` → LI.FI route plan
-
-**Route policy (LI.FI)**
-
-- Prefer reputable bridges/DEXs
-- Min total fee; cap slippage
-- Enforce deadline; fail if route ETA or fees exceed thresholds
-
-**Outputs**
-
-- For native/erc20 transfer: a single tx spec
-- For LI.FI: a selected `route` (with metadata for UX summary)
+Route policy: pick reputable routes, enforce slippage cap, ETA/deadline checks.
 
 ---
 
 ## 6) Simulator
 
-**Native/ERC‑20 transfers**
+- **Transfers**: gas estimate, verify balance covers `value+gas`.
+- **LI.FI**: quote freshness; re-quote if expired.
 
-- Estimate gas; verify balance covers `value + gas`
-
-**LI.FI**
-
-- Ensure quote freshness (within validity window)
-- Re‑quote if expired/stale or if user changed parameters
-
-**Failure**: `SIMULATION_FAILED`, `QUOTE_EXPIRED`
+Failures: `SIMULATION_FAILED`, `QUOTE_EXPIRED`.
 
 ---
 
-## 7) Executor
-
-**Kernel client from Privy**
+## 7) Executor (Biconomy client)
 
 ```ts
-async function getKernelClient(privyWallet: any) {
-  /* pattern in CLAUDE.md */
+import { createSmartAccountClient } from "@biconomy/account";
+
+async function getBiconomyClient(privyWallet: any) {
+  const eip1193 = await privyWallet.getEthereumProvider();
+  return await createSmartAccountClient({
+    signer: eip1193,
+    bundlerUrl: process.env.NEXT_PUBLIC_BUNDLER_RPC!,
+    biconomyPaymasterApiKey: process.env.NEXT_PUBLIC_BICONOMY_API_KEY,
+    chainId: 8453, // Base (default)
+  });
 }
 ```
 
 **Native transfer**
 
 ```ts
-await kernelClient.sendTransaction({ to, value: amountWei });
+await biconomyClient.sendTransaction({ to, value: amountWei });
 ```
-
-**ERC‑20 transfer (future)**
-
-- If `spender` pull: `approve` → protocol executes `transferFrom`
-- If direct: call token `transfer(to, amountWei)` via `sendTransaction({ to: token, data })`
 
 **LI.FI**
 
 ```ts
 const routes = await lifi.getRoutes(params);
 const best = pickBestRoute(routes);
-await lifi.executeRoute(kernelClient as any, best);
+await lifi.executeRoute(biconomyClient, best);
 ```
 
-**Result**: `txHash` (native/ERC‑20) or LI.FI tracking id + per‑step tx hashes
+Result: tx hash(es) or LI.FI tracking id.
 
 ---
 
 ## 8) Monitor & notifier
 
-- Poll for receipt (native): `waitForUserOperationReceipt` or standard receipt
-- Poll LI.FI status (bridge/swap)
-- Stream updates to terminal (single‑line spinner + final line)
-- On success: `✅ Sent X on Chain — hash 0x…`
-- On failure: map to error taxonomy (below)
+- Poll receipts for txs via Biconomy SDK.
+- Poll LI.FI status for cross-chain ops.
+- Stream status to terminal (spinner → success/error).
+- Success: `✅ Sent X on Chain — hash 0x…`.
+- Errors: map to taxonomy.
 
 ---
 
-## 9) Error taxonomy (user‑facing)
+## 9) Error taxonomy
 
-- `OFF_POLICY_JSON` – AI did not emit JSON
-- `MISSING_FIELDS` – ask clarify question
-- `CHAIN_UNSUPPORTED` – list allowed chains
-- `ADDRESS_INVALID` – show checksum hint
-- `TOKEN_UNKNOWN` – ask for symbol/address
-- `INSUFFICIENT_FUNDS` – show required vs available + gas hint
-- `QUOTE_EXPIRED` – re‑quoting…
-- `SIMULATION_FAILED` – compact reason; suggest smaller amount
-- `BUNDLER_REJECTED` – display short reason; log detailed cause
+- `OFF_POLICY_JSON` – invalid AI output.
+- `MISSING_FIELDS` – clarify question.
+- `CHAIN_UNSUPPORTED` – list allowed chains.
+- `ADDRESS_INVALID` – checksum hint.
+- `TOKEN_UNKNOWN` – ask for symbol/address.
+- `INSUFFICIENT_FUNDS` – show required vs available.
+- `QUOTE_EXPIRED` – re-quoting.
+- `SIMULATION_FAILED` – suggest smaller amount.
+- `BUNDLER_REJECTED` – short reason; log detail.
 
-Always return **one‑line actionable** messages to the terminal.
+Always one-liner to user.
 
 ---
 
-## 10) Journaling, idempotency, and concurrency
+## 10) Journaling & idempotency
 
-- **Idempotency key**: `keccak256(userId || norm.kind || chainId || to || amountWei || tsBucket)`
-- Store last `promptId → status` for dedupe within TTL (e.g., 60s)
-- Single‑flight per user per prompt to avoid double sends
-- Persist: `{userId, intentJson, norm, planSummary, txHash?, status, error?}`
+- PromptId = hash of `(userId, kind, chainId, to, amountWei, tsBucket)`.
+- Deduplicate within 60s window.
+- Persist `{ userId, intentJson, norm, plan, txHash?, status, error? }`.
 
 ---
 
 ## 11) Config & constants
 
 ```
-SUPPORTED_CHAINS = { 8453: "base", 1: "mainnet", 137: "polygon", 42161: "arbitrum", 10: "optimism", 43114: "avalanche" }
+SUPPORTED_CHAINS = { 8453:"base", 1:"mainnet", 137:"polygon", 42161:"arbitrum", 10:"optimism", 43114:"avalanche" }
 DEFAULT_SLIPPAGE_BPS = 50
 DEFAULT_DEADLINE_MIN = 15
 DAILY_SPEND_LIMIT_USD = 100
 GAS_HEADROOM_MULT = 1.1
 ```
 
-Token registry per chain (symbol→address, decimals). Keep in `lib/registry.ts`.
-
 ---
 
 ## 12) Security posture
 
-- No secrets in logs; redact anything resembling seed/private key
-- Allowlists for contracts/bridges when executing via LI.FI
-- Optional **confirm gate** for large new recipients ("Type YES to confirm")
-- Consider **session keys** later (Kernel policy module): TTL, spend cap, contract allowlist, easy revoke
+- No secrets in logs.
+- Allowlist contracts for LI.FI.
+- Optional confirm gate for large/new recipients.
+- Future: session keys with TTL + spend caps.
 
 ---
 
 ## 13) Testing plan
 
-**Unit**
-
-- JSON sanitizer, intent schema validation
-- Normalizer: chain/token resolution, amount→wei, ENS→0x
-- Validator: caps, balances (mock viem `getBalance`)
-
-**Integration (Base Sepolia)**
-
-- Native transfer happy path; insuff. funds path
-- Re‑quote path for LI.FI (simulate expiry)
-
-**E2E**
-
-- Terminal prompt → execution → explorer link line displayed
+**Unit**: JSON parse, schema validation, normalization, validator.  
+**Integration**: Base Sepolia transfer (happy + insufficient funds).  
+**E2E**: Prompt → execution → explorer link shown.
 
 ---
 
-## 14) Reference pseudo‑code (end‑to‑end)
+## 14) Pseudo-code orchestration
 
 ```ts
 export async function orchestrate(prompt: string, ctx: Ctx) {
-  const intentRes = await parseIntent(prompt); // JSON only
+  const intentRes = await parseIntent(prompt);
   if (!intentRes.ok) return notifyClarify(intentRes);
 
   const norm = await normalize(intentRes.intent, ctx);
   await validate(norm, ctx);
 
-  const plan = await planFrom(norm, ctx); // tx spec or LI.FI route
+  const plan = await planFrom(norm, ctx);
   await simulate(plan, ctx);
 
-  const client = await getKernelClient(ctx.privyWallet);
-  const receiptOrId = await execute(plan, client, ctx);
+  const client = await getBiconomyClient(ctx.privyWallet);
+  const receipt = await execute(plan, client, ctx);
 
-  return monitorAndNotify(receiptOrId, plan, ctx);
+  return monitorAndNotify(receipt, plan, ctx);
 }
 ```
 
 ---
 
-## 15) UX copy contract (terminal)
+## 15) UX copy contract
 
-- Parsing OK → print normalized summary before execution
-- Success → `✅ Sent 0.002 ETH on Base — hash 0x…`
-- Failure → one‑line reason + next action (retry, top‑up, clarify)
+- Summary before execution.
+- Success → one-line with tx hash.
+- Failure → concise, actionable.
 
 ---
 
 ## 16) Extensibility roadmap
 
-- **ERC‑20 transfers** with `approve`/`transferFrom` patterns
-- **Permit (EIP‑2612)** for gasless approvals where supported
-- **Session keys** for agent‑driven micro‑ops (whitelists + TTL)
-- **Guardian/recovery** module for Kernel (opt‑in)
-- **Advanced intents**: DCA, limit orders (offchain monitoring, onchain exec)
+- ERC-20 transfers.
+- Permit (EIP-2612) approvals.
+- Session keys for micro-ops.
+- Guardians/recovery.
+- Advanced intents (DCA, limit orders).
 
 ---
 
-## 17) Implementation anchors (file map)
+## 17) File anchors
 
 ```
-/lib/ai/intent.ts        parseIntent(), parseAiJson(), zod schemas
-/lib/normalize.ts        chain/token/amount/address resolution
-/lib/validate.ts         policy checks, balances, caps
-/lib/plan.ts             native vs LI.FI route selection
+/lib/ai/intent.ts        parseIntent, schemas
+/lib/normalize.ts        chain/token/amount resolution
+/lib/validate.ts         policy checks
+/lib/plan.ts             op mapping, LI.FI route
 /lib/simulate.ts         gas/quote checks
-/lib/execute.ts          ZeroDev client + LI.FI execute
-/lib/monitor.ts          receipts + LI.FI status polling
+/lib/execute.ts          Biconomy client + LI.FI
+/lib/monitor.ts          receipts/status
 /lib/registry.ts         chains/tokens
-/hooks/useZeroDevSA.ts   Kernel client wiring
+/hooks/useBiconomySA.ts  Biconomy client wiring
 ```
 
-**This doc is living** — when flows or policies change, update schemas and state machine first, then code. Keep humans safe, then make it fast.
+---

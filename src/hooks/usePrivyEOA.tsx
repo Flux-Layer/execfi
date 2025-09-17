@@ -70,8 +70,13 @@ export function usePrivyEOA(): UsePrivyEOA {
       // Re-check every 150ms
       // const w = eoaRef.current ?? eoa; // <— best if you maintain a ref
       const w = eoa;
+
+      console.log({w})
       if (w) {
         setCreating(false);
+        const provider1 = await w.getEthereumProvider()
+        const provider2 = await w?.getEthersProvider?.()
+        console.log({provider1, provider2})
         return {
           address: w.address as `0x${string}`,
           provider: await w.getEthereumProvider(),

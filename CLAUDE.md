@@ -1,37 +1,35 @@
-# CLAUDE.md — Project Rules & Operability Guide (Kentank)
+# CLAUDE.md — Project Rules & Operability Guide (Kentank, Biconomy Edition)
 
-> **Purpose.** This file is the *contract* between our codebase and Claude Code / Claude API. It encodes how Claude should read context, plan, write code, and emit machine‑parsable outputs for our **prompt→transaction** DeFi app built on **Privy (embedded EOA)** + **ZeroDev/Kernel (EP‑0.7, Kernel v3.1)** + **LI.FI**.
+> **Purpose.** This file is the _contract_ between our codebase and Claude Code / Claude API. It encodes how Claude should parse, plan, write code, and enforce machine-parsable outputs for our **prompt→transaction DeFi app**, now built on **Privy (embedded EOA)** + **Biconomy Smart Accounts (ERC-4337)** + **LI.FI**.
 >
-> **Prime directive.** *Be predictable.* Prefer determinism, schemas, and tests over cleverness.
+> **Prime directive.** _Be deterministic._ Prefer strict schemas, typed contracts, and validation gates over clever heuristics.
+> **Always** write detailed changelog to /CHANGELOGS.md.
 
 ---
 
 ## 0) Operating modes
 
-* **Intent/Planning mode (API calls via OpenRouter)**
-
-  * Task: turn terminal text into **strict JSON** (Intent v1.1) *or* a single **clarify** object.
-  * Output: **JSON only**, no prose, no code fences.
-  * Temperature: `0`.
-
-* **Coding mode (Claude Code in IDE)**
-
-  * Task: read `INITIAL.md` → generate PRP → implement against repo.
-  * Constraints: TypeScript strict, Viem, React/Next, client‑only for Privy/AA wiring.
-  * Deliverables: code + tests + docs according to acceptance criteria.
+- **Intent/Planning mode (AI via OpenRouter)**
+  - Input: natural-language terminal prompt.
+  - Output: **strict JSON Intent v1.1** _or_ a single **clarify** object.
+  - Rules: JSON only, no prose, no code fences. Temperature=0.
+- **Coding mode (Claude Code in IDE)**
+  - Input: `INITIAL.md` → generate PRP → implement against repo.
+  - Stack: TypeScript strict, Viem, React/Next.js, Privy EOA, Biconomy Smart Accounts.
+  - Deliverables: code + tests + docs, aligned with acceptance criteria.
 
 ---
 
-## 1) Context ingestion order (always read in this order)
+## 1) Context ingestion order
 
-1. `INITIAL.md` (current feature scope + acceptance tests)
-2. `agents.md` (end‑to‑end flows: Parser → Normalizer → Validator → Executor)
-3. `CONTEXT-CLAUDE.md` or README (projectized context‑engineering rules)
-4. This `CLAUDE.md` (global guardrails & coding rules)
-5. `/examples/**` (copy patterns; do not invent new shapes)
-6. Relevant code paths under `/hooks`, `/lib`, `/app`, `/api`
+1. `INITIAL.md` (feature scope + acceptance criteria)
+2. `AGENTS.md` (planner/normalizer/validator/executor)
+3. `README` or `CONTEXT-CLAUDE.md` (project-level context engineering rules)
+4. This `CLAUDE.md` (guardrails)
+5. `/examples/**` (copy patterns)
+6. Source files under `/hooks`, `/lib`, `/app`, `/api`
 
-If conflicts arise, **INITIAL.md > agents.md > CLAUDE.md**.
+> Precedence: **INITIAL.md > AGENTS.md > CLAUDE.md**
 
 ---
 
@@ -39,205 +37,203 @@ If conflicts arise, **INITIAL.md > agents.md > CLAUDE.md**.
 
 ### 2.1 Intent JSON (v1.1)
 
-* **Success**
+- **Success**
 
 ```json
-{"ok":true,"intent":{"action":"transfer|swap|bridge|bridge_swap","chain":"base|…|chainId","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.002","recipient":"0x… or ENS"}}
+{
+  "ok": true,
+  "intent": {
+    "action": "transfer|swap|bridge|bridge_swap",
+    "chain": "base|…|chainId",
+    "token": { "type": "native", "symbol": "ETH", "decimals": 18 },
+    "amount": "0.002",
+    "recipient": "0x… or ENS"
+  }
+}
 ```
 
-* **Clarify**
+- **Clarify**
 
 ```json
-{"ok":false,"clarify":"short question","missing":["field", "field"]}
+{ "ok": false, "clarify": "short question", "missing": ["field"] }
 ```
 
-* **Rules**: no invented data; if ambiguous → clarify; if “max” → `amount:"MAX"`.
+- Rules: no invented data; if ambiguous → clarify; if “max” → `"amount":"MAX"`.
 
-### 2.2 Normalizer output (code side)
+### 2.2 Normalizer output
 
 ```ts
-{ chainId:number, token:{symbol:string, address?:`0x${string}`, decimals:number}, amountWei:bigint, to?:`0x${string}` }
+{
+  chainId: number,
+  token: { symbol: string, address?: `0x${string}`, decimals: number },
+  amountWei: bigint,
+  to?: `0x${string}`
+}
 ```
 
 ### 2.3 Execution interfaces
 
-* **Native transfer**: `kernelClient.sendTransaction({ to, value, data?:"0x" })`
-* **LI.FI**: `getRoutes` → pick → `executeRoute(kernelClient as any, route)`
-
-### 2.4 AI JSON sanitizer
-
-* Use `parseAiJson(raw)` from `agents.md` Appendix B. If parse fails → treat as OFF\_POLICY and retry once with stricter instruction.
+- **Native transfer**: `biconomyClient.sendTransaction({ to, value, data?:"0x" })`
+- **LI.FI flow**: `getRoutes` → select → `executeRoute(biconomyClient, route)`
 
 ---
 
 ## 3) Guardrails & scope
 
-* **Non‑custodial**: No server‑side secrets or key material. Privy holds keys; we only consume the EIP‑1193 provider client‑side.
-* **Smart‑accounts‑only**: User’s canonical address is their **Kernel** smart account.
-* **Supported chains** (MVP): Base(8453), Ethereum Mainnet(1), Polygon(137), Arbitrum(42161), Optimism(10), Avalanche(43114). Default to **Base**.
-* **Costs**: MVP operates **without paymaster**. Users pay gas. If paymaster is configured via env, treat as optional.
-* **Quotes**: Required for swaps/bridges only. Not for native/ERC‑20 transfers.
-* **Safety**: enforce checksum, non‑zero address, balance & gas headroom checks, per‑tx/day caps, contract allowlists.
+- **Non-custodial**: No server-side keys. Privy holds EOAs, Biconomy derives SAs client-side.
+- **Smart accounts only**: Canonical address = Biconomy Smart Account.
+- **Supported chains** (MVP): Base (8453), Ethereum (1), Polygon (137), Arbitrum (42161), Optimism (10), Avalanche (43114). Default = Base.
+- **Gas**: MVP = user-paid. If a Biconomy paymaster is configured, treat as optional.
+- **Quotes**: Required only for swaps/bridges.
+- **Safety**: enforce checksum, non-zero addresses, balance+gas headroom, per-tx/day caps, contract allowlists.
 
 ---
 
-## 4) Strong opinions for correctness
+## 4) Strong correctness rules
 
-* **Determinism over cleverness**: no hidden magic; explicit chain registry and token metadata.
-* **Small files**: Prefer composable helpers. Keep UI logic (terminal) separate from execution logic.
-* **Client boundaries**: Privy/ZeroDev calls are **client‑only** (`"use client"`). No SSR usage of wallet providers.
-* **Version pinning**: EntryPoint **0.7** + Kernel **v3.1** must be explicit (`getEntryPoint("0.7"), KERNEL_V3_1`).
-* **ZeroDev signer**: Convert Privy EIP‑1193 with `toOwner` (permissionless). Do **not** import non‑existent helpers from `@zerodev/sdk`.
+- Determinism > heuristics. Always resolve chain via registry.
+- Keep helpers small and composable.
+- Privy auth + Biconomy SDK wiring are **client-only** (`"use client"`).
+- Version pinning: use **latest stable Biconomy SDK v3** APIs, explicitly set entrypoint version.
+- Never attempt to export private keys.
 
 ---
 
 ## 5) Coding rules
 
-* **Language/stack**: TypeScript (strict), Viem for chains/units, React/Next.js app router.
-* **Style**: ESLint + Prettier (defaults). No `any` unless strictly isolated with comment.
-* **Imports**: Group external → internal. No circular deps. No deep relative hell (`../../..`).
-* **Config via env**: `NEXT_PUBLIC_BUNDLER_RPC`, `NEXT_PUBLIC_PAYMASTER_RPC` (optional), `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_LIFI_API_KEY`.
-* **Errors**: propagate typed `Error` with short user‑facing messages; log low‑level details once.
-* **DX**: Add inline JSDoc on exported functions; include examples where non‑obvious.
+- **Language/stack**: TS strict, Viem for chain utils, React/Next App Router.
+- **Style**: ESLint + Prettier. Avoid `any` leaks.
+- **Imports**: external → internal; avoid deep relative hell.
+- **Config via env**:
+  - `NEXT_PUBLIC_BICONOMY_API_KEY`
+  - `NEXT_PUBLIC_BUNDLER_RPC`
+  - `NEXT_PUBLIC_PRIVY_APP_ID`
+  - `NEXT_PUBLIC_LIFI_API_KEY` (optional for swaps/bridges)
+- **Errors**: throw typed errors; surface one-liners to users; log technical detail once.
+- **DX**: JSDoc on all exports; code comments for non-obvious parts.
 
 ---
 
-## 6) ZeroDev × Privy wiring (canonical pattern)
+## 6) Privy × Biconomy wiring (canonical pattern)
 
 ```ts
-// Client‑only
-import { http, createPublicClient } from "viem";
+"use client";
+
+import {
+  BiconomySmartAccountV2,
+  createSmartAccountClient,
+} from "@biconomy/account";
+import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
-import { toOwner } from "permissionless";
-import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator";
-import { createKernelAccount, createKernelAccountClient } from "@zerodev/sdk";
-import { getEntryPoint, KERNEL_V3_1 } from "@zerodev/sdk/constants";
 
-export async function getKernelClientFromPrivyWallet(privyWallet:any) {
+export async function getBiconomyClient(privyWallet: any) {
   const eip1193 = await privyWallet.getEthereumProvider();
-  const owner = await toOwner({ owner: eip1193, address: privyWallet.address });
 
-  const chain = base; // parametrize later
-  const entryPoint = getEntryPoint("0.7");
-  const publicClient = createPublicClient({ chain, transport: http(process.env.NEXT_PUBLIC_BUNDLER_RPC!) });
-
-  const ecdsa = await signerToEcdsaValidator(publicClient, { signer: owner, entryPoint, kernelVersion: KERNEL_V3_1 });
-  const account = await createKernelAccount(publicClient, { plugins: { sudo: ecdsa }, entryPoint, kernelVersion: KERNEL_V3_1 });
-
-  return createKernelAccountClient({
-    account,
+  const chain = base; // parametrize
+  const publicClient = createPublicClient({
     chain,
-    client: publicClient,
-    bundlerTransport: http(process.env.NEXT_PUBLIC_BUNDLER_RPC!),
-    // paymaster: { rpcUrl: process.env.NEXT_PUBLIC_PAYMASTER_RPC! }, // optional
+    transport: http(process.env.NEXT_PUBLIC_BUNDLER_RPC!),
   });
+
+  // Construct Biconomy smart account
+  const client = await createSmartAccountClient({
+    signer: eip1193, // Privy EOA provider
+    bundlerUrl: process.env.NEXT_PUBLIC_BUNDLER_RPC!,
+    biconomyPaymasterApiKey: process.env.NEXT_PUBLIC_BICONOMY_API_KEY,
+    chainId: chain.id,
+  });
+
+  return client; // exposes sendTransaction, getAddress, etc.
 }
 ```
 
-**Gotchas**: network mismatch (offer switch), first userOp deploys the account, no paymaster → user must have gas on that chain.
+**Gotchas:**
+
+- First tx will deploy the smart account.
+- If no paymaster is configured, user must hold gas tokens.
+- Must always confirm chain matches app default.
 
 ---
 
 ## 7) Terminal UX contract
 
-* **Success line**: `✅ Sent 0.002 ETH on Base — hash 0x…` (make hash clickable in UI).
-* **Validation error**: concise + actionable (e.g., "Recipient is not a checksummed 0x address").
-* **Waiting**: single spinner line; stream LI.FI route status when available.
-* **Confirm gate (optional)**: Ask `yes/no` for large or first‑time recipients.
+- **Success line**: `✅ Sent 0.002 ETH on Base — hash 0x…`
+- **Error line**: concise + actionable (`Recipient must be a checksummed 0x address`).
+- **Confirm gate**: ask `yes/no` for large/first-time recipients if `CONFIRM_BEFORE_SEND=true`.
+- **Waiting**: show spinner; for LI.FI, stream status updates.
 
 ---
 
-## 8) PRP workflow (Claude Code)
+## 8) PRP workflow
 
-* **/generate-prp INITIAL.md** must produce a doc with:
-
-  * Context summary (what, why, acceptance criteria)
-  * File diffs plan (exact files to add/modify)
-  * Validation gates (unit, integration)
-  * Rollback plan (how to revert safely)
-
-* **/execute-prp PRPs/<feature>.md** must:
-
-  * Implement plan step‑by‑step
-  * Run tests (unit + any configured e2e) and lint
-  * Iterate until all gates pass
-  * Summarize changes and manual steps (env vars, migrations)
+- `/generate-prp INITIAL.md`: produce PRP with context, steps, validation gates, rollback plan.
+- `/execute-prp PRPs/<feature>.md`: implement, run tests, iterate until green, summarize changes.
 
 ---
 
 ## 9) Testing & validation
 
-* **Unit**: intent parsing/normalization, checksum utilities, amount→wei.
-* **Integration (devnet/testnet)**: Base Sepolia — native transfer happy path.
-* **E2E smoke**: terminal prompt → tx hash shown; swap route selection returns summary.
-* **Idempotency**: same prompt twice must not double‑send (use `promptId`).
+- **Unit**: intent parsing, normalization, checksum, wei conversion.
+- **Integration**: Base Sepolia, happy path native transfer.
+- **E2E smoke**: terminal prompt → SA executes tx → explorer link shown.
+- **Idempotency**: same prompt within 60s must not double-send.
 
-Preferred test stack: Vitest + Testing Library for UI pieces.
+Preferred test stack: Vitest + Testing Library.
 
 ---
 
-## 10) Failure handling taxonomy
+## 10) Failure taxonomy
 
-* `OFF_POLICY_JSON` – AI didn’t emit JSON → retry once with stricter system message
-* `MISSING_FIELDS` – produce CLARIFY JSON
-* `CHAIN_UNSUPPORTED` – list supported chains
-* `INSUFFICIENT_FUNDS` – show short top‑up instruction
-* `BUNDLER_REJECTED` / `SIMULATION_FAILED` – show compact reason, log full details
-
-All user‑visible errors must be one‑liners.
+- `OFF_POLICY_JSON` – AI emitted invalid JSON → retry once.
+- `MISSING_FIELDS` – emit clarify JSON.
+- `CHAIN_UNSUPPORTED` – return list of supported chains.
+- `INSUFFICIENT_FUNDS` – tell user to top up.
+- `BUNDLER_REJECTED` / `SIMULATION_FAILED` – short message + log detail.
 
 ---
 
 ## 11) Security & privacy
 
-* Do not log secrets; redact anything that *looks* like a seed/private key.
-* No server storage of keys; only addresses and public receipts.
-* Maintain allowlists/denylists for tokens/contracts when adding LI.FI.
-* Consider session keys (Kernel policies) later: TTL, spend caps, per‑contract allowlist.
+- No secret logging.
+- No server-side custody of keys.
+- Maintain allowlists for contracts/tokens.
+- Session keys (spend caps, TTL) can be added later.
 
 ---
 
 ## 12) Performance budgets
 
-* Intent parse/clarify: Sonnet ≤ 3.5s (target 1.5–2.0s), Haiku ≤ 1.2s
-* Terminal turnaround (native transfer): ≤ 8s to mined on testnet
-* Bundle size: do not import heavy SDKs in server routes unnecessarily
+- Intent parse ≤ 2.5s (Claude Sonnet), terminal turnaround ≤ 8s to tx hash (Sepolia).
+- Don’t bloat bundles — avoid importing heavy SDKs server-side.
 
 ---
 
-## 13) When in doubt
+## 13) Quick checklists
 
-* Prefer **clarify** over guessing.
-* Prefer **small PRs** that hit acceptance criteria.
-* Prefer **copying examples/** patterns exactly over inventing new abstractions.
+**Before emitting JSON**
 
----
+- JSON only
+- Clarify if ambiguous
+- No invented fields
 
-## 14) Quick checklists
+**Before merging code**
 
-**Before emitting intent JSON**
+- TS strict, no `any` leaks
+- Env-driven config, no hardcoded RPCs
+- Unit & integration tests pass
 
-* [ ] No prose, JSON only
-* [ ] If ambiguous → clarify
-* [ ] No invented addresses/amounts
+**Before sending tx**
 
-**Before shipping code**
-
-* [ ] Types are strict; no `any` leaks
-* [ ] Kernel v3.1 + EP‑0.7 explicit
-* [ ] Env‑driven RPCs; no hardcoded endpoints
-* [ ] Unit tests pass locally
-
-**Before sending a tx**
-
-* [ ] Checksummed `to`
-* [ ] `amountWei > 0` and ≤ balance‑gas
-* [ ] Correct chainId
+- Recipient checksummed
+- AmountWei > 0, ≤ balance-gas
+- Correct chainId
+- SA deployed if needed
 
 ---
 
-**TL;DR**: Claude, your outputs must be **deterministic**.
+**TL;DR**: Claude, be **deterministic**.
 
-* API mode: **JSON only** per Intent v1.1
-* Coding mode: follow **examples/**, build on **Privy + ZeroDev + LI.FI**, pass tests, and keep users safe.
+- In API mode: emit **Intent JSON** only.
+- In coding mode: follow `/examples`, wire **Privy → Biconomy SA**, pass tests, protect users.
 
+---

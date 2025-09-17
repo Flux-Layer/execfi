@@ -3,12 +3,18 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { usePrivyEOA } from "./usePrivyEOA";
-import { createSmartAccountClient } from "@biconomy/account";
+import { createSmartAccountClient } from "@biconomy/module";
 import type { Address } from "viem";
 import { createWalletClient, custom, http } from "viem";
 import { base, mainnet, polygon, arbitrum } from "viem/chains";
 import { getEmbeddedConnectedWallet } from "@privy-io/react-auth";
-import { ECDSAOwnershipValidationModule, DEFAULT_ECDSA_OWNERSHIP_MODULE } from "@biconomy/account";
+import {
+  ECDSAOwnershipValidationModule,
+  DEFAULT_ECDSA_OWNERSHIP_MODULE,
+} from "@biconomy/account";
+import { createConfig } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSmartAccount } from "@biconomy/use-aa";
 
 const RPC_URLS: Record<number, string> = {
   8453: `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
@@ -41,9 +47,11 @@ type UseBiconomySAReturn = {
 export default function useBiconomySA(
   defaultChainId = 8453
 ): UseBiconomySAReturn {
+  const queryClient = useQueryClient();
+
   const { ready: privyReady, authenticated } = usePrivy();
   const { ensureEOA, address: ownerAddress } = usePrivyEOA();
-  const {wallets} = useWallets()
+  const { wallets } = useWallets();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -68,7 +76,16 @@ export default function useBiconomySA(
           }
           const { address: eoaAddr, provider } = eoaRes;
 
-          console.log({eoaAddr, provider})
+          const config = createConfig({
+            chains: [base],
+            transports: {
+              [base.id]: http(),
+            },
+          });
+
+          // const smartAccount = useSmartAccount()
+
+          console.log({ eoaAddr, provider });
 
           console.log({ eoaRes });
 
@@ -84,42 +101,44 @@ export default function useBiconomySA(
             account: eoaAddr,
             chain,
             transport: custom(provider),
-
           });
 
+          const embeddedWallet = getEmbeddedConnectedWallet(wallets);
 
-          
+          console.log({ embeddedWallet });
 
+          const ethersProviderFromEmbeddedWallet = (
+            embeddedWallet as any
+          )?.getEthersProvider?.();
+          const ethereumProviderFromEmbeddedWallet =
+            embeddedWallet?.getEthereumProvider?.();
 
+          console.log({ ethereumProviderFromEmbeddedWallet });
+          console.log({ ethersProviderFromEmbeddedWallet });
 
+          const signer = provider?.getSigner?.();
 
+          console.log({ provider });
 
+          console.log({ signer });
 
-          const signer = provider?.getSigner?.()
-
-          console.log({provider})
-
-          console.log({signer})
-
-         const validationModule = await ECDSAOwnershipValidationModule.create({
-    signer: viemSigner,
-    moduleAddress: DEFAULT_ECDSA_OWNERSHIP_MODULE // This is a Biconomy constant
-});
-
+          const validationModule = await ECDSAOwnershipValidationModule.create({
+            signer: viemSigner,
+            moduleAddress: DEFAULT_ECDSA_OWNERSHIP_MODULE, // This is a Biconomy constant
+          });
 
           const saClient = await createSmartAccountClient({
-             provider ,
+            provider,
             signer: viemSigner,
             bundlerUrl: process.env.NEXT_PUBLIC_BICONOMY_BUNDLER!,
             paymasterUrl: process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER, // Optional for MVP
             rpcUrl,
             chainId,
             defaultValidationModule: validationModule, // Use the `validationModule` we initialized above
-    activeValidationModule: validationModule // Use the `validationModule` we initialized above
-
+            activeValidationModule: validationModule, // Use the `validationModule` we initialized above
           });
 
-          console.log({viemSigner})
+          console.log({ viemSigner });
 
           setClient(saClient);
           setCurrentChainId(chainId);
