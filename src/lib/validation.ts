@@ -40,7 +40,7 @@ const POLICY = {
 
    // Minimum balance to keep after transaction (in ETH)
    MIN_BALANCE_AFTER_TX_ETH: parseFloat(
-      process.env.MIN_BALANCE_AFTER_TX_ETH || "0.001"
+      process.env.MIN_BALANCE_AFTER_TX_ETH || "0.0000001"
    ),
 };
 
