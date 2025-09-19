@@ -11,11 +11,16 @@ export class ExecutionError extends Error {
 
 /**
  * Execute native ETH transfer via Biconomy Smart Account
+ * @param biconomyClient - The smart account client (regular or session-enabled)
+ * @param norm - Normalized transfer parameters
+ * @param userAddress - Optional user address for logging
+ * @param useSession - Whether this is a session key transaction
  */
 export async function executeNativeTransfer(
   biconomyClient: any,
   norm: NormalizedNativeTransfer,
-  userAddress?: `0x${string}`
+  userAddress?: `0x${string}`,
+  useSession?: boolean
 ): Promise<string> {
   try {
     // Validate client
@@ -29,8 +34,9 @@ export async function executeNativeTransfer(
     // Get smart account address for logging
     // With AbstractJS, we get the address from the client's account property or use the passed userAddress
     const saAddress = userAddress || biconomyClient.account?.address || "unknown";
+    const sessionInfo = useSession ? " (via session key)" : "";
     console.log(
-      `Executing transfer from SA ${saAddress} to ${norm.to} on chain ${
+      `Executing transfer${sessionInfo} from SA ${saAddress} to ${norm.to} on chain ${
         norm.chainId
       }: \n ${{
         to: norm.to,
@@ -67,7 +73,7 @@ export async function executeNativeTransfer(
       );
     }
 
-    const userOpParams = {
+    const userOpParams: any = {
       calls: [{
         to: norm.to,
         value: norm.amountWei,
@@ -126,7 +132,8 @@ export async function executeNativeTransfer(
       );
     }
 
-    console.log(`✅ Transaction sent: ${transactionHash}`);
+    const logPrefix = useSession ? "✅ Session transaction sent:" : "✅ Transaction sent:";
+    console.log(`${logPrefix} ${transactionHash}`);
     return transactionHash;
   } catch (error: any) {
     // Handle different error types from Biconomy
@@ -284,15 +291,16 @@ export async function executeTransferPipeline(
     waitForConfirmation?: boolean;
     timeoutMs?: number;
     userAddress?: `0x${string}`;
+    useSession?: boolean;
   } = {}
 ): Promise<{
   txHash: string;
   confirmed?: boolean;
 }> {
-  const { waitForConfirmation = true, timeoutMs = 30000, userAddress } = options;
+  const { waitForConfirmation = true, timeoutMs = 30000, userAddress, useSession } = options;
 
   // Execute the transaction
-  const txHash = await executeNativeTransfer(biconomyClient, norm, userAddress);
+  const txHash = await executeNativeTransfer(biconomyClient, norm, userAddress, useSession);
 
   // Optionally wait for confirmation
   if (waitForConfirmation) {

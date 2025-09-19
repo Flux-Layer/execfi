@@ -17,7 +17,8 @@ SUCCESS SCHEMA (when all fields are clear):
     "chain": "base",
     "token": {"type": "native", "symbol": "ETH", "decimals": 18},
     "amount": "0.002",
-    "recipient": "0x..."
+    "recipient": "0x...",
+    "useSession": false
   }
 }
 
@@ -29,7 +30,8 @@ OR for ERC-20 tokens:
     "chain": "base",
     "token": {"type": "erc20", "symbol": "USDC"},
     "amount": "10.5",
-    "recipient": "0x..."
+    "recipient": "0x...",
+    "useSession": false
   }
 }
 
@@ -47,6 +49,7 @@ SUPPORTED:
   * Native: {"type": "native", "symbol": "ETH", "decimals": 18}
   * ERC-20: {"type": "erc20", "symbol": "USDC"} or {"type": "erc20", "symbol": "WETH"}, etc.
 - Amount: decimal string or "MAX"
+- Session: useSession is true when user uses keywords like "auto", "automatically", "without approval", "session", "silent"
 
 TOKEN PARSING RULES:
 - If user says "ETH" without context → use native ETH
@@ -55,16 +58,19 @@ TOKEN PARSING RULES:
 
 EXAMPLES:
 Input: "send 0.01 ETH to 0x1234..."
-Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.01","recipient":"0x1234..."}}
+Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.01","recipient":"0x1234...","useSession":false}}
 
-Input: "transfer 0.0001 eth on base sepolia to 0x1411..."
-Output: {"ok":true,"intent":{"action":"transfer","chain":"baseSepolia","token":{"type":"erc20","symbol":"ETH"},"amount":"0.0001","recipient":"0x1411..."}}
+Input: "automatically transfer 0.0001 eth on base sepolia to 0x1411..."
+Output: {"ok":true,"intent":{"action":"transfer","chain":"baseSepolia","token":{"type":"erc20","symbol":"ETH"},"amount":"0.0001","recipient":"0x1411...","useSession":true}}
 
-Input: "send 10 USDC to 0x1234..."
-Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"erc20","symbol":"USDC"},"amount":"10","recipient":"0x1234..."}}
+Input: "send 10 USDC to 0x1234... without approval"
+Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"erc20","symbol":"USDC"},"amount":"10","recipient":"0x1234...","useSession":true}}
 
 Input: "transfer 0.5 weth on base sepolia to 0x1411..."
-Output: {"ok":true,"intent":{"action":"transfer","chain":"baseSepolia","token":{"type":"erc20","symbol":"WETH"},"amount":"0.5","recipient":"0x1411..."}}
+Output: {"ok":true,"intent":{"action":"transfer","chain":"baseSepolia","token":{"type":"erc20","symbol":"WETH"},"amount":"0.5","recipient":"0x1411...","useSession":false}}
+
+Input: "auto send 0.001 ETH using session to 0x1234..."
+Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.001","recipient":"0x1234...","useSession":true}}
 
 Input: "transfer some eth"
 Output: {"ok":false,"clarify":"How much ETH should I transfer?","missing":["amount","recipient"]}
@@ -75,7 +81,7 @@ export const STRICT_JSON_RETRY_PROMPT = `CRITICAL: You must output ONLY valid JS
 
 The user's prompt needs to be parsed into this exact JSON format:
 
-SUCCESS: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"amount_here","recipient":"address_here"}}
+SUCCESS: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"amount_here","recipient":"address_here","useSession":false}}
 
 OR CLARIFY: {"ok":false,"clarify":"question_here","missing":["field1","field2"]}
 

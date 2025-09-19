@@ -17,7 +17,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "openai/gpt-5",
         messages: [
           { role: "system", content: "You are a helpful assistant." },
           { role: "user", content: metaprompt + `User prompt: > ${prompt}` },

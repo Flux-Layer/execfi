@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "@components/loader";
-import useBiconomySA from "@/hooks/useBiconomySA";
+import useBiconomyWithSessionKey from "@/hooks/useBiconomyWithSessionKey";
 import {
   ChatMessage,
   TerminalBodyProps,
@@ -19,8 +19,17 @@ const QUESTIONS: QuestionType[] = [
 ];
 
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
-  const { saAddress, client: biconomyClient } = useBiconomySA();
-  const { authenticated, ready } = usePrivy();
+  const {
+    saAddress,
+    client: biconomyClient,
+    sessionClient,
+    isSessionActive,
+    createSession,
+    retry,
+    loading: accountLoading,
+    error: accountError
+  } = useBiconomyWithSessionKey();
+  const { authenticated, ready, user } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
 
   const [questions, setQuestions] = useState(QUESTIONS);
@@ -103,12 +112,16 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           // Modify the original prompt to explicitly use native ETH
           const nativeETHPrompt = originalPrompt.replace(/\beth\b/gi, "ETH"); // Ensure ETH is uppercase for native detection
 
-          // Execute the full transaction pipeline with native ETH
+          // Execute the full transaction pipeline with native ETH and session support
           const result = await executeTransactionFromPrompt(
             nativeETHPrompt,
-            "user-id", // TODO: get actual user ID from Privy
+            user?.id || "user-id",
             biconomyClient,
             saAddress,
+            {
+              sessionClient,
+              hasActiveSession: isSessionActive,
+            }
           );
 
           if (result.success) {
@@ -210,14 +223,60 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       setChat((prev) => [...prev, { role: "user", content: value }]);
       setText("");
 
+      // Handle special session commands
+      if (value.toLowerCase().includes("create session") || value.toLowerCase() === "session") {
+        setAiResponding(true);
+        try {
+          setChat((prev) => [...prev, { role: "assistant", content: "🔄 Creating 24-hour session for automated signing..." }]);
+          await createSession(24);
+          setChat((prev) => [...prev, { role: "assistant", content: "✅ Session created! You can now use 'auto', 'automatically', or 'without approval' in commands." }]);
+        } catch (error: any) {
+          setChat((prev) => [...prev, { role: "assistant", content: `❌ Failed to create session: ${error.message}` }]);
+        } finally {
+          setAiResponding(false);
+        }
+        return;
+      }
+
+      if (value.toLowerCase().includes("session status")) {
+        setChat((prev) => [...prev, {
+          role: "assistant",
+          content: isSessionActive
+            ? "🟢 Session is active - automated signing enabled"
+            : "🔴 No active session - will require user approval"
+        }]);
+        return;
+      }
+
       // Check if required services are ready
       if (!authenticated) {
         setChat((prev) => [...prev, { role: "assistant", content: "⚠️ Please authenticate first" }]);
         return;
       }
 
+      // Handle retry command
+      if (value.toLowerCase().includes("retry") || value.toLowerCase() === "r") {
+        setAiResponding(true);
+        try {
+          setChat((prev) => [...prev, { role: "assistant", content: "🔄 Retrying smart account initialization..." }]);
+          await retry();
+          setChat((prev) => [...prev, { role: "assistant", content: "✅ Smart account initialized successfully!" }]);
+        } catch (error: any) {
+          setChat((prev) => [...prev, { role: "assistant", content: `❌ Retry failed: ${error.message}` }]);
+        } finally {
+          setAiResponding(false);
+        }
+        return;
+      }
+
       if (!saAddress) {
-        setChat((prev) => [...prev, { role: "assistant", content: "⚠️ Smart Account not ready. Please wait for initialization..." }]);
+        const errorMsg = accountError
+          ? `⚠️ Smart Account error: ${accountError}. Type 'retry' to try again.`
+          : accountLoading
+          ? "⚠️ Smart Account initializing, please wait..."
+          : "⚠️ Smart Account not ready. Type 'retry' to initialize.";
+
+        setChat((prev) => [...prev, { role: "assistant", content: errorMsg }]);
         return;
       }
 
@@ -233,12 +292,16 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           return;
         }
 
-        // Execute the full transaction pipeline
+        // Execute the full transaction pipeline with session support
         const result = await executeTransactionFromPrompt(
           value,
-          "user-id", // TODO: get actual user ID from Privy
+          user?.id || "user-id",
           biconomyClient,
           saAddress,
+          {
+            sessionClient,
+            hasActiveSession: isSessionActive,
+          }
         );
 
         if (result.success) {

@@ -30,6 +30,7 @@ const TransferIntentSchema = z.object({
   token: TokenSchema,
   amount: z.string(), // decimal string or "MAX"
   recipient: z.string(), // 0x address or ENS
+  useSession: z.boolean().optional(), // whether to use session key for automated signing
 });
 
 // Future: Swap/Bridge intent schemas (not implemented in MVP)

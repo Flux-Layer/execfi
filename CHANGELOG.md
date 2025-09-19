@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Session Key Automated Signing (2025-09-19)
+
+#### Session Key Infrastructure
+- **Implemented session key creation and management** for automated transaction signing
+- **Added automated transaction flow** that bypasses user approval for signed sessions
+- **Created secure session storage** with configurable expiration times
+- **Built session key wallet client** for seamless transaction execution
+
+#### New Components and Hooks
+- **useSessionKey hook**: Session key lifecycle management with localStorage persistence
+  ```typescript
+  const { sessionKey, createSessionKey, isSessionActive } = useSessionKey();
+  ```
+- **useBiconomyWithSessionKey hook**: Enhanced smart account client with session capabilities
+  ```typescript
+  const { createSession, sendTxWithSession } = useBiconomyWithSessionKey();
+  ```
+- **Session-enabled transaction execution**: Updated executeTransferPipeline with session support
+
+#### User Experience Improvements
+- **Updated smart-account page** with session key demonstration interface
+- **Added session status indicators** and automated transaction testing
+- **Created example implementations** for automated DeFi operations and batch transactions
+- **Implemented session expiration handling** with automatic cleanup
+
+#### Technical Implementation
+- **Session key generation**: Uses viem's generatePrivateKey for secure key creation
+- **Time-based expiration**: Configurable session duration with automatic expiration
+- **Dual client architecture**: Maintains both regular and session-enabled smart account clients
+- **Transaction routing**: Automatic selection between user-approved and session transactions
+
+#### Security Features
+- **24-hour default expiration** for session keys
+- **Automatic session cleanup** on expiration
+- **Client-side session storage** with no server-side key persistence
+- **Session validation** before each automated transaction
+
+#### Complete Prompt-to-Transaction Session Flow
+- **Enhanced AI intent processing** to detect session keywords (`auto`, `automatically`, `without approval`, `session`)
+- **Extended transaction schema** with optional `useSession` boolean field
+- **Updated orchestrator pipeline** to handle session context and client selection
+- **Created SessionEnabledTerminal** with full session management and status indicators
+- **Integrated session support** into main application flow
+
+#### Natural Language Session Commands
+```
+// Create session
+"create session"
+
+// Automated transactions
+"auto transfer 0.001 ETH to 0x..."
+"automatically send 10 USDC to vitalik.eth"
+"transfer 0.001 ETH to 0x... without approval"
+"session transfer 0.001 ETH to 0x..."
+
+// Regular transactions (still work)
+"transfer 0.001 ETH to 0x..."
+```
+
+#### Example Usage
+```typescript
+// Create a session for automated signing
+await createSession(24); // 24 hours
+
+// Send transaction automatically without user approval
+const hash = await sendTxWithSession({
+  to: "0x742D35Cc6234B8D4d1d58FC5c3F6b5BD2c47a31B",
+  value: "1000000000000000" // 0.001 ETH
+});
+
+// Full orchestration with session support
+const result = await executeTransactionFromPrompt(
+  "auto transfer 0.001 ETH to 0x...",
+  userId,
+  biconomyClient,
+  userAddress,
+  { sessionClient, hasActiveSession: true }
+);
+```
+
 ### Fixed - AbstractJS Transaction Execution API (2025-09-17 15:00 UTC)
 
 #### Critical Transaction Flow Fix

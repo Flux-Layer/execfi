@@ -4,9 +4,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavDrawer } from "@components/rounded-drawer-nav";
 import PrivyAppProvider from "@providers/privy-provider";
-import { usePrivyEOA } from "@hooks/usePrivyEOA";
-import { useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { WagmiAppProvider } from "@providers/wagmi-provider"; // ⬅️ import baru
 import { QCProvider } from "@providers/query-client.provider";
 import { createConfig, http } from "wagmi";
@@ -35,7 +32,6 @@ export default function RootLayout({
             <QCProvider>
 
             <NavDrawer />
-            <EOAInitializer />
             {children}
             </QCProvider>
           </WagmiAppProvider>
@@ -45,13 +41,3 @@ export default function RootLayout({
   );
 }
 
-function EOAInitializer() {
-  const { ensureEOA } = usePrivyEOA();
-  const { authenticated, ready } = usePrivy();
-
-  useEffect(() => {
-    if (authenticated && !ready && ensureEOA) ensureEOA();
-  }, [ready, ensureEOA, authenticated]);
-
-  return null;
-}

@@ -6,6 +6,7 @@ import PageBarLoader from "@components/loader";
 import TerminalHeader from "./TerminalHeader";
 import TerminalBody from "./TerminalBody";
 import { motion } from "framer-motion";
+import useBiconomyWithSessionKey from "@/hooks/useBiconomyWithSessionKey";
 
 // ukuran grid
 const GRID_BOX_SIZE = 32;
@@ -16,6 +17,7 @@ const CARD_POS_VH = 60; // 60vh ≈ “3/4 dari atas hampir ke tengah”
 
 export default function PromptTerminal() {
   const { ready } = usePrivy();
+  const { isSessionActive } = useBiconomyWithSessionKey();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 

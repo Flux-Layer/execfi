@@ -28,7 +28,9 @@ export class OrchestrationError extends Error {
 export interface OrchestrationContext {
   userId: string;
   biconomyClient: any;
+  sessionClient?: any;
   userAddress: `0x${string}`;
+  hasActiveSession?: boolean;
 }
 
 export interface OrchestrationResult {
@@ -131,10 +133,48 @@ export async function orchestrateTransaction(
       );
     }
 
-    const { txHash } = await executeTransferPipeline(ctx.biconomyClient, norm, {
+    // Determine if we should use session for automated approval
+    const wantsSession = Boolean(intentResult.intent.useSession && ctx.hasActiveSession);
+    const usingSessionClient = wantsSession && !!ctx.sessionClient;
+
+    if (wantsSession && !ctx.sessionClient) {
+      throw new OrchestrationError(
+        "Session not ready. Run 'create session' and try again.",
+        "SESSION_NOT_READY",
+        "execute"
+      );
+    }
+
+    const clientToUse = usingSessionClient ? ctx.sessionClient : ctx.biconomyClient;
+
+    if (!clientToUse) {
+      throw new OrchestrationError(
+        "Smart account client not ready. Try 'retry' and wait for initialization.",
+        "CLIENT_NOT_READY",
+        "execute"
+      );
+    }
+
+    // Enhanced logging for debugging
+    console.log("🔍 SESSION DEBUG:", {
+      intentUseSession: intentResult.intent.useSession,
+      hasActiveSession: ctx.hasActiveSession,
+      wantsSession,
+      usingSessionClient,
+    });
+
+    // Log session usage status
+    if (usingSessionClient) {
+      console.log("✅ Using session client for automated approval");
+    } else {
+      console.log(wantsSession ? "⚠️ Session requested but falling back to regular client" : "👤 Using regular client with user approval required");
+    }
+
+    const { txHash } = await executeTransferPipeline(clientToUse, norm, {
       waitForConfirmation: true,
       timeoutMs: 30000,
       userAddress: ctx.userAddress,
+      useSession: usingSessionClient,
     });
 
     // Update idempotency status
@@ -225,11 +265,17 @@ export async function executeTransactionFromPrompt(
   userId: string,
   biconomyClient: any,
   userAddress: `0x${string}`,
+  sessionContext?: {
+    sessionClient: any;
+    hasActiveSession: boolean;
+  }
 ): Promise<OrchestrationResponse> {
   return orchestrateTransaction(prompt, {
     userId,
     biconomyClient,
+    sessionClient: sessionContext?.sessionClient,
     userAddress,
+    hasActiveSession: sessionContext?.hasActiveSession || false,
   });
 }
 
