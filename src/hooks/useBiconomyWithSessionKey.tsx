@@ -11,7 +11,7 @@ import {
   MEEVersion,
   smartSessionActions,
 } from "@biconomy/abstractjs";
-import { SMART_SESSIONS_ADDRESS } from "@rhinestone/module-sdk";
+import { SMART_SESSIONS_ADDRESS, getEnableSessionsAction } from "@rhinestone/module-sdk";
 import type { Address } from "viem";
 import { createWalletClient, custom, http } from "viem";
 import { base, mainnet, polygon, arbitrum } from "viem/chains";
@@ -363,6 +363,36 @@ export default function useBiconomyWithSessionKey(
         setSessionEnabled(false);
 
         console.log("✅ Session permissions granted successfully");
+
+        const sessionsToEnable = permissionResponse
+          .map((session) =>
+            session?.enableSessionData?.enableSession?.sessionToEnable,
+          )
+          .filter(Boolean);
+
+        if (sessionsToEnable.length > 0) {
+          console.log("🔧 Enabling smart session on-chain...");
+
+          const enableCalls = sessionsToEnable.map((session: any) =>
+            getEnableSessionsAction({ sessions: [session] })
+          );
+
+          const enableHash = await ownerClient.sendUserOperation({
+            calls: enableCalls,
+          });
+
+          console.log("⏳ Waiting for session enablement receipt...", enableHash);
+
+          await ownerClient.waitForUserOperationReceipt({ hash: enableHash });
+
+          console.log("✅ Smart session enabled on-chain");
+
+          setSessionEnabled(true);
+        } else {
+          console.warn(
+            "⚠️ No sessions found to enable. Session key transactions may fail.",
+          );
+        }
       } catch (error) {
         console.error("Failed to create session:", error);
         setError("Failed to create session");
