@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Smart Account Balance Validation (2025-09-19)
+
+#### Critical Address Validation Fix
+- **Fixed balance validation address mismatch** - Now validates against smart account address instead of EOA address
+- **Enhanced orchestrator logic** to automatically detect and use smart account address for validation
+- **Improved error handling** for funding issues vs nonce conflicts
+- **Added intelligent address resolution** with fallback mechanisms
+
+#### Technical Root Cause
+- **Previous Issue**: Validation was checking EOA balance but smart account needed to hold ETH for gas fees
+- **Solution**: Orchestrator now extracts smart account address from Biconomy client for validation
+- **Fallback Strategy**: If smart account address unavailable, falls back to EOA with warning
+- **Debug Logging**: Added comprehensive logging to track address resolution process
+
+#### User Impact
+- **Resolves "AA21 didn't pay prefund" errors** when smart account has sufficient balance
+- **Accurate balance requirements** - validation now checks the correct address that will pay gas fees
+- **Better error messages** distinguishing between actual insufficient funds vs validation bugs
+
+### Added - Smart Account Info Display in Terminal (2025-09-19)
+
+#### Enhanced Terminal Experience
+- **Smart account address display** with clickable copy functionality in the terminal interface
+- **Real-time token balance fetching** showing ETH balance for authenticated users
+- **Interactive address copying** with visual feedback and hover states
+- **Automatic balance updates** when smart account becomes available
+
+#### New Components and API
+- **SmartAccountInfo component**: Displays truncated address with copy-to-clipboard functionality
+- **Balance API endpoint** (`/api/balance`): Secure server-side balance fetching using Alchemy RPC
+- **Enhanced InitialText component**: Integrated smart account information display
+- **Responsive error handling**: Graceful fallback for balance fetching failures
+
+#### User Experience Improvements
+- **Visual hierarchy**: Clear separation of smart account info with formatted display
+- **Loading states**: Proper loading indicators during balance fetching
+- **Error feedback**: User-friendly error messages for failed balance requests
+- **Copy confirmation**: Visual feedback when address is copied to clipboard
+
+#### Technical Implementation
+- **Multi-chain support**: Configurable RPC endpoints for Base, Ethereum, Arbitrum, Polygon
+- **Type-safe interfaces**: Comprehensive TypeScript interfaces for balance data
+- **Optimized balance formatting**: Proper decimal handling and display formatting
+- **Client-server coordination**: Secure API-based balance fetching with error boundaries
+
+### Fixed - Comprehensive Nonce Conflict Resolution (2025-09-19)
+
+#### Advanced ERC-4337 Nonce Management
+- **Implemented transaction queuing system** to serialize transactions per smart account and prevent nonce collisions
+- **Added bundler mempool synchronization** with extended delays for proper nonce state propagation
+- **Enhanced retry mechanism** with exponential backoff (1s, 2s, 3s delays) plus additional 2s bundler sync delay
+- **Comprehensive error detection** for all types of nonce conflicts including bundler-specific patterns
+
+#### Updated Components
+- **executeNativeTransfer function**: Added transaction queuing and enhanced retry logic with bundler synchronization
+- **useBiconomySA hook**: Implemented per-account transaction queuing to prevent concurrent nonce issues
+- **useBiconomyWithSessionKey hook**: Applied queuing to both regular and session transaction methods
+- **Global transaction management**: Cross-hook coordination to prevent nonce conflicts between different transaction paths
+
+#### ERC-4337 Specific Solutions
+- **Sequential transaction processing**: Prevents multiple UserOperations with same nonce from reaching bundler mempool
+- **Bundler conflict mitigation**: Added delays to prevent MEV bot exploitation and bundler race conditions
+- **Smart account address-based queuing**: Each smart account maintains separate transaction queue for proper nonce ordering
+- **Cross-client synchronization**: Unified nonce management across regular and session clients
+
+#### Technical Implementation
+- **Transaction queuing**: Global Map-based queue system serializing transactions per smart account address
+- **Proper nonce management**: Implemented `getNonce()` method integration for fresh nonce fetching before each transaction attempt
+- **Dynamic nonce specification**: Explicit nonce setting in UserOperation parameters for retry attempts to ensure consistency
+- **Enhanced error detection**: Comprehensive nonce conflict identification patterns including:
+  - Direct error codes (NONCE_EXPIRED, NONCE_CONFLICT)
+  - Message content analysis (nonce, conflict keywords)
+  - HTTP 400 status responses from Biconomy bundler
+  - Network/fetch error response parsing with JSON stringification
+- **Intelligent error classification**: Distinguishes between funding issues (AA21 prefund errors) and actual nonce conflicts
+- **Smart retry logic**: Immediately stops retrying for funding issues while continuing retries for nonce conflicts
+- **Cross-client nonce coordination**: Unified nonce fetching across regular and session smart account clients
+- **Fallback nonce handling**: Graceful degradation when getNonce method is unavailable with automatic nonce management
+- **Bundler mempool awareness**: Extended delays (2s + exponential backoff) for mempool synchronization
+- **Memory management**: Automatic cleanup of completed/failed transactions from queue
+- **Debug logging**: Comprehensive error analysis with full error object inspection and nonce state tracking
+
 ### Added - Session Key Automated Signing (2025-09-19)
 
 #### Session Key Infrastructure

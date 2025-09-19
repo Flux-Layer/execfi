@@ -11,7 +11,7 @@ export default function Page() {
     ownerAddress,
     saAddress,
     client,
-    sessionClient,
+    // sessionClient removed - using main client
     sessionKeyAddress,
     isSessionActive,
     createSession,
@@ -23,8 +23,8 @@ export default function Page() {
   const [sessionLoading, setSessionLoading] = useState(false);
 
   useEffect(() => {
-     console.log({sessionClient, isSessionActive})
-  },[sessionClient, isSessionActive])
+     console.log({client, isSessionActive}) // Using main client instead of sessionClient
+  },[client, isSessionActive])
 
   if (!ready) return null;
   if (!authenticated) return <button onClick={login}>Log in</button>;
@@ -134,7 +134,7 @@ export default function Page() {
           <div className="space-y-2">
             <h3 className="font-medium">Session Transaction</h3>
             <button
-              disabled={!isSessionActive || !sessionClient || loading || txLoading}
+              disabled={!isSessionActive || !client || loading || txLoading}
               onClick={handleSessionTransaction}
               className="w-full bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >

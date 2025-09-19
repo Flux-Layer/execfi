@@ -95,9 +95,14 @@ export function useSessionKey(): UseSessionKeyReturn {
 
   const createSessionKey = useCallback(async (config: SessionKeyConfig = {}) => {
     try {
+       console.log('Generating new session key...')
       // Generate a new private key for the session
       const privateKey = generatePrivateKey();
+
+
+      console.log('Creating new account based on private key...')
       const account = privateKeyToAccount(privateKey);
+      console.log({account})
 
       // Default session configuration (24 hours)
       const defaultConfig: SessionKeyConfig = {

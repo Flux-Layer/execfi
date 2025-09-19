@@ -148,6 +148,7 @@ async function checkBasicBalance(
    const balance = await publicClient.getBalance({ address: fromAddress });
 
    // First check if we have enough balance for just the transfer amount
+   console.log({balance, amountWei: norm.amountWei})
    if (balance < norm.amountWei) {
       const balanceEth = formatEther(balance);
       const amountEth = formatEther(norm.amountWei);
@@ -178,6 +179,7 @@ async function validateBalance(
    const totalCost = norm.amountWei + gasCost;
 
    // Check if balance is sufficient for total cost
+   console.log({balance, totalCost})
    if (balance < totalCost) {
       const balanceEth = formatEther(balance);
       const totalCostEth = formatEther(totalCost);

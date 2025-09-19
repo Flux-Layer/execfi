@@ -8,7 +8,11 @@ import {
   isTransferIntent,
   type Intent,
 } from "./ai";
-import { normalizeIntent, type NormalizedNativeTransfer, TokenSelectionError } from "./normalize";
+import {
+  normalizeIntent,
+  type NormalizedNativeTransfer,
+  TokenSelectionError,
+} from "./normalize";
 import { validateIntent, simulateIntent } from "./validation";
 import { executeTransferPipeline } from "./execute";
 import { validateNoDuplicate, updateTransactionStatus } from "./idempotency";
@@ -67,7 +71,10 @@ export interface OrchestrationTokenSelection {
   };
 }
 
-export type OrchestrationResponse = OrchestrationResult | OrchestrationClarification | OrchestrationTokenSelection;
+export type OrchestrationResponse =
+  | OrchestrationResult
+  | OrchestrationClarification
+  | OrchestrationTokenSelection;
 
 /**
  * Main orchestration function - executes the full pipeline
@@ -91,11 +98,14 @@ export async function orchestrateTransaction(
       };
     }
 
-    if (!isIntentSuccess(intentResult) || !isTransferIntent(intentResult.intent)) {
+    if (
+      !isIntentSuccess(intentResult) ||
+      !isTransferIntent(intentResult.intent)
+    ) {
       throw new OrchestrationError(
         "Only native ETH transfers are supported in MVP",
         "UNSUPPORTED_INTENT",
-        "intent"
+        "intent",
       );
     }
 
@@ -113,12 +123,55 @@ export async function orchestrateTransaction(
 
     // Phase 4: Validation
     console.log("🔄 Phase 4: Validating transaction...");
-    const { gasEstimate, gasCost } = await validateIntent(norm, ctx.userAddress);
-    console.log("✅ Validation passed - Gas estimate:", gasEstimate.toString(), "Gas cost:", formatEther(gasCost), "ETH");
+
+    // For smart accounts, we need to validate against the smart account address, not the EOA
+    let validationAddress = ctx.userAddress;
+
+    try {
+      // Try to get smart account address from the client
+      if (ctx.biconomyClient?.account?.address) {
+        validationAddress = ctx.biconomyClient.account.address;
+        console.log(
+          "🔍 Using smart account address for validation:",
+          validationAddress,
+        );
+      } else if (typeof ctx.biconomyClient?.getAddress === "function") {
+        const smartAccountAddress = await ctx.biconomyClient.getAddress();
+        if (smartAccountAddress) {
+          validationAddress = smartAccountAddress;
+          console.log(
+            "🔍 Using smart account address for validation:",
+            validationAddress,
+          );
+        }
+      } else {
+        console.log(
+          "⚠️ Could not get smart account address, using EOA for validation:",
+          validationAddress,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to get smart account address, using EOA for validation:",
+        error,
+      );
+    }
+
+    const { gasEstimate, gasCost } = await validateIntent(
+      norm,
+      validationAddress,
+    );
+    console.log(
+      "✅ Validation passed - Gas estimate:",
+      gasEstimate.toString(),
+      "Gas cost:",
+      formatEther(gasCost),
+      "ETH",
+    );
 
     // Phase 5: Simulation
     console.log("🔄 Phase 5: Simulating transaction...");
-    await simulateIntent(norm, ctx.userAddress);
+    await simulateIntent(norm, validationAddress);
     console.log("✅ Simulation successful");
 
     // Phase 6: Execution
@@ -129,29 +182,35 @@ export async function orchestrateTransaction(
       throw new OrchestrationError(
         "Only native ETH transfers are supported for execution in MVP",
         "EXECUTION_NOT_SUPPORTED",
-        "execute"
+        "execute",
       );
     }
 
     // Determine if we should use session for automated approval
-    const wantsSession = Boolean(intentResult.intent.useSession && ctx.hasActiveSession);
-    const usingSessionClient = wantsSession && !!ctx.sessionClient;
+    const wantsSession = Boolean(
+      intentResult.intent.useSession && ctx.hasActiveSession,
+    );
+    const usingSessionClient = wantsSession && !!ctx?.biconomyClient;
 
-    if (wantsSession && !ctx.sessionClient) {
+    console.log({ wantsSession });
+    console.log({ ctx, sessionClient: ctx?.sessionClient });
+
+    if (wantsSession && !ctx.biconomyClient) {
       throw new OrchestrationError(
         "Session not ready. Run 'create session' and try again.",
         "SESSION_NOT_READY",
-        "execute"
+        "execute",
       );
     }
 
-    const clientToUse = usingSessionClient ? ctx.sessionClient : ctx.biconomyClient;
+    const clientToUse = 
+       ctx.biconomyClient;
 
     if (!clientToUse) {
       throw new OrchestrationError(
         "Smart account client not ready. Try 'retry' and wait for initialization.",
         "CLIENT_NOT_READY",
-        "execute"
+        "execute",
       );
     }
 
@@ -167,7 +226,11 @@ export async function orchestrateTransaction(
     if (usingSessionClient) {
       console.log("✅ Using session client for automated approval");
     } else {
-      console.log(wantsSession ? "⚠️ Session requested but falling back to regular client" : "👤 Using regular client with user approval required");
+      console.log(
+        wantsSession
+          ? "⚠️ Session requested but falling back to regular client"
+          : "👤 Using regular client with user approval required",
+      );
     }
 
     const { txHash } = await executeTransferPipeline(clientToUse, norm, {
@@ -194,7 +257,6 @@ export async function orchestrateTransaction(
       explorerLink,
       norm,
     };
-
   } catch (error: any) {
     // Handle token selection error specially
     if (error instanceof TokenSelectionError) {
@@ -202,7 +264,7 @@ export async function orchestrateTransaction(
         success: false,
         tokenSelection: {
           message: error.message,
-          tokens: error.tokens.map(token => ({
+          tokens: error.tokens.map((token) => ({
             id: token.id,
             chainId: token.chainId,
             address: token.address,
@@ -236,7 +298,12 @@ export async function orchestrateTransaction(
 
     if (errorMessage.includes("parse") || errorMessage.includes("intent")) {
       phase = "intent";
-    } else if (errorMessage.includes("normalize") || errorMessage.includes("chain") || errorMessage.includes("address") || errorCode === "CHAIN_UNSUPPORTED") {
+    } else if (
+      errorMessage.includes("normalize") ||
+      errorMessage.includes("chain") ||
+      errorMessage.includes("address") ||
+      errorCode === "CHAIN_UNSUPPORTED"
+    ) {
       phase = "normalize";
     } else if (
       errorMessage.includes("balance") ||
@@ -266,14 +333,14 @@ export async function executeTransactionFromPrompt(
   biconomyClient: any,
   userAddress: `0x${string}`,
   sessionContext?: {
-    sessionClient: any;
+    // sessionClient removed - using main biconomyClient for session transactions
     hasActiveSession: boolean;
-  }
+  },
 ): Promise<OrchestrationResponse> {
   return orchestrateTransaction(prompt, {
     userId,
     biconomyClient,
-    sessionClient: sessionContext?.sessionClient,
+    // sessionClient removed - using main biconomyClient for session transactions
     userAddress,
     hasActiveSession: sessionContext?.hasActiveSession || false,
   });
