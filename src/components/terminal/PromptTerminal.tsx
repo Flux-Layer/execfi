@@ -37,7 +37,7 @@ export default function PromptTerminal() {
             <div
               ref={containerRef}
               onClick={() => inputRef.current?.focus()}
-              className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/70 backdrop-blur shadow-xl font-mono"
+              className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
             >
               <TerminalHeader headerTitle="Kentank" />
               <TerminalBody inputRef={inputRef} containerRef={containerRef} />
