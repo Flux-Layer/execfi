@@ -35,6 +35,11 @@ export interface OrchestrationContext {
   sessionClient?: any;
   userAddress: `0x${string}`;
   hasActiveSession?: boolean;
+  sendSessionTx?: (params: {
+    to: string;
+    value?: string;
+    data?: string;
+  }) => Promise<string>;
 }
 
 export interface OrchestrationResult {
@@ -187,15 +192,12 @@ export async function orchestrateTransaction(
     }
 
     // Determine if we should use session for automated approval
-    const wantsSession = Boolean(
-      intentResult.intent.useSession && ctx.hasActiveSession,
-    );
-    const usingSessionClient = wantsSession && !!ctx?.biconomyClient;
+    const requestsSession = Boolean(intentResult.intent.useSession);
+    const hasActiveSession = Boolean(ctx.hasActiveSession);
+    const sessionExecutorReady = typeof ctx.sendSessionTx === "function";
+    const useSessionFlow = requestsSession && hasActiveSession && sessionExecutorReady;
 
-    console.log({ wantsSession });
-    console.log({ ctx, sessionClient: ctx?.sessionClient });
-
-    if (wantsSession && !ctx.biconomyClient) {
+    if (requestsSession && !hasActiveSession) {
       throw new OrchestrationError(
         "Session not ready. Run 'create session' and try again.",
         "SESSION_NOT_READY",
@@ -203,8 +205,7 @@ export async function orchestrateTransaction(
       );
     }
 
-    const clientToUse = 
-       ctx.biconomyClient;
+    const clientToUse = ctx.biconomyClient;
 
     if (!clientToUse) {
       throw new OrchestrationError(
@@ -217,17 +218,17 @@ export async function orchestrateTransaction(
     // Enhanced logging for debugging
     console.log("🔍 SESSION DEBUG:", {
       intentUseSession: intentResult.intent.useSession,
-      hasActiveSession: ctx.hasActiveSession,
-      wantsSession,
-      usingSessionClient,
+      hasActiveSession,
+      sessionExecutorReady,
+      useSessionFlow,
     });
 
     // Log session usage status
-    if (usingSessionClient) {
-      console.log("✅ Using session client for automated approval");
+    if (useSessionFlow) {
+      console.log("✅ Using session permission for automated approval");
     } else {
       console.log(
-        wantsSession
+        requestsSession
           ? "⚠️ Session requested but falling back to regular client"
           : "👤 Using regular client with user approval required",
       );
@@ -237,7 +238,8 @@ export async function orchestrateTransaction(
       waitForConfirmation: true,
       timeoutMs: 30000,
       userAddress: ctx.userAddress,
-      useSession: usingSessionClient,
+      useSession: useSessionFlow,
+      sendSessionTx: useSessionFlow ? ctx.sendSessionTx : undefined,
     });
 
     // Update idempotency status
@@ -335,6 +337,11 @@ export async function executeTransactionFromPrompt(
   sessionContext?: {
     // sessionClient removed - using main biconomyClient for session transactions
     hasActiveSession: boolean;
+    sendSessionTx?: (params: {
+      to: string;
+      value?: string;
+      data?: string;
+    }) => Promise<string>;
   },
 ): Promise<OrchestrationResponse> {
   return orchestrateTransaction(prompt, {
@@ -343,6 +350,7 @@ export async function executeTransactionFromPrompt(
     // sessionClient removed - using main biconomyClient for session transactions
     userAddress,
     hasActiveSession: sessionContext?.hasActiveSession || false,
+    sendSessionTx: sessionContext?.sendSessionTx,
   });
 }
 

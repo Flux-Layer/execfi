@@ -11,7 +11,7 @@ export default function Page() {
     ownerAddress,
     saAddress,
     client,
-    // sessionClient removed - using main client
+    sessionClient,
     sessionKeyAddress,
     isSessionActive,
     createSession,
@@ -23,8 +23,8 @@ export default function Page() {
   const [sessionLoading, setSessionLoading] = useState(false);
 
   useEffect(() => {
-     console.log({client, isSessionActive}) // Using main client instead of sessionClient
-  },[client, isSessionActive])
+     console.log({client, sessionClient, isSessionActive})
+  },[client, sessionClient, isSessionActive])
 
   if (!ready) return null;
   if (!authenticated) return <button onClick={login}>Log in</button>;

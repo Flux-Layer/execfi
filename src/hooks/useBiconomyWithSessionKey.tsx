@@ -11,6 +11,7 @@ import {
   MEEVersion,
   smartSessionActions,
 } from "@biconomy/abstractjs";
+import { SMART_SESSIONS_ADDRESS } from "@rhinestone/module-sdk";
 import type { Address } from "viem";
 import { createWalletClient, custom, http } from "viem";
 import { base, mainnet, polygon, arbitrum } from "viem/chains";
@@ -35,7 +36,7 @@ type UseBiconomyWithSessionKeyReturn = {
   ownerAddress?: Address;
   saAddress?: Address;
   client?: any;
-  // sessionClient removed - using main client
+  sessionClient?: any;
   sessionKey?: string;
   sessionKeyAddress?: Address;
   isSessionActive: boolean;
@@ -73,7 +74,7 @@ export default function useBiconomyWithSessionKey(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [client, setClient] = useState<any>();
-  // Session client no longer needed - using main client for session transactions
+  const [sessionClient, setSessionClient] = useState<any>();
   const [saAddress, setSaAddress] = useState<Address>();
   const [currentChainId, setCurrentChainId] = useState<number>(defaultChainId);
 
@@ -91,6 +92,7 @@ export default function useBiconomyWithSessionKey(
   // Cache account instances to prevent repeated creation
   const nexusAccountRef = useRef<any>(null);
   const sessionAccountRef = useRef<any>(null);
+  const sessionClientRef = useRef<any>(null);
 
   const initializeSmartAccount = useCallback(
     async (chainId: number = defaultChainId, useSession: boolean = false) => {
@@ -310,6 +312,8 @@ export default function useBiconomyWithSessionKey(
         setLoading(true);
         setError(undefined);
         sessionAccountRef.current = null;
+        sessionClientRef.current = null;
+        setSessionClient(undefined);
         setSessionGrant(undefined);
         setSessionEnabled(false);
 
@@ -359,7 +363,6 @@ export default function useBiconomyWithSessionKey(
         setSessionEnabled(false);
 
         console.log("✅ Session permissions granted successfully");
-        // No separate session client needed - using main client for session transactions
       } catch (error) {
         console.error("Failed to create session:", error);
         setError("Failed to create session");
@@ -374,6 +377,7 @@ export default function useBiconomyWithSessionKey(
       sessionKey,
       setSessionGrant,
       setSessionEnabled,
+      setSessionClient,
     ],
   );
 
@@ -383,21 +387,7 @@ export default function useBiconomyWithSessionKey(
         throw new Error("No active session key");
       }
 
-      // CRITICAL ARCHITECTURAL FIX: Use main client for session transactions
-      // This ensures same smart account address while using session key for signing
-      const executeClient = client; // Use main client, not separate session client
-
-      console.log({ executeClient });
-
-      console.log(
-        "🏗️ ARCHITECTURAL CHANGE: Using main client for session transactions",
-      );
-      console.log(
-        "🏗️ This ensures consistent smart account address:",
-        saAddress,
-      );
-
-      if (!executeClient) {
+      if (!client) {
         throw new Error(
           "Smart account client not initialized. Initialize main client before using sessions.",
         );
@@ -409,11 +399,73 @@ export default function useBiconomyWithSessionKey(
         );
       }
 
+      const getSessionAccount = async () => {
+        if (sessionAccountRef.current) {
+          return sessionAccountRef.current;
+        }
+
+        const chain = CHAIN_MAP[currentChainId];
+        const rpcUrl = RPC_URLS[currentChainId];
+        if (!chain || !rpcUrl) {
+          throw new Error(`Unsupported chainId for session account: ${currentChainId}`);
+        }
+
+        if (!saAddress) {
+          throw new Error(
+            "Smart account address not set. Initialize main smart account before using sessions.",
+          );
+        }
+
+        const { privateKeyToAccount } = await import("viem/accounts");
+        const sessionSignerAccount = privateKeyToAccount(sessionKey as `0x${string}`);
+
+        const sessionNexusAccount = await toNexusAccount({
+          signer: sessionSignerAccount,
+          chainConfiguration: {
+            chain,
+            transport: http(rpcUrl),
+            version: getMEEVersion(MEEVersion.V2_1_0),
+          },
+          accountAddress: saAddress as Address,
+        });
+
+        sessionAccountRef.current = sessionNexusAccount;
+        console.log("🔍 Derived session smart account from session key:", {
+          sessionKeyAddress: sessionSignerAccount.address,
+          sessionSmartAccount: sessionNexusAccount.address,
+        });
+        return sessionNexusAccount;
+      };
+
+      const getSessionClient = async () => {
+        if (sessionClientRef.current) {
+          return sessionClientRef.current;
+        }
+
+        const sessionAccount = await getSessionAccount();
+        const bundlerUrl = process.env.NEXT_PUBLIC_BICONOMY_BUNDLER;
+        if (!bundlerUrl) {
+          throw new Error("Biconomy bundler URL not configured");
+        }
+
+        const sessionSaClient = createSmartAccountClient({
+          account: sessionAccount,
+          transport: http(bundlerUrl),
+        });
+
+        sessionClientRef.current = sessionSaClient;
+        setSessionClient(sessionSaClient);
+        return sessionSaClient;
+      };
+
       const maxRetries = 3;
       let lastError: any;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
+          const sessionExecuteClient = await getSessionClient();
+          const sessionAccount = await getSessionAccount();
+
           // Add small delay between retries to allow nonce to update
           if (attempt > 1) {
             const delayMs = Math.min(1000 * (attempt - 1), 3000); // 1s, 2s, 3s max
@@ -427,16 +479,12 @@ export default function useBiconomyWithSessionKey(
           let currentNonce;
           try {
             console.log("🔍 [Session] Fetching current nonce...");
-            if (typeof executeClient.getNonce === "function") {
-              currentNonce = await executeClient.getNonce();
+            if (typeof sessionAccount.getNonce === "function") {
+              currentNonce = await sessionAccount.getNonce({
+                moduleAddress: SMART_SESSIONS_ADDRESS,
+              });
               console.log(
-                "✅ [Session] Current nonce:",
-                currentNonce?.toString(),
-              );
-            } else if (typeof executeClient.account?.getNonce === "function") {
-              currentNonce = await executeClient.account.getNonce();
-              console.log(
-                "✅ [Session] Current nonce from account:",
+                "✅ [Session] Current nonce from session account:",
                 currentNonce?.toString(),
               );
             }
@@ -449,8 +497,13 @@ export default function useBiconomyWithSessionKey(
           );
 
           const sessionActionsFactory = smartSessionActions();
-          const sessionActions = sessionActionsFactory(executeClient);
+          const sessionActions = sessionActionsFactory(sessionExecuteClient);
           const mode = sessionEnabled ? "USE" : "ENABLE_AND_USE";
+
+          console.log("🔎 Comparing smart account addresses for session vs owner:", {
+            sessionSmartAccount: sessionAccount.address,
+            ownerSmartAccount: saAddress,
+          });
 
           console.log("🔍 SESSION MODE DEBUG:", {
             sessionEnabled,
@@ -458,6 +511,10 @@ export default function useBiconomyWithSessionKey(
             sessionGrantExists: !!sessionGrant,
             sessionGrantLength: sessionGrant?.length || 0,
           });
+
+          if (sessionGrant?.length) {
+            console.log("🔍 Session grant payload sample:", sessionGrant[0]);
+          }
 
           console.log("🚀 CALLING usePermission with:", {
             mode,
@@ -471,6 +528,7 @@ export default function useBiconomyWithSessionKey(
           });
 
           const userOpHash = await sessionActions.usePermission({
+            account: sessionAccount,
             sessionDetailsArray: sessionGrant,
             mode,
             calls: [
@@ -484,7 +542,7 @@ export default function useBiconomyWithSessionKey(
 
           console.log("✅ usePermission returned userOpHash:", userOpHash);
 
-          const receipt = await executeClient.waitForUserOperationReceipt({
+          const receipt = await sessionExecuteClient.waitForUserOperationReceipt({
             hash: userOpHash,
           });
           const transactionHash =
@@ -558,11 +616,13 @@ export default function useBiconomyWithSessionKey(
     },
     [
       sessionKey,
-      client, // Use main client instead of sessionClient
+      client,
       currentChainId,
       sessionGrant,
       sessionEnabled,
       setSessionEnabled,
+      saAddress,
+      setSessionClient,
     ],
   );
 
@@ -727,6 +787,7 @@ export default function useBiconomyWithSessionKey(
     return () => {
       nexusAccountRef.current = null;
       sessionAccountRef.current = null;
+      sessionClientRef.current = null;
     };
   }, []);
 
@@ -738,7 +799,8 @@ export default function useBiconomyWithSessionKey(
     setIsInitialized(false);
     nexusAccountRef.current = null;
     sessionAccountRef.current = null;
-    // setSessionClient removed - no longer using separate session client
+    sessionClientRef.current = null;
+    setSessionClient(undefined);
     setSessionGrant(undefined);
     setSessionEnabled(false);
     await initializeSmartAccount(defaultChainId, false);
@@ -747,6 +809,7 @@ export default function useBiconomyWithSessionKey(
     initializeSmartAccount,
     setSessionGrant,
     setSessionEnabled,
+    setSessionClient,
   ]);
 
   return {
@@ -755,7 +818,7 @@ export default function useBiconomyWithSessionKey(
     ownerAddress: ownerAddress as Address | undefined,
     saAddress,
     client,
-    // sessionClient removed - using main client for session transactions
+    sessionClient,
     sessionKey,
     sessionKeyAddress,
     isSessionActive,

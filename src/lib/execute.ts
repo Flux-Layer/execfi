@@ -437,15 +437,41 @@ export async function executeTransferPipeline(
     timeoutMs?: number;
     userAddress?: `0x${string}`;
     useSession?: boolean;
+    sendSessionTx?: (params: {
+      to: string;
+      value?: string;
+      data?: string;
+    }) => Promise<string>;
   } = {}
 ): Promise<{
   txHash: string;
   confirmed?: boolean;
 }> {
-  const { waitForConfirmation = true, timeoutMs = 30000, userAddress, useSession } = options;
+  const {
+    waitForConfirmation = true,
+    timeoutMs = 30000,
+    userAddress,
+    useSession,
+    sendSessionTx,
+  } = options;
 
   // Execute the transaction
-  const txHash = await executeNativeTransfer(biconomyClient, norm, userAddress, useSession);
+  let txHash: string;
+
+  if (useSession && sendSessionTx) {
+    txHash = await sendSessionTx({
+      to: norm.to,
+      value: norm.amountWei.toString(),
+      data: "0x",
+    });
+  } else {
+    txHash = await executeNativeTransfer(
+      biconomyClient,
+      norm,
+      userAddress,
+      useSession,
+    );
+  }
 
   // Optionally wait for confirmation
   if (waitForConfirmation) {

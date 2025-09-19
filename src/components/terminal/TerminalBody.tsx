@@ -22,7 +22,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   const {
     saAddress,
     client: biconomyClient,
-    // sessionClient removed - using main client
+    sendTxWithSession,
     isSessionActive,
     createSession,
     retry,
@@ -119,8 +119,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
             biconomyClient,
             saAddress,
             {
-              // sessionClient removed - using main client
               hasActiveSession: isSessionActive,
+              sendSessionTx: sendTxWithSession,
             }
           );
 
@@ -299,8 +299,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           biconomyClient,
           saAddress,
           {
-            // sessionClient removed - using main client
             hasActiveSession: isSessionActive,
+            sendSessionTx: sendTxWithSession,
           }
         );
 
