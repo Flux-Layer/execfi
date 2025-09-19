@@ -1,4 +1,4 @@
-# CLAUDE.md — Project Rules & Operability Guide (Kentank, Biconomy Edition)
+# CLAUDE.md — Project Rules & Operability Guide (ExecFi, Biconomy Edition)
 
 > **Purpose.** This file is the _contract_ between our codebase and Claude Code / Claude API. It encodes how Claude should parse, plan, write code, and enforce machine-parsable outputs for our **prompt→transaction DeFi app**, now built on **Privy (embedded EOA)** + **Biconomy Smart Accounts (ERC-4337)** + **LI.FI**.
 >

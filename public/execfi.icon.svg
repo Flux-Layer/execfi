@@ -1,0 +1,38 @@
+<!-- ExecFi • wordmark ASCII-like (Enhanced) -->
+<svg width="640" height="140" viewBox="0 0 640 140" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- gradient untuk teks -->
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <!-- glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- frame -->
+  <!-- <rect x="2" y="2" width="636" height="136" rx="16" 
+        fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2"/> -->
+
+  <!-- prompt text -->
+  <text x="32" y="88" 
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" 
+        font-weight="700" font-size="64" 
+        fill="url(#grad)" filter="url(#glow)" letter-spacing="2">
+    &gt; exf_
+  </text>
+
+  <!-- subtext muted -->
+  <text x="36" y="118" 
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" 
+        font-weight="400" font-size="20" 
+        fill="#9CA3AF" letter-spacing="1">
+    execfi
+  </text>
+</svg>

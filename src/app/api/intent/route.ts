@@ -86,8 +86,8 @@ async function callOpenRouter(prompt: string, systemPrompt: string, apiKey: stri
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_NAME || "kentank",
-      "X-Title": process.env.NEXT_PUBLIC_PROJECT_ID || "kentank",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_NAME || "execfi",
+      "X-Title": process.env.NEXT_PUBLIC_PROJECT_ID || "execfi",
     },
     body: JSON.stringify({
       model: "openai/gpt-4o-mini",

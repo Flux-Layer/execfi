@@ -1,4 +1,4 @@
-# AGENTS.md — Prompt→Transaction Agent System (Kentank, Biconomy)
+# AGENTS.md — Prompt→Transaction Agent System (ExecFi, Biconomy)
 
 > **Mission.** Turn natural language into **safe, verifiable on-chain actions** using Privy (embedded EOA) → Biconomy Smart Accounts (ERC-4337) → LI.FI (routing).  
 > This document specifies the **agent roster**, **state machine**, **schemas**, **policies**, and **execution wiring**. It is the authoritative reference for the runtime orchestrator.

@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiMenu } from "react-icons/fi";
+import logo from "../../../public/execfi.icon.svg";
+import Image from "next/image";
 
 /** ====== PUBLIC API ====== */
 export const NavDrawer = () => {
@@ -78,20 +80,16 @@ const SimpleFloatingNav = () => {
 /** ====== PARTS ====== */
 
 const Logo = () => {
-  return (
-    <svg
-      width="28"
-      height="auto"
-      viewBox="0 0 50 39"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="ml-2 fill-neutral-50"
-    >
-      <path d="M16.4992 2H37.5808L22.0816 24.9729H1L16.4992 2Z"></path>
-      <path d="M17.4224 27.102L11.4192 36H33.5008L49 13.0271H32.7024L23.2064 27.102H17.4224Z"></path>
-    </svg>
-  );
-};
+   return (
+     <Image
+       src={logo}
+       alt="ExecFi"
+       width={28}
+       height={28}
+       className="h-7 w-auto"
+     />
+   );
+ };
 
 const NavLink = ({ children }: { children: string }) => {
   return (

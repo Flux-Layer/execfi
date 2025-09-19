@@ -7,6 +7,7 @@ import TerminalHeader from "./TerminalHeader";
 import TerminalBody from "./TerminalBody";
 import { motion } from "framer-motion";
 import useBiconomyWithSessionKey from "@/hooks/useBiconomyWithSessionKey";
+import logo from "../../../public/execfi.icon.svg";
 
 // ukuran grid
 const GRID_BOX_SIZE = 32;
@@ -39,7 +40,7 @@ export default function PromptTerminal() {
               onClick={() => inputRef.current?.focus()}
               className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
             >
-              <TerminalHeader headerTitle="Kentank" />
+              <TerminalHeader isSessionActive/>
               <TerminalBody inputRef={inputRef} containerRef={containerRef} />
             </div>
           </div>
@@ -72,11 +73,11 @@ const BGGrid = () => {
 
 const Beams = () => {
   const placements = [
-    { top: GRID_BOX_SIZE * 0,  left: GRID_BOX_SIZE * 4  },
-    { top: GRID_BOX_SIZE * 12, left: GRID_BOX_SIZE * 8  },
-    { top: GRID_BOX_SIZE * 3,  left: GRID_BOX_SIZE * 12 },
-    { top: GRID_BOX_SIZE * 9,  left: GRID_BOX_SIZE * 20 },
-    { top: 0,                  left: GRID_BOX_SIZE * 16 },
+    { top: GRID_BOX_SIZE * 0, left: GRID_BOX_SIZE * 4 },
+    { top: GRID_BOX_SIZE * 12, left: GRID_BOX_SIZE * 8 },
+    { top: GRID_BOX_SIZE * 3, left: GRID_BOX_SIZE * 12 },
+    { top: GRID_BOX_SIZE * 9, left: GRID_BOX_SIZE * 20 },
+    { top: 0, left: GRID_BOX_SIZE * 16 },
   ];
 
   return (
@@ -93,7 +94,12 @@ const Beam = ({ top, left }: { top: number; left: number }) => {
     <motion.div
       initial={{ y: 0, opacity: 0 }}
       animate={{ opacity: [0, 1, 0], y: GRID_BOX_SIZE * 8 }}
-      transition={{ ease: "easeInOut", duration: 3.5, repeat: Infinity, repeatDelay: 2 }}
+      transition={{
+        ease: "easeInOut",
+        duration: 3.5,
+        repeat: Infinity,
+        repeatDelay: 2,
+      }}
       style={{ top, left }}
       className="absolute z-0 h-[64px] w-[1px] bg-gradient-to-b from-indigo-500/0 to-indigo-500"
     />

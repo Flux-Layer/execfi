@@ -32,7 +32,7 @@ export default function ExecutionTerminal() {
     {
       id: "welcome",
       type: "system",
-      content: "Welcome to Kentank! Type a command like: 'transfer 0.001 ETH on base to 0x...'",
+      content: "Welcome to ExecFi! Type a command like: 'transfer 0.001 ETH on base to 0x...'",
       timestamp: new Date(),
     },
   ]);
@@ -138,7 +138,7 @@ export default function ExecutionTerminal() {
             <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
             <div className="w-3 h-3 bg-green-500 rounded-full"></div>
           </div>
-          <span className="text-slate-300 text-sm">Kentank Terminal</span>
+          <span className="text-slate-300 text-sm">ExecFi Terminal</span>
         </div>
         <div className="text-slate-400 text-xs">
           {saAddress ? `SA: ${saAddress.slice(0, 8)}...${saAddress.slice(-6)}` : "Initializing..."}
