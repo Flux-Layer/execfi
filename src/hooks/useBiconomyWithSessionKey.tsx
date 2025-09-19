@@ -9,6 +9,7 @@ import {
   toNexusAccount,
   getMEEVersion,
   MEEVersion,
+  smartSessionActions,
 } from "@biconomy/abstractjs";
 import type { Address } from "viem";
 import { createWalletClient, custom, http } from "viem";
@@ -62,7 +63,11 @@ export default function useBiconomyWithSessionKey(
     sessionKey,
     sessionKeyAddress,
     createSessionKey,
-    isSessionActive
+    isSessionActive,
+    sessionGrant,
+    setSessionGrant,
+    sessionEnabled,
+    setSessionEnabled,
   } = useSessionKey();
 
   const [loading, setLoading] = useState(false);
@@ -71,6 +76,11 @@ export default function useBiconomyWithSessionKey(
   const [sessionClient, setSessionClient] = useState<any>();
   const [saAddress, setSaAddress] = useState<Address>();
   const [currentChainId, setCurrentChainId] = useState<number>(defaultChainId);
+
+  const clientRef = useRef<any>(null);
+  useEffect(() => {
+    clientRef.current = client;
+  }, [client]);
 
   // Add initialization tracking to prevent multiple simultaneous inits
   const [isInitializing, setIsInitializing] = useState(false);
@@ -273,15 +283,45 @@ export default function useBiconomyWithSessionKey(
       setError(undefined);
       sessionAccountRef.current = null;
       setSessionClient(undefined);
+      setSessionGrant(undefined);
+      setSessionEnabled(false);
 
-      // Create a new session key
-      await createSessionKey({
+      const newSessionKey = await createSessionKey({
         validUntil: BigInt(Math.floor(Date.now() / 1000) + durationHours * 60 * 60),
         validAfter: BigInt(Math.floor(Date.now() / 1000)),
       });
 
       console.log(`✅ Session created for ${durationHours} hours`);
-      await initializeSmartAccount(currentChainId, true);
+
+      const sessionClientInstance = await initializeSmartAccount(currentChainId, true);
+
+      const ownerClient = clientRef.current;
+
+      if (!ownerClient) {
+        throw new Error("Smart account client not ready. Initialize main client before creating sessions.");
+      }
+
+      const { privateKeyToAccount } = await import("viem/accounts");
+      const sessionAccount = privateKeyToAccount((sessionKey || newSessionKey) as `0x${string}`);
+
+      const sessionActionsFactory = smartSessionActions();
+      const ownerSessionActions = sessionActionsFactory(ownerClient);
+
+      const permissionResponse = await ownerSessionActions.grantPermissionPersonalSign([
+        {
+          redeemer: sessionAccount.address,
+          chainId: BigInt(currentChainId),
+          permitERC4337Paymaster: true,
+          actions: [],
+        },
+      ]);
+
+      setSessionGrant(permissionResponse);
+      setSessionEnabled(false);
+
+      if (!sessionClientInstance) {
+        throw new Error("Failed to initialize session client");
+      }
     } catch (error) {
       console.error("Failed to create session:", error);
       setError("Failed to create session");
@@ -289,7 +329,14 @@ export default function useBiconomyWithSessionKey(
     } finally {
       setLoading(false);
     }
-  }, [createSessionKey, initializeSmartAccount, currentChainId]);
+  }, [
+    createSessionKey,
+    initializeSmartAccount,
+    currentChainId,
+    sessionKey,
+    setSessionGrant,
+    setSessionEnabled,
+  ]);
 
   const sendTxWithSession = useCallback(
     async (request: { to: string; value?: string; data?: string }) => {
@@ -301,24 +348,38 @@ export default function useBiconomyWithSessionKey(
         throw new Error("Session client not initialized. Run 'create session' before sending automated transactions.");
       }
 
-      try {
-        console.log("🔑 Sending transaction with session key (session client)...");
+      if (!sessionGrant || sessionGrant.length === 0) {
+        throw new Error("Session permission not granted. Run 'create session' again to authorize the session key.");
+      }
 
-        const hash = await sessionClient.sendUserOperation({
-          calls: [{
-            to: request.to,
-            data: request?.data ?? "0x",
-            value: request?.value ? BigInt(request.value) : BigInt(0),
-          }]
+      try {
+        console.log("🔑 Sending transaction with session key (usePermission flow)...");
+
+        const sessionActionsFactory = smartSessionActions();
+        const sessionActions = sessionActionsFactory(sessionClient);
+        const mode = sessionEnabled ? "USE" : "ENABLE_AND_USE";
+
+        const userOpHash = await sessionActions.usePermission({
+          sessionDetailsArray: sessionGrant,
+          mode,
+          calls: [
+            {
+              to: request.to as Address,
+              data: (request?.data ?? "0x") as any,
+              value: request?.value ? BigInt(request.value) : 0n,
+            },
+          ],
         });
 
-        console.log("📧 Session user operation hash:", hash);
-
-        const receipt = await sessionClient.waitForUserOperationReceipt({ hash });
-        const transactionHash = receipt.receipt?.transactionHash || hash;
+        const receipt = await sessionClient.waitForUserOperationReceipt({ hash: userOpHash });
+        const transactionHash = receipt.receipt?.transactionHash || userOpHash;
 
         if (!transactionHash) {
           throw new Error("Transaction failed: No transaction hash in receipt");
+        }
+
+        if (!sessionEnabled) {
+          setSessionEnabled(true);
         }
 
         console.log(`✅ Session tx sent on chain ${currentChainId}:`, transactionHash);
@@ -328,7 +389,14 @@ export default function useBiconomyWithSessionKey(
         throw err;
       }
     },
-    [sessionKey, sessionClient, currentChainId]
+    [
+      sessionKey,
+      sessionClient,
+      currentChainId,
+      sessionGrant,
+      sessionEnabled,
+      setSessionEnabled,
+    ]
   );
 
   const sendTx = useCallback(
@@ -404,8 +472,10 @@ export default function useBiconomyWithSessionKey(
     nexusAccountRef.current = null;
     sessionAccountRef.current = null;
     setSessionClient(undefined);
+    setSessionGrant(undefined);
+    setSessionEnabled(false);
     await initializeSmartAccount(defaultChainId, false);
-  }, [defaultChainId, initializeSmartAccount]);
+  }, [defaultChainId, initializeSmartAccount, setSessionGrant, setSessionEnabled]);
 
   return {
     loading,

@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http, type Address } from "viem";
 import { base } from "viem/chains";
+import { parse as parseSessionData, stringify as stringifySessionData } from "@biconomy/abstractjs";
+// import type { GrantPermissionResponse} from '@biconomy/abstractjs';
+
+type GrantPermissionResponse = any
 
 interface SessionKeyConfig {
   validUntil?: bigint;
@@ -18,21 +22,47 @@ interface UseSessionKeyReturn {
   createSessionKey: (config?: SessionKeyConfig) => Promise<string>;
   clearSessionKey: () => void;
   isSessionActive: boolean;
+  sessionGrant?: GrantPermissionResponse;
+  setSessionGrant: (grant?: GrantPermissionResponse) => void;
+  sessionEnabled: boolean;
+  setSessionEnabled: (enabled: boolean) => void;
 }
 
 const SESSION_KEY_STORAGE_KEY = "biconomy_session_key";
 const SESSION_CONFIG_STORAGE_KEY = "biconomy_session_config";
+const SESSION_GRANT_STORAGE_KEY = "biconomy_session_grant";
+const SESSION_ENABLED_STORAGE_KEY = "biconomy_session_enabled";
 
 export function useSessionKey(): UseSessionKeyReturn {
   const [sessionKey, setSessionKey] = useState<string>();
   const [sessionKeyAddress, setSessionKeyAddress] = useState<Address>();
   const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sessionGrant, setSessionGrantState] = useState<GrantPermissionResponse>();
+  const [sessionEnabled, setSessionEnabledState] = useState(false);
+
+
+  const clearSessionKey = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(SESSION_KEY_STORAGE_KEY);
+      localStorage.removeItem(SESSION_CONFIG_STORAGE_KEY);
+      localStorage.removeItem(SESSION_GRANT_STORAGE_KEY);
+      localStorage.removeItem(SESSION_ENABLED_STORAGE_KEY);
+    }
+    setSessionKey(undefined);
+    setSessionKeyAddress(undefined);
+    setIsSessionActive(false);
+    setSessionGrantState(undefined);
+    setSessionEnabledState(false);
+  }, []);
+
 
   // Load existing session key from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedKey = localStorage.getItem(SESSION_KEY_STORAGE_KEY);
       const storedConfig = localStorage.getItem(SESSION_CONFIG_STORAGE_KEY);
+      const storedGrant = localStorage.getItem(SESSION_GRANT_STORAGE_KEY);
+      const storedEnabled = localStorage.getItem(SESSION_ENABLED_STORAGE_KEY);
 
       if (storedKey && storedConfig) {
         const config = JSON.parse(storedConfig);
@@ -44,13 +74,24 @@ export function useSessionKey(): UseSessionKeyReturn {
           const account = privateKeyToAccount(storedKey as `0x${string}`);
           setSessionKeyAddress(account.address);
           setIsSessionActive(true);
+          if (storedGrant) {
+            try {
+              const parsed = parseSessionData(storedGrant) as GrantPermissionResponse;
+              setSessionGrantState(parsed);
+            } catch (error) {
+              console.warn("Failed to parse stored session grant", error);
+            }
+          }
+          if (storedEnabled) {
+            setSessionEnabledState(storedEnabled === "true");
+          }
         } else {
           // Clear expired session
           clearSessionKey();
         }
       }
     }
-  }, []);
+  }, [clearSessionKey]);
 
   const createSessionKey = useCallback(async (config: SessionKeyConfig = {}) => {
     try {
@@ -79,6 +120,7 @@ export function useSessionKey(): UseSessionKeyReturn {
       setSessionKey(privateKey);
       setSessionKeyAddress(account.address);
       setIsSessionActive(true);
+      setSessionEnabledState(false);
 
       console.log("✅ Session key created:", {
         address: account.address,
@@ -92,14 +134,23 @@ export function useSessionKey(): UseSessionKeyReturn {
     }
   }, []);
 
-  const clearSessionKey = useCallback(() => {
+  
+  const setSessionGrant = useCallback((grant?: GrantPermissionResponse) => {
     if (typeof window !== "undefined") {
-      localStorage.removeItem(SESSION_KEY_STORAGE_KEY);
-      localStorage.removeItem(SESSION_CONFIG_STORAGE_KEY);
+      if (grant) {
+        localStorage.setItem(SESSION_GRANT_STORAGE_KEY, stringifySessionData(grant));
+      } else {
+        localStorage.removeItem(SESSION_GRANT_STORAGE_KEY);
+      }
     }
-    setSessionKey(undefined);
-    setSessionKeyAddress(undefined);
-    setIsSessionActive(false);
+    setSessionGrantState(grant);
+  }, []);
+
+  const setSessionEnabled = useCallback((enabled: boolean) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(SESSION_ENABLED_STORAGE_KEY, String(enabled));
+    }
+    setSessionEnabledState(enabled);
   }, []);
 
   return {
@@ -108,6 +159,10 @@ export function useSessionKey(): UseSessionKeyReturn {
     createSessionKey,
     clearSessionKey,
     isSessionActive,
+    sessionGrant,
+    setSessionGrant,
+    sessionEnabled,
+    setSessionEnabled,
   };
 }
 
