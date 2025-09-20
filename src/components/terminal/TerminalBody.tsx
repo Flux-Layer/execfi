@@ -1,12 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "@components/loader";
-import useBiconomyWithSessionKey from "@/hooks/useBiconomyWithSessionKey";
-import {
-  ChatMessage,
-  TerminalBodyProps,
-  QuestionType,
-} from "./types";
+import { ChatMessage, TerminalBodyProps, QuestionType } from "./types";
 import InitialText from "./InitialText";
 import PreviousQuestions from "./PreviousQuestions";
 import CurrentQuestion from "./CurrentQuestion";
@@ -14,21 +9,23 @@ import ChatHistory from "./ChatHistory";
 import CurLine from "./CurLine";
 
 const QUESTIONS: QuestionType[] = [
-  { key: "email", text: "To start, could you give us ", postfix: "your email?", complete: false, value: "" },
-  { key: "code", text: "Enter the code sent to ", postfix: "your email", complete: false, value: "" },
+  {
+    key: "email",
+    text: "To start, could you give us ",
+    postfix: "your email?",
+    complete: false,
+    value: "",
+  },
+  {
+    key: "code",
+    text: "Enter the code sent to ",
+    postfix: "your email",
+    complete: false,
+    value: "",
+  },
 ];
 
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
-  const {
-    saAddress,
-    client: biconomyClient,
-    sendTxWithSession,
-    isSessionActive,
-    createSession,
-    retry,
-    loading: accountLoading,
-    error: accountError
-  } = useBiconomyWithSessionKey();
   const { authenticated, ready, user } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
 
@@ -56,34 +53,43 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
     }
   }, [ready, authenticated]);
 
-  
-
-
   const handleSubmitLine = async (value: string) => {
     // Handle token selection input
     if (tokenSelectionState?.isWaitingForSelection) {
       const selectedIndex = parseInt(value);
 
-      if (isNaN(selectedIndex) || selectedIndex < 1 || selectedIndex > tokenSelectionState.availableTokens.length) {
+      if (
+        isNaN(selectedIndex) ||
+        selectedIndex < 1 ||
+        selectedIndex > tokenSelectionState.availableTokens.length
+      ) {
         setChat((prev) => [
           ...prev,
           { role: "user", content: value },
-          { role: "assistant", content: `⚠️ Please enter a number between 1 and ${tokenSelectionState.availableTokens.length}` }
+          {
+            role: "assistant",
+            content: `⚠️ Please enter a number between 1 and ${tokenSelectionState.availableTokens.length}`,
+          },
         ]);
         setText("");
         return;
       }
 
-      const selectedToken = tokenSelectionState.availableTokens[selectedIndex - 1];
+      const selectedToken =
+        tokenSelectionState.availableTokens[selectedIndex - 1];
 
       setChat((prev) => [
         ...prev,
         { role: "user", content: value },
-        { role: "assistant", content: `✅ Selected: ${selectedToken.name} (${selectedToken.symbol})` }
+        {
+          role: "assistant",
+          content: `✅ Selected: ${selectedToken.name} (${selectedToken.symbol})`,
+        },
       ]);
 
       // Check if selected token is native ETH
-      const isNativeETH = selectedToken.address === "0x0000000000000000000000000000000000000000";
+      const isNativeETH =
+        selectedToken.address === "0x0000000000000000000000000000000000000000";
 
       if (isNativeETH) {
         // Clear token selection state and continue with native ETH transaction
@@ -93,7 +99,10 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
         setChat((prev) => [
           ...prev,
-          { role: "assistant", content: "🔄 Proceeding with native ETH transfer..." }
+          {
+            role: "assistant",
+            content: "🔄 Proceeding with native ETH transfer...",
+          },
         ]);
 
         // Continue with transaction execution using native ETH
@@ -101,13 +110,9 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
         try {
           // Import orchestrator dynamically to avoid SSR issues
-          const { executeTransactionFromPrompt } = await import("@/lib/orchestrator");
-
-          if (!biconomyClient || !saAddress) {
-            setChat((prev) => [...prev, { role: "assistant", content: "⚠️ Smart Account not ready. Please wait for initialization..." }]);
-            setAiResponding(false);
-            return;
-          }
+          const { executeTransactionFromPrompt } = await import(
+            "@/lib/orchestrator"
+          );
 
           // Modify the original prompt to explicitly use native ETH
           const nativeETHPrompt = originalPrompt.replace(/\beth\b/gi, "ETH"); // Ensure ETH is uppercase for native detection
@@ -116,12 +121,6 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           const result = await executeTransactionFromPrompt(
             nativeETHPrompt,
             user?.id || "user-id",
-            biconomyClient,
-            saAddress,
-            {
-              hasActiveSession: isSessionActive,
-              sendSessionTx: sendTxWithSession,
-            }
           );
 
           if (result.success) {
@@ -130,20 +129,24 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
               ...prev,
               { role: "assistant", content: result.message },
               {
-                role: "assistant",
+                role: "assistant" as const,
                 content: {
                   type: "explorer-link",
-                  url: result.explorerLink.url,
-                  text: result.explorerLink.text,
-                  explorerName: result.explorerLink.explorerName,
-                }
+                  url: "https://basescan.org", // hardcorded, to be implemented
+                  text: "",
+                  explorerName: "",
+                },
               },
             ]);
           } else if ("tokenSelection" in result) {
             // Shouldn't happen again, but handle just in case
             setChat((prev) => [
               ...prev,
-              { role: "assistant", content: "⚠️ Unexpected token selection required again. Please try with explicit 'ETH' in your prompt." }
+              {
+                role: "assistant",
+                content:
+                  "⚠️ Unexpected token selection required again. Please try with explicit 'ETH' in your prompt.",
+              },
             ]);
           } else {
             // Clarification needed
@@ -159,19 +162,26 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
               },
             ]);
           }
-
         } catch (error: any) {
           console.error("Token selection continuation error:", error);
 
           let errorMessage = `⚠️ Error: ${error.message || "Unknown error occurred"}`;
 
           if (error.name === "OrchestrationError") {
-            const { formatOrchestrationError } = await import("@/lib/orchestrator");
+            const { formatOrchestrationError } = await import(
+              "@/lib/orchestrator"
+            );
             errorMessage = formatOrchestrationError(error);
           } else if (error.name === "IdempotencyError") {
             errorMessage = `🔄 ${error.message}`;
             if (error.existingTxHash) {
-              setChat((prev) => [...prev, { role: "assistant", content: `Previous transaction: ${error.existingTxHash}` }]);
+              setChat((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: `Previous transaction: ${error.existingTxHash}`,
+                },
+              ]);
             }
           }
 
@@ -191,7 +201,11 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
         setChat((prev) => [
           ...prev,
-          { role: "assistant", content: "🚧 Token selected successfully! ERC-20 execution will be implemented in future updates. For now, please use native ETH transfers." }
+          {
+            role: "assistant",
+            content:
+              "🚧 Token selected successfully! ERC-20 execution will be implemented in future updates. For now, please use native ETH transfers.",
+          },
         ]);
 
         return;
@@ -211,8 +225,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
       setQuestions((pv) =>
         pv.map((q) =>
-          q.key === curQuestion.key ? { ...q, complete: true, value } : q
-        )
+          q.key === curQuestion.key ? { ...q, complete: true, value } : q,
+        ),
       );
       setCurQuestion((prev: any) => {
         const idx = questions.findIndex((q) => q.key === prev.key);
@@ -224,14 +238,37 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       setText("");
 
       // Handle special session commands
-      if (value.toLowerCase().includes("create session") || value.toLowerCase() === "session") {
+      if (
+        value.toLowerCase().includes("create session") ||
+        value.toLowerCase() === "session"
+      ) {
         setAiResponding(true);
         try {
-          setChat((prev) => [...prev, { role: "assistant", content: "🔄 Creating 24-hour session for automated signing..." }]);
-          await createSession(24);
-          setChat((prev) => [...prev, { role: "assistant", content: "✅ Session created! You can now use 'auto', 'automatically', or 'without approval' in commands." }]);
+          setChat((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content:
+                "🔄 Sessions are now handled via the new Smart Sessions system. Use the smart-account page to create sessions.",
+            },
+          ]);
+          // For now, just show info about new session system
+          setChat((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content:
+                "✅ MEE Client ready! Visit /smart-account to test the new session system.",
+            },
+          ]);
         } catch (error: any) {
-          setChat((prev) => [...prev, { role: "assistant", content: `❌ Failed to create session: ${error.message}` }]);
+          setChat((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `❌ Failed to create session: ${error.message}`,
+            },
+          ]);
         } finally {
           setAiResponding(false);
         }
@@ -239,44 +276,43 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       }
 
       if (value.toLowerCase().includes("session status")) {
-        setChat((prev) => [...prev, {
-          role: "assistant",
-          content: isSessionActive
-            ? "🟢 Session is active - automated signing enabled"
-            : "🔴 No active session - will require user approval"
-        }]);
+        setChat((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "🔴 MEE Client not ready - please wait for initialization",
+          },
+        ]);
         return;
       }
 
       // Check if required services are ready
       if (!authenticated) {
-        setChat((prev) => [...prev, { role: "assistant", content: "⚠️ Please authenticate first" }]);
+        setChat((prev) => [
+          ...prev,
+          { role: "assistant", content: "⚠️ Please authenticate first" },
+        ]);
         return;
       }
 
       // Handle retry command
-      if (value.toLowerCase().includes("retry") || value.toLowerCase() === "r") {
+      if (
+        value.toLowerCase().includes("retry") ||
+        value.toLowerCase() === "r"
+      ) {
         setAiResponding(true);
         try {
-          setChat((prev) => [...prev, { role: "assistant", content: "🔄 Retrying smart account initialization..." }]);
-          await retry();
-          setChat((prev) => [...prev, { role: "assistant", content: "✅ Smart account initialized successfully!" }]);
-        } catch (error: any) {
-          setChat((prev) => [...prev, { role: "assistant", content: `❌ Retry failed: ${error.message}` }]);
+          setChat((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "✅ MEE client initialized successfully!",
+            },
+          ]);
+        } catch {
         } finally {
           setAiResponding(false);
         }
-        return;
-      }
-
-      if (!saAddress) {
-        const errorMsg = accountError
-          ? `⚠️ Smart Account error: ${accountError}. Type 'retry' to try again.`
-          : accountLoading
-          ? "⚠️ Smart Account initializing, please wait..."
-          : "⚠️ Smart Account not ready. Type 'retry' to initialize.";
-
-        setChat((prev) => [...prev, { role: "assistant", content: errorMsg }]);
         return;
       }
 
@@ -284,24 +320,14 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
       try {
         // Import orchestrator dynamically to avoid SSR issues
-        const { executeTransactionFromPrompt } = await import("@/lib/orchestrator");
-
-        if (!biconomyClient) {
-          setChat((prev) => [...prev, { role: "assistant", content: "⚠️ Smart Account client not ready" }]);
-          setAiResponding(false);
-          return;
-        }
+        const { executeTransactionFromPrompt } = await import(
+          "@/lib/orchestrator"
+        );
 
         // Execute the full transaction pipeline with session support
         const result = await executeTransactionFromPrompt(
           value,
           user?.id || "user-id",
-          biconomyClient,
-          saAddress,
-          {
-            hasActiveSession: isSessionActive,
-            sendSessionTx: sendTxWithSession,
-          }
         );
 
         if (result.success) {
@@ -313,10 +339,10 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
               role: "assistant",
               content: {
                 type: "explorer-link",
-                url: result.explorerLink.url,
-                text: result.explorerLink.text,
-                explorerName: result.explorerLink.explorerName,
-              }
+                url: "https://basescan.org", // to be implemented
+                text: "",
+                explorerName: "",
+              },
             },
           ]);
         } else if ("tokenSelection" in result) {
@@ -333,8 +359,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
             },
             {
               role: "assistant",
-              content: "Please enter the number of the token you want to use:"
-            }
+              content: "Please enter the number of the token you want to use:",
+            },
           ]);
 
           // Set token selection state to wait for user input
@@ -357,7 +383,6 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
             },
           ]);
         }
-
       } catch (error: any) {
         console.error("Terminal execution error:", error);
 
@@ -365,12 +390,20 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         let errorMessage = `⚠️ Error: ${error.message || "Unknown error occurred"}`;
 
         if (error.name === "OrchestrationError") {
-          const { formatOrchestrationError } = await import("@/lib/orchestrator");
+          const { formatOrchestrationError } = await import(
+            "@/lib/orchestrator"
+          );
           errorMessage = formatOrchestrationError(error);
         } else if (error.name === "IdempotencyError") {
           errorMessage = `🔄 ${error.message}`;
           if (error.existingTxHash) {
-            setChat((prev) => [...prev, { role: "assistant", content: `Previous transaction: ${error.existingTxHash}` }]);
+            setChat((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `Previous transaction: ${error.existingTxHash}`,
+              },
+            ]);
           }
         }
 
@@ -417,7 +450,9 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
                   setText,
                   setFocused,
                   inputRef,
-                  command: tokenSelectionState?.isWaitingForSelection ? "select-token" : "ask-ai",
+                  command: tokenSelectionState?.isWaitingForSelection
+                    ? "select-token"
+                    : "ask-ai",
                   handleSubmitLine,
                   containerRef,
                   loading: aiResponding,

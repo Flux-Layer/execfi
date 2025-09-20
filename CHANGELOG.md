@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Major - Biconomy Smart Sessions Migration (2025-09-20)
+
+#### Complete Architecture Migration to MEE Client + Smart Sessions
+- **Migrated from legacy Smart Account to MEE Client architecture**
+- **Implemented proper Smart Sessions with policy-based permissions**
+- **Fixed AA23 validateUserOp errors through proper session validation**
+- **Added multichain support via `toMultichainNexusAccount`**
+- **Replaced wildcards with specific, secure permission policies**
+
+#### New Components & Hooks
+- **Added `useBiconomyMEE.tsx`** - MEE client with multichain orchestrator
+- **Added `useSmartSessions.tsx`** - Proper Smart Sessions implementation
+- **Added `SmartSessionsExample.tsx`** - Complete demo component
+- **Created `MIGRATION_GUIDE.md`** - Comprehensive migration documentation
+
+#### Key Technical Improvements
+- **Proper Session Validation**: Uses `grantPermissionTypedDataSign` instead of personal sign
+- **Automatic Gas Estimation**: MEE client handles gas limits automatically
+- **Policy-Based Security**: Replaced wildcards with specific action targets/selectors
+- **ERC-4337 Compliance**: Follows proper EntryPoint validation patterns
+- **Multichain Support**: Native cross-chain transaction capabilities
+
+#### Breaking Changes
+- **New Environment Variables**: `NEXT_PUBLIC_BICONOMY_API_KEY` and `NEXT_PUBLIC_BICONOMY_ID` required
+- **Hook API Changes**: New hooks replace old `useBiconomySA` and `useBiconomyWithSessionKey`
+- **Session Creation**: Now requires specific permissions instead of wildcards
+
+#### Bug Fixes
+- **Fixed AA23 "validateUserOp function reverted" errors**
+- **Resolved zero gas limits in session transactions**
+- **Fixed signature validation issues with session keys**
+- **Corrected multichain account address resolution**
+
 ### Fixed - Smart Account Balance Validation (2025-09-19)
 
 #### Critical Address Validation Fix

@@ -1,10 +1,8 @@
 import { usePrivy } from "@privy-io/react-auth";
-import useBiconomyWithSessionKey from "@/hooks/useBiconomyWithSessionKey";
 import SmartAccountInfo from "./SmartAccountInfo";
 
 const InitialText = () => {
   const { authenticated, user } = usePrivy();
-  const { saAddress } = useBiconomyWithSessionKey();
 
   return !authenticated ? (
     <>
@@ -25,8 +23,6 @@ const InitialText = () => {
         ------------------------------------------------------------------------
       </p>
       <p>Logged in with email, {String(user?.email?.address || "")}.</p>
-
-      {saAddress && <SmartAccountInfo address={saAddress} />}
     </>
   );
 };
