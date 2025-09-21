@@ -22,7 +22,7 @@ export default function PromptTerminal() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-slate-950 text-slate-200">
+    <div className="relative h-full w-full overflow-hidden bg-slate-950 text-slate-200">
       {/* === Background grid & beams === */}
       <BGGrid />
 
@@ -39,7 +39,7 @@ export default function PromptTerminal() {
               onClick={() => inputRef.current?.focus()}
               className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
             >
-              <TerminalHeader isSessionActive/>
+              <TerminalHeader isSessionActive />
               <TerminalBody inputRef={inputRef} containerRef={containerRef} />
             </div>
           </div>
