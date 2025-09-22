@@ -1,4 +1,5 @@
 "use client";
+import "../lib/patched-deploy.ts";
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -6,8 +7,9 @@ import { NavDrawer } from "@components/rounded-drawer-nav";
 import PrivyAppProvider from "@providers/privy-provider";
 import { WagmiAppProvider } from "@providers/wagmi-provider"; // ⬅️ import baru
 import { QCProvider } from "@providers/query-client.provider";
-import { createConfig, http } from "wagmi";
-import { base } from "viem/chains";
+import { EOAProvider } from "@providers/EOAProvider";
+import { SmartAccountProvider } from "@providers/SmartAccountProvider";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,16 +30,41 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
         <PrivyAppProvider>
-          <WagmiAppProvider>
-            <QCProvider>
-
-            <NavDrawer />
-            {children}
-            </QCProvider>
-          </WagmiAppProvider>
+          <EOAProvider>
+            <SmartAccountProvider>
+              <WagmiAppProvider>
+                <QCProvider>
+                  <NavDrawer />
+                  {children}
+                  <Toaster
+                    position="top-right"
+                    toastOptions={{
+                      duration: 4000,
+                      style: {
+                        background: "#1f2937",
+                        color: "#f9fafb",
+                        border: "1px solid #374151",
+                      },
+                      success: {
+                        iconTheme: {
+                          primary: "#10b981",
+                          secondary: "#f9fafb",
+                        },
+                      },
+                      error: {
+                        iconTheme: {
+                          primary: "#ef4444",
+                          secondary: "#f9fafb",
+                        },
+                      },
+                    }}
+                  />
+                </QCProvider>
+              </WagmiAppProvider>
+            </SmartAccountProvider>
+          </EOAProvider>
         </PrivyAppProvider>
       </body>
     </html>
   );
 }
-

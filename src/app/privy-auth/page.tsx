@@ -1,61 +1,62 @@
 "use client";
 
-import { useLoginWithEmail, usePrivy, useWallets } from "@privy-io/react-auth";
+import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import TextInput from "@components/text-input";
 import SplashButton from "@components/splash-button";
+import { useEOA } from "@hooks/useEOA";
+import { useSmartAccount } from "@hooks/useSmartAccount";
 
 export default function Page() {
-  const { authenticated, logout, user } = usePrivy();
-  const { wallets } = useWallets();
+  const { authenticated, logout, user, exportWallet } = usePrivy();
+  const {
+    privyWallets,
+    selectedWallet,
+    selectedWalletIndex,
+    setSelectedWalletIndex,
+    formatAddress,
+    copyAddress,
+    copiedAddress
+  } = useEOA();
+
+  const {
+    smartAccountAddress,
+    isDeployed,
+    isDeploying,
+    deploy,
+    currentChainId,
+    switchChain,
+    isPaymasterEnabled,
+    enablePaymaster,
+    disablePaymaster,
+    isLoading: smartAccountLoading,
+    error: smartAccountError
+  } = useSmartAccount();
+
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const { sendCode, loginWithCode } = useLoginWithEmail();
   const [codeSent, setCodeSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [copiedAddress, setCopiedAddress] = useState(false);
-  const [selectedWalletIndex, setSelectedWalletIndex] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedAddress(true);
-      setTimeout(() => setCopiedAddress(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  };
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  // Get all Privy EOA wallets
-  const getPrivyWallets = () => {
-    if (!wallets || wallets.length === 0) return [];
-
-    console.log({ wallets });
-
-    return wallets.filter((wallet) => wallet.walletClientType === "privy");
-  };
-
-  const privyWallets = getPrivyWallets();
-  const selectedWallet = privyWallets[selectedWalletIndex] || null;
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsDropdownOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -85,7 +86,7 @@ export default function Page() {
   };
 
   return (
-    <main className="w-full h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 relative overflow-hidden">
+    <main className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 relative overflow-x-hidden py-8">
       {/* Background Effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/20 via-black to-black" />
       <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:50px_50px]" />
@@ -116,7 +117,7 @@ export default function Page() {
         }}
       />
 
-      <div className="relative z-10 flex flex-col items-center max-w-md w-full px-6">
+      <div className="relative z-10 flex flex-col items-center max-w-7xl w-full px-6">
         {/* Header Section */}
         <motion.div
           className="text-center mb-12"
@@ -251,13 +252,15 @@ export default function Page() {
                   </span>
                 </motion.div>
 
-                {/* Wallet Information Card */}
-                <motion.div
-                  className="bg-gradient-to-br from-white/5 to-white/10 border border-white/20 rounded-2xl p-6 backdrop-blur-sm"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
+                {/* Account Cards Container */}
+                <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Wallet Information Card */}
+                  <motion.div
+                    className="bg-gradient-to-br from-white/5 to-white/10 border border-white/20 rounded-2xl p-6 backdrop-blur-sm"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
                   <div className="space-y-4">
                     {/* Header */}
                     <div className="flex items-center gap-3 mb-4">
@@ -329,7 +332,7 @@ export default function Page() {
                               <div className="w-3 h-3 bg-purple-500 rounded-full" />
                               <div className="flex-1">
                                 <div className="text-white text-sm font-mono">
-                                  {formatAddress(selectedWallet?.address || '')}
+                                  {formatAddress(selectedWallet?.address || "")}
                                 </div>
                                 <div className="text-gray-400 text-xs">
                                   Wallet #{selectedWalletIndex + 1}
@@ -343,7 +346,12 @@ export default function Page() {
                                 animate={{ rotate: isDropdownOpen ? 180 : 0 }}
                                 transition={{ duration: 0.2 }}
                               >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
                               </motion.svg>
                             </div>
                           </motion.button>
@@ -366,15 +374,25 @@ export default function Page() {
                                       setIsDropdownOpen(false);
                                     }}
                                     className={`w-full p-3 text-left hover:bg-white/10 transition-colors border-b border-white/5 last:border-b-0 ${
-                                      selectedWalletIndex === index ? 'bg-purple-500/20' : ''
+                                      selectedWalletIndex === index
+                                        ? "bg-purple-500/20"
+                                        : ""
                                     }`}
                                     whileHover={{ x: 4 }}
-                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                    transition={{
+                                      type: "spring",
+                                      stiffness: 300,
+                                      damping: 30,
+                                    }}
                                   >
                                     <div className="flex items-center gap-3">
-                                      <div className={`w-2 h-2 rounded-full ${
-                                        selectedWalletIndex === index ? 'bg-purple-500' : 'bg-gray-600'
-                                      }`} />
+                                      <div
+                                        className={`w-2 h-2 rounded-full ${
+                                          selectedWalletIndex === index
+                                            ? "bg-purple-500"
+                                            : "bg-gray-600"
+                                        }`}
+                                      />
                                       <div className="flex-1">
                                         <div className="text-white text-sm font-mono">
                                           {formatAddress(wallet.address)}
@@ -389,8 +407,18 @@ export default function Page() {
                                           animate={{ scale: 1 }}
                                           className="text-purple-400"
                                         >
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                          <svg
+                                            className="w-3 h-3"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M5 13l4 4L19 7"
+                                            />
                                           </svg>
                                         </motion.div>
                                       )}
@@ -429,7 +457,7 @@ export default function Page() {
                           </span>
                           <button
                             onClick={() =>
-                              copyToClipboard(selectedWallet.address)
+                              copyAddress(selectedWallet.address)
                             }
                             className="p-1.5 hover:bg-white/10 rounded-md transition-colors group"
                             title="Copy address"
@@ -517,6 +545,31 @@ export default function Page() {
                       </div>
                     )}
 
+                    {/* Export Wallet Button */}
+                    {selectedWallet?.address && (
+                      <div className="pt-2">
+                        <button
+                          onClick={() => exportWallet({ address: selectedWallet.address })}
+                          className="w-full px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all font-medium text-sm flex items-center justify-center gap-2"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          Export Private Key
+                        </button>
+                      </div>
+                    )}
+
                     {/* Created At */}
                     {user?.createdAt && (
                       <div className="space-y-1">
@@ -552,6 +605,174 @@ export default function Page() {
                     )}
                   </div>
                 </motion.div>
+
+                {/* Smart Account Information Card */}
+                {selectedWallet && (
+                  <motion.div
+                    className="bg-gradient-to-br from-white/5 to-white/10 border border-white/20 rounded-2xl p-6 backdrop-blur-sm"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <div className="space-y-4">
+                      {/* Header */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="text-white font-semibold">Smart Account</h3>
+                          <p className="text-gray-400 text-sm">Account Abstraction with Biconomy</p>
+                        </div>
+                      </div>
+
+                      {/* Smart Account Address */}
+                      {smartAccountAddress && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                            Smart Account Address
+                          </label>
+                          <div className="flex items-center gap-2 p-3 bg-black/20 rounded-lg border border-white/10">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                            <span className="text-white text-sm font-mono flex-1">
+                              {formatAddress(smartAccountAddress)}
+                            </span>
+                            <button
+                              onClick={() => copyAddress(smartAccountAddress)}
+                              className="p-1.5 hover:bg-white/10 rounded-md transition-colors group"
+                              title="Copy smart account address"
+                            >
+                              {copiedAddress ? (
+                                <motion.svg
+                                  className="w-4 h-4 text-green-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </motion.svg>
+                              ) : (
+                                <svg className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Deployment Status */}
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                          Deployment Status
+                        </label>
+                        <div className="flex items-center gap-2 p-3 bg-black/20 rounded-lg border border-white/10">
+                          <div className={`w-2 h-2 rounded-full ${isDeployed ? 'bg-green-500' : 'bg-orange-500'}`} />
+                          <span className="text-white text-sm">
+                            {isDeployed ? 'Deployed' : 'Not Deployed'}
+                          </span>
+                          {isDeploying && (
+                            <motion.div
+                              className="ml-auto"
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            >
+                              <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Current Chain */}
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                          Current Chain
+                        </label>
+                        <div className="flex items-center gap-2 p-3 bg-black/20 rounded-lg border border-white/10">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                          <span className="text-white text-sm">
+                            {currentChainId === 8453 ? 'Base Mainnet' : currentChainId === 84532 ? 'Base Sepolia' : `Chain ${currentChainId}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Paymaster Status */}
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                          Gasless Transactions
+                        </label>
+                        <div className="flex items-center gap-2 p-3 bg-black/20 rounded-lg border border-white/10">
+                          <div className={`w-2 h-2 rounded-full ${isPaymasterEnabled ? 'bg-green-500' : 'bg-gray-500'}`} />
+                          <span className="text-white text-sm flex-1">
+                            {isPaymasterEnabled ? 'Enabled' : 'Disabled'}
+                          </span>
+                          <button
+                            onClick={isPaymasterEnabled ? disablePaymaster : enablePaymaster}
+                            className="px-3 py-1 text-xs rounded-md bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors"
+                          >
+                            {isPaymasterEnabled ? 'Disable' : 'Enable'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pt-2">
+                        {!isDeployed && (
+                          <button
+                            onClick={deploy}
+                            disabled={isDeploying || smartAccountLoading}
+                            className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                          >
+                            {isDeploying ? 'Deploying...' : 'Deploy Smart Account'}
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => switchChain(currentChainId === 8453 ? 84532 : 8453)}
+                          disabled={smartAccountLoading}
+                          className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                          Switch to {currentChainId === 8453 ? 'Sepolia' : 'Base'}
+                        </button>
+                      </div>
+
+                      {/* Loading State */}
+                      {smartAccountLoading && (
+                        <div className="flex items-center gap-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          >
+                            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </motion.div>
+                          <span className="text-blue-400 text-sm">Processing smart account operation...</span>
+                        </div>
+                      )}
+
+                      {/* Error State */}
+                      {smartAccountError && (
+                        <div className="flex items-center gap-2 p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                          <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          <span className="text-red-400 text-sm">{smartAccountError}</span>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+                </div>
 
                 {/* Action Buttons */}
                 <motion.div

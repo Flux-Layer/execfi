@@ -14,6 +14,9 @@
   },
   "dependencies": {
     "@biconomy/account": "^4.5.7",
+    "@biconomy/bundler": "^3.1.4",
+    "@biconomy/modules": "^3.1.4",
+    "@biconomy/paymaster": "^3.1.4",
     "@privy-io/react-auth": "^2.24.0",
     "@privy-io/wagmi": "^1.0.6",
     "@tanstack/react-query": "^5.87.4",
@@ -26,6 +29,7 @@
     "pino-pretty": "^13.1.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-hot-toast": "^2.6.0",
     "react-icons": "^5.5.0",
     "tailwind-merge": "^3.3.1",
     "viem": "^2.36.1",
