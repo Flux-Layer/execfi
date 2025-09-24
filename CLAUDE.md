@@ -1,6 +1,6 @@
-# CLAUDE.md — Project Rules & Operability Guide (ExecFi, Biconomy Edition)
+# CLAUDE.md — Project Rules & Operability Guide (ExecFi, Privy Edition)
 
-> **Purpose.** This file is the _contract_ between our codebase and Claude Code / Claude API. It encodes how Claude should parse, plan, write code, and enforce machine-parsable outputs for our **prompt→transaction DeFi app**, now built on **Privy (embedded EOA)** + **Biconomy Smart Accounts (ERC-4337)** + **LI.FI**.
+> **Purpose.** This file is the _contract_ between our codebase and Claude Code / Claude API. It encodes how Claude should parse, plan, write code, and enforce machine-parsable outputs for our **prompt→transaction DeFi app**, now built on **Privy (embedded EOA)** + **Privy Smart Accounts (ERC-4337)** + **LI.FI**.
 >
 > **Prime directive.** _Be deterministic._ Prefer strict schemas, typed contracts, and validation gates over clever heuristics.
 > **Always** write detailed changelog to /CHANGELOGS.md.
@@ -11,11 +11,12 @@
 
 - **Intent/Planning mode (AI via OpenRouter)**
   - Input: natural-language terminal prompt.
-  - Output: **strict JSON Intent v1.1** _or_ a single **clarify** object.
+  - Output: **strict JSON Intent v1.2** _or_ a single **clarify** object.
   - Rules: JSON only, no prose, no code fences. Temperature=0.
+
 - **Coding mode (Claude Code in IDE)**
   - Input: `INITIAL.md` → generate PRP → implement against repo.
-  - Stack: TypeScript strict, Viem, React/Next.js, Privy EOA, Biconomy Smart Accounts.
+  - Stack: TypeScript strict, Viem, React/Next.js, Privy EOA, Privy Smart Accounts.
   - Deliverables: code + tests + docs, aligned with acceptance criteria.
 
 ---
@@ -24,7 +25,7 @@
 
 1. `INITIAL.md` (feature scope + acceptance criteria)
 2. `AGENTS.md` (planner/normalizer/validator/executor)
-3. `README` or `CONTEXT-CLAUDE.md` (project-level context engineering rules)
+3. `README` or `CONTEXT-CLAUDE.md` (project-level context rules)
 4. This `CLAUDE.md` (guardrails)
 5. `/examples/**` (copy patterns)
 6. Source files under `/hooks`, `/lib`, `/app`, `/api`
@@ -35,7 +36,7 @@
 
 ## 2) Canonical contracts
 
-### 2.1 Intent JSON (v1.1)
+### 2.1 Intent JSON (v1.2)
 
 - **Success**
 
@@ -73,17 +74,17 @@
 
 ### 2.3 Execution interfaces
 
-- **Native transfer**: `biconomyClient.sendTransaction({ to, value, data?:"0x" })`
-- **LI.FI flow**: `getRoutes` → select → `executeRoute(biconomyClient, route)`
+- **Native transfer**: `privyClient.sendUserOperation({ to, value })`
+- **LI.FI flow**: `getRoutes` → select → `executeRoute(privyClient, route)`
 
 ---
 
 ## 3) Guardrails & scope
 
-- **Non-custodial**: No server-side keys. Privy holds EOAs, Biconomy derives SAs client-side.
-- **Smart accounts only**: Canonical address = Biconomy Smart Account.
+- **Non-custodial**: No server-side keys. Privy holds EOAs, Privy derives SAs client-side.
+- **Smart accounts only**: Canonical address = Privy Smart Account.
 - **Supported chains** (MVP): Base (8453), Ethereum (1), Polygon (137), Arbitrum (42161), Optimism (10), Avalanche (43114). Default = Base.
-- **Gas**: MVP = user-paid. If a Biconomy paymaster is configured, treat as optional.
+- **Gas**: MVP = user-paid. Paymaster integration is out of scope.
 - **Quotes**: Required only for swaps/bridges.
 - **Safety**: enforce checksum, non-zero addresses, balance+gas headroom, per-tx/day caps, contract allowlists.
 
@@ -93,8 +94,8 @@
 
 - Determinism > heuristics. Always resolve chain via registry.
 - Keep helpers small and composable.
-- Privy auth + Biconomy SDK wiring are **client-only** (`"use client"`).
-- Version pinning: use **latest stable Biconomy SDK v3** APIs, explicitly set entrypoint version.
+- Privy auth + Smart Account SDK wiring are **client-only** (`"use client"`).
+- Version pinning: use **Privy Smart Accounts SDK stable** APIs.
 - Never attempt to export private keys.
 
 ---
@@ -105,52 +106,28 @@
 - **Style**: ESLint + Prettier. Avoid `any` leaks.
 - **Imports**: external → internal; avoid deep relative hell.
 - **Config via env**:
-  - `NEXT_PUBLIC_BICONOMY_API_KEY`
-  - `NEXT_PUBLIC_BUNDLER_RPC`
   - `NEXT_PUBLIC_PRIVY_APP_ID`
+  - `NEXT_PUBLIC_PRIVY_APP_SECRET`
   - `NEXT_PUBLIC_LIFI_API_KEY` (optional for swaps/bridges)
+
 - **Errors**: throw typed errors; surface one-liners to users; log technical detail once.
 - **DX**: JSDoc on all exports; code comments for non-obvious parts.
 
 ---
 
-## 6) Privy × Biconomy wiring (canonical pattern)
+## 6) Privy Smart Account wiring (canonical pattern)
 
 ```ts
 "use client";
 
-import {
-  BiconomySmartAccountV2,
-  createSmartAccountClient,
-} from "@biconomy/account";
-import { createPublicClient, http } from "viem";
-import { base } from "viem/chains";
-
-export async function getBiconomyClient(privyWallet: any) {
-  const eip1193 = await privyWallet.getEthereumProvider();
-
-  const chain = base; // parametrize
-  const publicClient = createPublicClient({
-    chain,
-    transport: http(process.env.NEXT_PUBLIC_BUNDLER_RPC!),
-  });
-
-  // Construct Biconomy smart account
-  const client = await createSmartAccountClient({
-    signer: eip1193, // Privy EOA provider
-    bundlerUrl: process.env.NEXT_PUBLIC_BUNDLER_RPC!,
-    biconomyPaymasterApiKey: process.env.NEXT_PUBLIC_BICONOMY_API_KEY,
-    chainId: chain.id,
-  });
-
-  return client; // exposes sendTransaction, getAddress, etc.
-}
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+const { client } = useSmartWallets();
 ```
 
 **Gotchas:**
 
 - First tx will deploy the smart account.
-- If no paymaster is configured, user must hold gas tokens.
+- User must hold gas tokens in MVP.
 - Must always confirm chain matches app default.
 
 ---
@@ -234,6 +211,6 @@ Preferred test stack: Vitest + Testing Library.
 **TL;DR**: Claude, be **deterministic**.
 
 - In API mode: emit **Intent JSON** only.
-- In coding mode: follow `/examples`, wire **Privy → Biconomy SA**, pass tests, protect users.
+- In coding mode: follow `/examples`, wire **Privy Smart Accounts**, pass tests, protect users.
 
 ---
