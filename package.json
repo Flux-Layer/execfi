@@ -13,10 +13,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@biconomy/account": "^4.5.7",
-    "@biconomy/bundler": "^3.1.4",
-    "@biconomy/modules": "^3.1.4",
-    "@biconomy/paymaster": "^3.1.4",
     "@privy-io/react-auth": "^2.24.0",
     "@privy-io/wagmi": "^1.0.6",
     "@tanstack/react-query": "^5.87.4",
