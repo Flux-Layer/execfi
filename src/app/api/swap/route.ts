@@ -38,9 +38,21 @@ export async function GET(req: Request) {
 
     return NextResponse.json(quote);
   } catch (err: any) {
-    console.error("API error:", err);
+    console.error("Swap API error:", err);
+
+    let errorMessage = "Failed to get swap quote";
+    if (err?.message) {
+      errorMessage = `Swap service error: ${err.message}`;
+    } else if (typeof err === 'string') {
+      errorMessage = `Swap service error: ${err}`;
+    }
+
     return NextResponse.json(
-      { error: err.message ?? "Unexpected error" },
+      {
+        error: errorMessage,
+        code: err?.code || "SWAP_ERROR",
+        details: err?.details || null
+      },
       { status: 500 }
     );
   }

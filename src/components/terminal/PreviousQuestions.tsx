@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { FiCheckCircle } from "react-icons/fi";
-import { PreviousQuestionProps } from "./types";
+import { PreviousQuestionProps } from "@/types/terminal-types";
 
 const PreviousQuestions = ({ questions }: PreviousQuestionProps) => {
   return (

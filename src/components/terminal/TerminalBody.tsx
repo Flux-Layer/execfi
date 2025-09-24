@@ -1,501 +1,518 @@
 import { useEffect, useState } from "react";
 import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "@components/loader";
-import { ChatMessage, TerminalBodyProps, QuestionType } from "./types";
+import { ChatMessage, TerminalBodyProps, QuestionType } from "@/types/terminal-types";
 import InitialText from "./InitialText";
 import PreviousQuestions from "./PreviousQuestions";
 import CurrentQuestion from "./CurrentQuestion";
 import ChatHistory from "./ChatHistory";
 import CurLine from "./CurLine";
 import useSmartWallet from "@/hooks/useSmartWallet";
-import { useSendTransaction, useWallets } from "@privy-io/react-auth";
-import { useEOA } from "@/providers/EOAProvider";
-
-const QUESTIONS: QuestionType[] = [
-  {
-    key: "email",
-    text: "To start, could you give us ",
-    postfix: "your email?",
-    complete: false,
-    value: "",
-  },
-  {
-    key: "code",
-    text: "Enter the code sent to ",
-    postfix: "your email",
-    complete: false,
-    value: "",
-  },
-];
+import { LOGIN_WITH_EMAIL_QUESTIONS } from "@/constants/terminal-questions";
+import ErrorBoundary, { TerminalErrorFallback } from "@/components/ErrorBoundary";
 
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
-  const { authenticated, ready, user } = usePrivy();
-  const { sendCode, loginWithCode } = useLoginWithEmail();
-  const {
-    smartWalletClient,
-    isReady: smartWalletReady,
-    smartAccountAddress,
-  } = useSmartWallet();
-  const { selectedWallet } = useEOA();
-  const { sendTransaction } = useSendTransaction();
+   const { authenticated, ready, user } = usePrivy();
+   const { sendCode, loginWithCode } = useLoginWithEmail();
+   const {
+      smartWalletClient,
+      isReady: smartWalletReady,
+      smartAccountAddress,
+   } = useSmartWallet();
 
-  const [questions, setQuestions] = useState(QUESTIONS);
-  const [chat, setChat] = useState<ChatMessage[]>([]);
-  const [curQuestion, setCurQuestion] = useState<any>(QUESTIONS[0]);
-  const [focused, setFocused] = useState(false);
-  const [text, setText] = useState("");
-  const [aiResponding, setAiResponding] = useState(false);
+   const [questions, setQuestions] = useState(LOGIN_WITH_EMAIL_QUESTIONS);
+   const [chat, setChat] = useState<ChatMessage[]>([]);
+   const [curQuestion, setCurQuestion] = useState<any>(
+      LOGIN_WITH_EMAIL_QUESTIONS[0],
+   );
+   const [focused, setFocused] = useState(false);
+   const [text, setText] = useState("");
+   const [aiResponding, setAiResponding] = useState(false);
 
-  // Token selection state
-  const [tokenSelectionState, setTokenSelectionState] = useState<{
-    isWaitingForSelection: boolean;
-    originalPrompt: string;
-    availableTokens: any[];
-  } | null>(null);
+   // Token selection state
+   const [tokenSelectionState, setTokenSelectionState] = useState<{
+      isWaitingForSelection: boolean;
+      originalPrompt: string;
+      availableTokens: any[];
+   } | null>(null);
 
-  useEffect(() => {
-    if (ready && authenticated) {
-      setQuestions([]);
-      setCurQuestion(null);
-    } else if (ready && !authenticated) {
-      setQuestions(QUESTIONS);
-      setCurQuestion(QUESTIONS[0]);
-    }
-  }, [ready, authenticated]);
-
-  const handleSubmitLine = async (value: string) => {
-    // dummy transaction test
-
-    // Handle token selection input
-    if (tokenSelectionState?.isWaitingForSelection) {
-      const selectedIndex = parseInt(value);
-
-      if (
-        isNaN(selectedIndex) ||
-        selectedIndex < 1 ||
-        selectedIndex > (tokenSelectionState?.availableTokens || [])?.length
-      ) {
-        setChat((prev) => [
-          ...prev,
-          { role: "user", content: value },
-          {
-            role: "assistant",
-            content: `⚠️ Please enter a number between 1 and ${tokenSelectionState?.availableTokens.length}`,
-          },
-        ]);
-        setText("");
-        return;
+   useEffect(() => {
+      if (ready && authenticated) {
+         setQuestions([]);
+         setCurQuestion(null);
+      } else if (ready && !authenticated) {
+         setQuestions(LOGIN_WITH_EMAIL_QUESTIONS);
+         setCurQuestion(LOGIN_WITH_EMAIL_QUESTIONS[0]);
       }
+   }, [ready, authenticated]);
 
-      const selectedToken =
-        tokenSelectionState?.availableTokens[selectedIndex - 1];
+   const handleSubmitLine = async (value: string) => {
+      // dummy transaction test
 
-      setChat((prev) => [
-        ...prev,
-        { role: "user", content: value },
-        {
-          role: "assistant",
-          content: `✅ Selected: ${selectedToken.name} (${selectedToken.symbol})`,
-        },
-      ]);
+      // Handle token selection input
+      if (tokenSelectionState?.isWaitingForSelection) {
+         const selectedIndex = parseInt(value);
 
-      // Check if selected token is native ETH
-      const isNativeETH =
-        selectedToken.address === "0x0000000000000000000000000000000000000000";
-
-      if (isNativeETH) {
-        // Clear token selection state and continue with native ETH transaction
-        const originalPrompt = tokenSelectionState?.originalPrompt;
-        setTokenSelectionState(null);
-        setText("");
-
-        setChat((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: "🔄 Proceeding with native ETH transfer...",
-          },
-        ]);
-
-        // Continue with transaction execution using native ETH
-        setAiResponding(true);
-
-        try {
-          // Import orchestrator dynamically to avoid SSR issues
-          const { executeTransactionFromPrompt } = await import(
-            "@/lib/orchestrator"
-          );
-
-          // Modify the original prompt to explicitly use native ETH
-          const nativeETHPrompt = originalPrompt?.replace(/\beth\b/gi, "ETH"); // Ensure ETH is uppercase for native detection
-
-          // Execute the full transaction pipeline with native ETH and session support
-          const result: any = await executeTransactionFromPrompt(
-            nativeETHPrompt as string,
-            user?.id || "user-id",
-            smartWalletClient,
-            smartAccountAddress,
-          );
-
-          if (result.success) {
-            // Success case
+         if (
+            isNaN(selectedIndex) ||
+            selectedIndex < 1 ||
+            selectedIndex > (tokenSelectionState?.availableTokens || [])?.length
+         ) {
             setChat((prev) => [
-              ...prev,
-              { role: "assistant", content: result.message },
-              {
-                role: "assistant" as const,
-                content: {
-                  type: "explorer-link",
-                  url: result.explorerUrl || "https://basescan.org",
-                  text: `View transaction: ${result.txHash}`,
-                  explorerName: "BaseScan",
-                },
-              },
-            ]);
-          } else if ("tokenSelection" in result) {
-            // Shouldn't happen again, but handle just in case
-            setChat((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content:
-                  "⚠️ Unexpected token selection required again. Please try with explicit 'ETH' in your prompt.",
-              },
-            ]);
-          } else {
-            // Clarification needed
-            setChat((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content: {
-                  type: "clarification",
-                  question: result.clarify,
-                  missing: result.missing,
-                },
-              },
-            ]);
-          }
-        } catch (error: any) {
-          console.error("Token selection continuation error:", error);
-
-          let errorMessage = `⚠️ Error: ${error.message || "Unknown error occurred"}`;
-
-          if (error.name === "OrchestrationError") {
-            const { formatOrchestrationError } = await import(
-              "@/lib/orchestrator"
-            );
-            errorMessage = formatOrchestrationError(error);
-          } else if (error.name === "IdempotencyError") {
-            errorMessage = `🔄 ${error.message}`;
-            if (error.existingTxHash) {
-              setChat((prev) => [
-                ...prev,
-                {
+               ...prev,
+               { role: "user", content: value },
+               {
                   role: "assistant",
-                  content: `Previous transaction: ${error.existingTxHash}`,
-                },
-              ]);
-            }
-          }
-
-          setChat((prev) => [
-            ...prev,
-            { role: "assistant", content: errorMessage },
-          ]);
-        } finally {
-          setAiResponding(false);
-        }
-
-        return;
-      } else {
-        // ERC-20 token selected - not implemented yet
-        setTokenSelectionState(null);
-        setText("");
-
-        setChat((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content:
-              "🚧 Token selected successfully! ERC-20 execution will be implemented in future updates. For now, please use native ETH transfers.",
-          },
-        ]);
-
-        return;
-      }
-    }
-
-    if (curQuestion) {
-      if (curQuestion?.key === "email") {
-        sendCode({ email: value });
-      } else if (curQuestion?.key === "code") {
-        loginWithCode({ code: value });
-      } else if (curQuestion?.key === "token-address-selection") {
-        // Token selection is now handled by the orchestrator
-        // This is a placeholder for any legacy token selection
-        console.log("Token selection:", value);
-      }
-
-      setQuestions((pv) =>
-        pv.map((q) =>
-          q.key === curQuestion.key ? { ...q, complete: true, value } : q,
-        ),
-      );
-      setCurQuestion((prev: any) => {
-        const idx = questions.findIndex((q) => q.key === prev.key);
-        return questions[idx + 1] || null;
-      });
-    } else {
-      // Authenticated user input - use full execution pipeline
-      setChat((prev) => [...prev, { role: "user", content: value }]);
-      setText("");
-
-      // Handle special session commands
-      if (
-        value.toLowerCase().includes("create session") ||
-        value.toLowerCase() === "session"
-      ) {
-        setAiResponding(true);
-        try {
-          setChat((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content:
-                "🔄 Sessions are now handled via the new Smart Sessions system. Use the smart-account page to create sessions.",
-            },
-          ]);
-          // For now, just show info about new session system
-          setChat((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content:
-                "✅ MEE Client ready! Visit /smart-account to test the new session system.",
-            },
-          ]);
-        } catch (error: any) {
-          setChat((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: `❌ Failed to create session: ${error.message}`,
-            },
-          ]);
-        } finally {
-          setAiResponding(false);
-        }
-        return;
-      }
-
-      if (value.toLowerCase().includes("session status")) {
-        setChat((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: "🔴 MEE Client not ready - please wait for initialization",
-          },
-        ]);
-        return;
-      }
-
-      // Check if required services are ready
-      if (!authenticated) {
-        setChat((prev) => [
-          ...prev,
-          { role: "assistant", content: "⚠️ Please authenticate first" },
-        ]);
-        return;
-      }
-
-      if (!smartWalletReady || !smartWalletClient) {
-        setChat((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content:
-              "⚠️ Smart Wallet not ready. Please wait a moment and try again.",
-          },
-        ]);
-        return;
-      }
-
-      // Handle retry command
-      if (
-        value.toLowerCase().includes("retry") ||
-        value.toLowerCase() === "r"
-      ) {
-        setAiResponding(true);
-        try {
-          setChat((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: "✅ MEE client initialized successfully!",
-            },
-          ]);
-        } catch {
-        } finally {
-          setAiResponding(false);
-        }
-        return;
-      }
-
-      setAiResponding(true);
-
-      try {
-        // Import orchestrator dynamically to avoid SSR issues
-        const { executeTransactionFromPrompt } = await import(
-          "@/lib/orchestrator"
-        );
-
-        // Execute the full transaction pipeline with session support
-        const result: any = await executeTransactionFromPrompt(
-          value,
-          user?.id || "user-id",
-          smartWalletClient,
-          smartAccountAddress,
-        );
-
-        if (result.success) {
-          // Success case
-          setChat((prev) => [
-            ...prev,
-            { role: "assistant", content: result.message },
-            {
-              role: "assistant",
-              content: {
-                type: "explorer-link",
-                url: result.explorerUrl || "https://basescan.org",
-                text: `View transaction: ${result.txHash}`,
-                explorerName: "BaseScan",
-              },
-            },
-          ]);
-        } else if ("tokenSelection" in result) {
-          // Token selection needed
-          setChat((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: {
-                type: "token-table",
-                message: result.tokenSelection.message,
-                tokens: result.tokenSelection.tokens,
-              },
-            },
-            {
-              role: "assistant",
-              content: "Please enter the number of the token you want to use:",
-            },
-          ]);
-
-          // Set token selection state to wait for user input
-          setTokenSelectionState({
-            isWaitingForSelection: true,
-            originalPrompt: value,
-            availableTokens: result.tokenSelection.tokens,
-          });
-        } else {
-          // Clarification needed
-          setChat((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: {
-                type: "clarification",
-                question: result.clarify,
-                missing: result.missing,
-              },
-            },
-          ]);
-        }
-      } catch (error: any) {
-        console.error("Terminal execution error:", error);
-
-        // Handle specific error types
-        let errorMessage = `⚠️ Error: ${error.message || "Unknown error occurred"}`;
-
-        if (error.name === "OrchestrationError") {
-          const { formatOrchestrationError } = await import(
-            "@/lib/orchestrator"
-          );
-          errorMessage = formatOrchestrationError(error);
-        } else if (error.name === "IdempotencyError") {
-          errorMessage = `🔄 ${error.message}`;
-          if (error.existingTxHash) {
-            setChat((prev) => [
-              ...prev,
-              {
-                role: "assistant",
-                content: `Previous transaction: ${error.existingTxHash}`,
-              },
+                  content: `⚠️ Please enter a number between 1 and ${tokenSelectionState?.availableTokens.length}`,
+               },
             ]);
-          }
-        }
+            setText("");
+            return;
+         }
 
-        setChat((prev) => [
-          ...prev,
-          { role: "assistant", content: errorMessage },
-        ]);
-      } finally {
-        setAiResponding(false);
+         const selectedToken =
+            tokenSelectionState?.availableTokens[selectedIndex - 1];
+
+         setChat((prev) => [
+            ...prev,
+            { role: "user", content: value },
+            {
+               role: "assistant",
+               content: `✅ Selected: ${selectedToken.name} (${selectedToken.symbol})`,
+            },
+         ]);
+
+         // Check if selected token is native ETH
+         const isNativeETH =
+            selectedToken.address === "0x0000000000000000000000000000000000000000";
+
+         if (isNativeETH) {
+            // Clear token selection state and continue with native ETH transaction
+            const originalPrompt = tokenSelectionState?.originalPrompt;
+            setTokenSelectionState(null);
+            setText("");
+
+            setChat((prev) => [
+               ...prev,
+               {
+                  role: "assistant",
+                  content: "🔄 Proceeding with native ETH transfer...",
+               },
+            ]);
+
+            // Continue with transaction execution using native ETH
+            setAiResponding(true);
+
+            try {
+               // Import orchestrator dynamically to avoid SSR issues
+               const { executeTransactionFromPrompt } = await import(
+                  "@/lib/orchestrator"
+               );
+
+               // Modify the original prompt to explicitly use native ETH
+               const nativeETHPrompt = originalPrompt?.replace(/\beth\b/gi, "ETH"); // Ensure ETH is uppercase for native detection
+
+               // Execute the full transaction pipeline with native ETH and session support
+               const result: any = await executeTransactionFromPrompt(
+                  nativeETHPrompt as string,
+                  user?.id || "user-id",
+                  smartWalletClient,
+                  smartAccountAddress,
+               );
+
+               if (result.success) {
+                  // Success case
+                  setChat((prev) => [
+                     ...prev,
+                     { role: "assistant", content: result.message },
+                     {
+                        role: "assistant" as const,
+                        content: {
+                           type: "explorer-link",
+                           url: result.explorerUrl || "https://basescan.org",
+                           text: `View transaction: ${result.txHash}`,
+                           explorerName: "BaseScan",
+                        },
+                     },
+                  ]);
+               } else if ("tokenSelection" in result) {
+                  // Shouldn't happen again, but handle just in case
+                  setChat((prev) => [
+                     ...prev,
+                     {
+                        role: "assistant",
+                        content:
+                           "⚠️ Unexpected token selection required again. Please try with explicit 'ETH' in your prompt.",
+                     },
+                  ]);
+               } else {
+                  // Clarification needed
+                  setChat((prev) => [
+                     ...prev,
+                     {
+                        role: "assistant",
+                        content: {
+                           type: "clarification",
+                           question: result.clarify,
+                           missing: result.missing,
+                        },
+                     },
+                  ]);
+               }
+            } catch (error: any) {
+               console.error("Token selection continuation error:", error);
+
+               let errorMessage = `⚠️ Error: ${error?.message || "Unknown error occurred"}`;
+
+               try {
+                  if (error.name === "OrchestrationError") {
+                     const { formatOrchestrationError } = await import(
+                        "@/lib/orchestrator"
+                     );
+                     errorMessage = formatOrchestrationError(error);
+                  } else if (error.name === "IdempotencyError") {
+                     errorMessage = `🔄 ${error.message}`;
+                     if (error.existingTxHash) {
+                        setChat((prev) => [
+                           ...prev,
+                           {
+                              role: "assistant",
+                              content: `Previous transaction: ${error.existingTxHash}`,
+                           },
+                        ]);
+                     }
+                  } else if (error.code === "NETWORK_ERROR") {
+                     errorMessage = "🌐 Network error - please check your connection and try again";
+                  } else if (error.code === "INSUFFICIENT_FUNDS") {
+                     errorMessage = "💰 Insufficient funds for this transaction";
+                  } else if (error.code === "USER_REJECTED") {
+                     errorMessage = "❌ Transaction was cancelled by user";
+                  } else if (typeof error === 'string') {
+                     errorMessage = `⚠️ ${error}`;
+                  }
+               } catch (formattingError) {
+                  console.error("Error formatting error message:", formattingError);
+                  errorMessage = `⚠️ Transaction failed: ${error?.message || error?.toString() || "Unknown error"}`;
+               }
+
+               setChat((prev) => [
+                  ...prev,
+                  { role: "assistant", content: errorMessage },
+               ]);
+            } finally {
+               setAiResponding(false);
+            }
+
+            return;
+         } else {
+            // ERC-20 token selected - not implemented yet
+            setTokenSelectionState(null);
+            setText("");
+
+            setChat((prev) => [
+               ...prev,
+               {
+                  role: "assistant",
+                  content:
+                     "🚧 Token selected successfully! ERC-20 execution will be implemented in future updates. For now, please use native ETH transfers.",
+               },
+            ]);
+
+            return;
+         }
       }
-    }
-  };
 
-  return (
-    <div className="p-2 text-slate-100 text-lg">
-      {ready ? (
-        <>
-          <InitialText />
-          <PreviousQuestions questions={questions} />
-          <CurrentQuestion curQuestion={curQuestion} />
-          {curQuestion ? (
-            <>
-              <ChatHistory chat={chat} />
-              <CurLine
-                {...{
-                  text,
-                  focused,
-                  setText,
-                  setFocused,
-                  inputRef,
-                  command: curQuestion?.key || "",
-                  handleSubmitLine,
-                  containerRef,
-                }}
-              />
-            </>
-          ) : authenticated ? (
-            <>
-              <ChatHistory chat={chat} />
-              <CurLine
-                {...{
-                  text,
-                  focused,
-                  setText,
-                  setFocused,
-                  inputRef,
-                  command: tokenSelectionState?.isWaitingForSelection
-                    ? "select-token"
-                    : "ask-ai",
-                  handleSubmitLine,
-                  containerRef,
-                  loading: aiResponding,
-                }}
-              />
-            </>
-          ) : (
-            <PageBarLoader />
-          )}
-        </>
-      ) : (
-        <PageBarLoader />
-      )}
-    </div>
-  );
+      if (curQuestion) {
+         if (curQuestion?.key === "email") {
+            sendCode({ email: value });
+         } else if (curQuestion?.key === "code") {
+            loginWithCode({ code: value });
+         } else if (curQuestion?.key === "token-address-selection") {
+            // Token selection is now handled by the orchestrator
+            // This is a placeholder for any legacy token selection
+            console.log("Token selection:", value);
+         }
+
+         setQuestions((pv) =>
+            pv.map((q) =>
+               q.key === curQuestion.key ? { ...q, complete: true, value } : q,
+            ),
+         );
+         setCurQuestion((prev: any) => {
+            const idx = questions.findIndex((q) => q.key === prev.key);
+            return questions[idx + 1] || null;
+         });
+      } else {
+         // Authenticated user input - use full execution pipeline
+         setChat((prev) => [...prev, { role: "user", content: value }]);
+         setText("");
+
+         // Handle special session commands
+         if (
+            value.toLowerCase().includes("create session") ||
+            value.toLowerCase() === "session"
+         ) {
+            setAiResponding(true);
+            try {
+               setChat((prev) => [
+                  ...prev,
+                  {
+                     role: "assistant",
+                     content:
+                        "🔄 Sessions are now handled via the new Smart Sessions system. Use the smart-account page to create sessions.",
+                  },
+               ]);
+               // For now, just show info about new session system
+               setChat((prev) => [
+                  ...prev,
+                  {
+                     role: "assistant",
+                     content:
+                        "✅ MEE Client ready! Visit /smart-account to test the new session system.",
+                  },
+               ]);
+            } catch (error: any) {
+               setChat((prev) => [
+                  ...prev,
+                  {
+                     role: "assistant",
+                     content: `❌ Failed to create session: ${error.message}`,
+                  },
+               ]);
+            } finally {
+               setAiResponding(false);
+            }
+            return;
+         }
+
+         if (value.toLowerCase().includes("session status")) {
+            setChat((prev) => [
+               ...prev,
+               {
+                  role: "assistant",
+                  content: "🔴 MEE Client not ready - please wait for initialization",
+               },
+            ]);
+            return;
+         }
+
+         // Check if required services are ready
+         if (!authenticated) {
+            setChat((prev) => [
+               ...prev,
+               { role: "assistant", content: "⚠️ Please authenticate first" },
+            ]);
+            return;
+         }
+
+         if (!smartWalletReady || !smartWalletClient) {
+            setChat((prev) => [
+               ...prev,
+               {
+                  role: "assistant",
+                  content:
+                     "⚠️ Smart Wallet not ready. Please wait a moment and try again.",
+               },
+            ]);
+            return;
+         }
+
+         // Handle retry command
+         if (
+            value.toLowerCase().includes("retry") ||
+            value.toLowerCase() === "r"
+         ) {
+            setAiResponding(true);
+            try {
+               setChat((prev) => [
+                  ...prev,
+                  {
+                     role: "assistant",
+                     content: "✅ MEE client initialized successfully!",
+                  },
+               ]);
+            } catch {
+            } finally {
+               setAiResponding(false);
+            }
+            return;
+         }
+
+         setAiResponding(true);
+
+         try {
+            // Import orchestrator dynamically to avoid SSR issues
+            const { executeTransactionFromPrompt } = await import(
+               "@/lib/orchestrator"
+            );
+
+            // Execute the full transaction pipeline with session support
+            const result: any = await executeTransactionFromPrompt(
+               value,
+               user?.id || "user-id",
+               smartWalletClient,
+               smartAccountAddress,
+            );
+
+            if (result.success) {
+               // Success case
+               setChat((prev) => [
+                  ...prev,
+                  { role: "assistant", content: result.message },
+                  {
+                     role: "assistant",
+                     content: {
+                        type: "explorer-link",
+                        url: result.explorerUrl || "https://basescan.org",
+                        text: `View transaction: ${result.txHash}`,
+                        explorerName: "BaseScan",
+                     },
+                  },
+               ]);
+            } else if ("tokenSelection" in result) {
+               // Token selection needed
+               setChat((prev) => [
+                  ...prev,
+                  {
+                     role: "assistant",
+                     content: {
+                        type: "token-table",
+                        message: result.tokenSelection.message,
+                        tokens: result.tokenSelection.tokens,
+                     },
+                  },
+                  {
+                     role: "assistant",
+                     content: "Please enter the number of the token you want to use:",
+                  },
+               ]);
+
+               // Set token selection state to wait for user input
+               setTokenSelectionState({
+                  isWaitingForSelection: true,
+                  originalPrompt: value,
+                  availableTokens: result.tokenSelection.tokens,
+               });
+            } else {
+               // Clarification needed
+               setChat((prev) => [
+                  ...prev,
+                  {
+                     role: "assistant",
+                     content: {
+                        type: "clarification",
+                        question: result.clarify,
+                        missing: result.missing,
+                     },
+                  },
+               ]);
+            }
+         } catch (error: any) {
+            console.error("Terminal execution error:", error);
+
+            let errorMessage = `⚠️ Error: ${error?.message || "Unknown error occurred"}`;
+
+            try {
+               // Handle specific error types with proper formatting
+               if (error.name === "OrchestrationError") {
+                  const { formatOrchestrationError } = await import(
+                     "@/lib/orchestrator"
+                  );
+                  errorMessage = formatOrchestrationError(error);
+               } else if (error.name === "IdempotencyError") {
+                  errorMessage = `🔄 ${error.message}`;
+                  if (error.existingTxHash) {
+                     setChat((prev) => [
+                        ...prev,
+                        {
+                           role: "assistant",
+                           content: `Previous transaction: ${error.existingTxHash}`,
+                        },
+                     ]);
+                  }
+               } else if (error.code === "NETWORK_ERROR") {
+                  errorMessage = "🌐 Network error - please check your connection and try again";
+               } else if (error.code === "INSUFFICIENT_FUNDS") {
+                  errorMessage = "💰 Insufficient funds for this transaction";
+               } else if (error.code === "USER_REJECTED") {
+                  errorMessage = "❌ Transaction was cancelled by user";
+               } else if (error.name === "TypeError" && error.message?.includes("fetch")) {
+                  errorMessage = "🌐 Connection error - please check your internet connection";
+               } else if (error.message?.includes("user rejected") || error.message?.includes("User rejected")) {
+                  errorMessage = "❌ Transaction was cancelled";
+               } else if (typeof error === 'string') {
+                  errorMessage = `⚠️ ${error}`;
+               } else if (error?.toString && typeof error.toString === 'function') {
+                  errorMessage = `⚠️ ${error.toString()}`;
+               }
+            } catch (formattingError) {
+               console.error("Error formatting error message:", formattingError);
+               errorMessage = `⚠️ Transaction failed: ${error?.message || error?.code || "Unknown error"}`;
+            }
+
+            setChat((prev) => [
+               ...prev,
+               { role: "assistant", content: errorMessage },
+            ]);
+         } finally {
+            setAiResponding(false);
+         }
+      }
+   };
+
+   return (
+      <ErrorBoundary fallback={TerminalErrorFallback}>
+         <div className="p-2 text-slate-100 text-lg">
+            {ready ? (
+               <>
+                  <InitialText />
+                  <PreviousQuestions questions={questions} />
+                  <CurrentQuestion curQuestion={curQuestion} />
+                  {curQuestion ? (
+                     <>
+                        <ChatHistory chat={chat} />
+                        <CurLine
+                           {...{
+                              text,
+                              focused,
+                              setText,
+                              setFocused,
+                              inputRef,
+                              command: curQuestion?.key || "",
+                              handleSubmitLine,
+                              containerRef,
+                           }}
+                        />
+                     </>
+                  ) : authenticated ? (
+                     <>
+                        <ChatHistory chat={chat} />
+                        <CurLine
+                           {...{
+                              text,
+                              focused,
+                              setText,
+                              setFocused,
+                              inputRef,
+                              command: tokenSelectionState?.isWaitingForSelection
+                                 ? "select-token"
+                                 : "ask-ai",
+                              handleSubmitLine,
+                              containerRef,
+                              loading: aiResponding,
+                           }}
+                        />
+                     </>
+                  ) : (
+                     <PageBarLoader />
+                  )}
+               </>
+            ) : (
+               <PageBarLoader />
+            )}
+         </div>
+      </ErrorBoundary>
+   );
 };
 
 export default TerminalBody;

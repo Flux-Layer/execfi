@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { FormEvent, ChangeEvent, useEffect } from "react";
 import PageBarLoader from "@components/loader";
-import { CurrentLineProps } from "./types";
+import { CurrentLineProps } from "@/types/terminal-types";
 
 const CurLine = ({
   text,

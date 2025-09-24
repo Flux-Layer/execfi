@@ -1,4 +1,4 @@
-import { CurrentQuestionProps } from "./types";
+import { CurrentQuestionProps } from "@/types/terminal-types";
 
 const CurrentQuestion = ({ curQuestion }: CurrentQuestionProps) => {
   if (!curQuestion) return null;

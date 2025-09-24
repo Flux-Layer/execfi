@@ -251,11 +251,39 @@ export async function executeTransactionFromPrompt(
   smartWalletClient?: any,
   smartAccountAddress?: `0x${string}`,
 ): Promise<OrchestrationResponse> {
-  return orchestrateTransaction(prompt, {
-    userId,
-    smartWalletClient,
-    smartAccountAddress,
-  });
+  try {
+    return await orchestrateTransaction(prompt, {
+      userId,
+      smartWalletClient,
+      smartAccountAddress,
+    });
+  } catch (error: any) {
+    console.error("Final orchestration error catch:", error);
+
+    // This is the final fallback catch - ensure we always return a valid response
+    if (error instanceof OrchestrationError) {
+      throw error; // Re-throw OrchestrationErrors as they are properly formatted
+    }
+
+    // Handle any remaining unhandled errors
+    let errorMessage = "Transaction failed unexpectedly";
+    let errorCode = "UNKNOWN_ERROR";
+
+    if (error?.message) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else if (error?.toString) {
+      errorMessage = error.toString();
+    }
+
+    if (error?.code) {
+      errorCode = error.code;
+    }
+
+    // Always throw an OrchestrationError to maintain consistent error handling
+    throw new OrchestrationError(errorMessage, errorCode, "execute");
+  }
 }
 
 /**

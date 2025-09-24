@@ -1,4 +1,4 @@
-import { ChatMessage } from "./types";
+import { ChatMessage } from "@/types/terminal-types";
 import { NETWORK_TO_CHAIN_ID } from "@/constants/chainIds";
 
 const CHAIN_ID_TO_NAME: Record<number, string> = Object.fromEntries(
@@ -33,7 +33,7 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
           ) : c.content?.type === "clarification" ? (
             <div className="space-y-2">
               <p className="text-yellow-300 font-semibold">❓ {c.content.question}</p>
-              {c.content.missing.length > 0 && (
+              {c.content.missing && c.content.missing.length > 0 && (
                 <p className="text-orange-300 text-sm">
                   Missing: {c.content.missing.join(", ")}
                 </p>
@@ -64,7 +64,7 @@ const ChatHistory = ({ chat }: { chat: ChatMessage[] }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {c.content.tokens.map((t) => (
+                  {c.content.tokens?.map((t) => (
                     <tr key={t.id} className="hover:bg-slate-800/50">
                       <td className="border border-slate-700 px-3 py-2">
                         {t.id}
