@@ -7,6 +7,7 @@ import PreviousQuestions from "./PreviousQuestions";
 import CurrentQuestion from "./CurrentQuestion";
 import ChatHistory from "./ChatHistory";
 import CurLine from "./CurLine";
+import useSmartWallet from "@/hooks/useSmartWallet";
 
 const QUESTIONS: QuestionType[] = [
   {
@@ -28,6 +29,7 @@ const QUESTIONS: QuestionType[] = [
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   const { authenticated, ready, user } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
+  const { smartWalletClient, isReady: smartWalletReady, smartAccountAddress } = useSmartWallet();
 
   const [questions, setQuestions] = useState(QUESTIONS);
   const [chat, setChat] = useState<ChatMessage[]>([]);
@@ -121,6 +123,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           const result = await executeTransactionFromPrompt(
             nativeETHPrompt,
             user?.id || "user-id",
+            smartWalletClient,
+            smartAccountAddress,
           );
 
           if (result.success) {
@@ -132,9 +136,9 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
                 role: "assistant" as const,
                 content: {
                   type: "explorer-link",
-                  url: "https://basescan.org", // hardcorded, to be implemented
-                  text: "",
-                  explorerName: "",
+                  url: result.explorerUrl || "https://basescan.org",
+                  text: `View transaction: ${result.txHash}`,
+                  explorerName: "BaseScan",
                 },
               },
             ]);
@@ -295,6 +299,14 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         return;
       }
 
+      if (!smartWalletReady || !smartWalletClient) {
+        setChat((prev) => [
+          ...prev,
+          { role: "assistant", content: "⚠️ Smart Wallet not ready. Please wait a moment and try again." },
+        ]);
+        return;
+      }
+
       // Handle retry command
       if (
         value.toLowerCase().includes("retry") ||
@@ -328,6 +340,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         const result = await executeTransactionFromPrompt(
           value,
           user?.id || "user-id",
+          smartWalletClient,
+          smartAccountAddress,
         );
 
         if (result.success) {
@@ -339,9 +353,9 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
               role: "assistant",
               content: {
                 type: "explorer-link",
-                url: "https://basescan.org", // to be implemented
-                text: "",
-                explorerName: "",
+                url: result.explorerUrl || "https://basescan.org",
+                text: `View transaction: ${result.txHash}`,
+                explorerName: "BaseScan",
               },
             },
           ]);

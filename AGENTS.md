@@ -1,6 +1,6 @@
-# AGENTS.md — Prompt→Transaction Agent System (ExecFi, Biconomy)
+# AGENTS.md — Prompt→Transaction Agent System (ExecFi, Privy)
 
-> **Mission.** Turn natural language into **safe, verifiable on-chain actions** using Privy (embedded EOA) → Biconomy Smart Accounts (ERC-4337) → LI.FI (routing).  
+> **Mission.** Turn natural language into **safe, verifiable on-chain actions** using Privy (embedded EOA) → Privy Smart Accounts (ERC-4337) → LI.FI (routing).
 > This document specifies the **agent roster**, **state machine**, **schemas**, **policies**, and **execution wiring**. It is the authoritative reference for the runtime orchestrator.
 
 > **Prime directives**
@@ -21,7 +21,7 @@ User (Terminal)
       → Policy/Validator (caps, allowlists, balances, invariants)
         → Planner (choose op: transfer | swap | bridge | bridge_swap)
           → Simulator (gas estimate / quote freshness)
-            → Executor (Biconomy client / LI.FI)
+            → Executor (Privy client / LI.FI)
               → Monitor (receipts, LI.FI status)
                 → Notifier (terminal lines)
                   → Journal (telemetry, idempotency store)
@@ -164,26 +164,17 @@ Failures: `SIMULATION_FAILED`, `QUOTE_EXPIRED`.
 
 ---
 
-## 7) Executor (Biconomy client)
+## 7) Executor (Privy client)
 
 ```ts
-import { createSmartAccountClient } from "@biconomy/account";
-
-async function getBiconomyClient(privyWallet: any) {
-  const eip1193 = await privyWallet.getEthereumProvider();
-  return await createSmartAccountClient({
-    signer: eip1193,
-    bundlerUrl: process.env.NEXT_PUBLIC_BUNDLER_RPC!,
-    biconomyPaymasterApiKey: process.env.NEXT_PUBLIC_BICONOMY_API_KEY,
-    chainId: 8453, // Base (default)
-  });
-}
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+const { client } = useSmartWallets();
 ```
 
 **Native transfer**
 
 ```ts
-await biconomyClient.sendTransaction({ to, value: amountWei });
+await privyClient.sendUserOperation({ to, value: amountWei });
 ```
 
 **LI.FI**
@@ -191,7 +182,7 @@ await biconomyClient.sendTransaction({ to, value: amountWei });
 ```ts
 const routes = await lifi.getRoutes(params);
 const best = pickBestRoute(routes);
-await lifi.executeRoute(biconomyClient, best);
+await lifi.executeRoute(privyClient, best);
 ```
 
 Result: tx hash(es) or LI.FI tracking id.
@@ -200,7 +191,7 @@ Result: tx hash(es) or LI.FI tracking id.
 
 ## 8) Monitor & notifier
 
-- Poll receipts for txs via Biconomy SDK.
+- Poll receipts for txs via Privy client.
 - Poll LI.FI status for cross-chain ops.
 - Stream status to terminal (spinner → success/error).
 - Success: `✅ Sent X on Chain — hash 0x…`.
@@ -255,8 +246,8 @@ GAS_HEADROOM_MULT = 1.1
 
 ## 13) Testing plan
 
-**Unit**: JSON parse, schema validation, normalization, validator.  
-**Integration**: Base Sepolia transfer (happy + insufficient funds).  
+**Unit**: JSON parse, schema validation, normalization, validator.
+**Integration**: Base Sepolia transfer (happy + insufficient funds).
 **E2E**: Prompt → execution → explorer link shown.
 
 ---
@@ -274,7 +265,7 @@ export async function orchestrate(prompt: string, ctx: Ctx) {
   const plan = await planFrom(norm, ctx);
   await simulate(plan, ctx);
 
-  const client = await getBiconomyClient(ctx.privyWallet);
+  const client = await getPrivyClient(ctx.privyWallet);
   const receipt = await execute(plan, client, ctx);
 
   return monitorAndNotify(receipt, plan, ctx);
@@ -309,10 +300,10 @@ export async function orchestrate(prompt: string, ctx: Ctx) {
 /lib/validate.ts         policy checks
 /lib/plan.ts             op mapping, LI.FI route
 /lib/simulate.ts         gas/quote checks
-/lib/execute.ts          Biconomy client + LI.FI
+/lib/execute.ts          Privy client + LI.FI
 /lib/monitor.ts          receipts/status
 /lib/registry.ts         chains/tokens
-/hooks/useBiconomySA.ts  Biconomy client wiring
+/hooks/usePrivySA.ts     Privy client wiring
 ```
 
 ---

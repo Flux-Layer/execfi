@@ -9,6 +9,9 @@ import {
 } from "./ai";
 import { normalizeIntent, TokenSelectionError } from "./normalize";
 import { validateNoDuplicate, updateTransactionStatus } from "./idempotency";
+import { validateIntent, simulateIntent } from "./validation";
+import { executeIntent, getSmartAccountAddress, formatExecutionError } from "./execute";
+import { monitorTransaction, formatMonitoringStatus } from "./monitor";
 
 export class OrchestrationError extends Error {
   constructor(
@@ -23,11 +26,15 @@ export class OrchestrationError extends Error {
 
 export interface OrchestrationContext {
   userId: string;
+  smartWalletClient?: any; // Privy Smart Wallet client
+  smartAccountAddress?: `0x${string}`; // Smart Account address from user.linkedAccounts
 }
 
 export interface OrchestrationResult {
   success: true;
   message: string;
+  txHash?: string;
+  explorerUrl?: string;
 }
 
 export interface OrchestrationClarification {
@@ -102,13 +109,53 @@ export async function orchestrateTransaction(
     promptId = validateNoDuplicate(ctx.userId, norm);
     console.log("✅ No duplicates found, promptId:", promptId);
 
-    // Phase 4: Validation
-    console.log("🔄 Phase 4: Validating transaction...");
-    console.log("Real transaction implementation under development");
+    // Phase 4: Validate Smart Wallet Client and Address
+    if (!ctx.smartWalletClient) {
+      throw new OrchestrationError(
+        "Smart Wallet client not available. Please ensure you're logged in.",
+        "CLIENT_NOT_AVAILABLE",
+        "validate"
+      );
+    }
+
+    console.log("🔄 Phase 4: Validating Smart Account address...");
+    const smartAccountAddress = getSmartAccountAddress(ctx.smartAccountAddress);
+    console.log("✅ Smart Account address:", smartAccountAddress);
+
+    // Phase 5: Validation
+    console.log("🔄 Phase 5: Validating transaction...");
+    const { gasEstimate, gasCost } = await validateIntent(norm, smartAccountAddress);
+    console.log("✅ Validation passed", { gasEstimate, gasCost });
+
+    // Phase 6: Simulation (optional but recommended)
+    console.log("🔄 Phase 6: Simulating transaction...");
+    await simulateIntent(norm, smartAccountAddress);
+    console.log("✅ Simulation successful");
+
+    // Phase 7: Execution
+    console.log("🔄 Phase 7: Executing transaction...");
+    const executionResult = await executeIntent(ctx.smartWalletClient, norm);
+    console.log("✅ Transaction executed:", executionResult.txHash);
+
+    // Phase 8: Monitoring (optional - immediate return for better UX)
+    console.log("🔄 Phase 8: Transaction submitted, monitoring in background...");
+
+    // Update idempotency with success
+    updateTransactionStatus(promptId, "completed", executionResult.txHash);
+
+    // Return success immediately with monitoring in background
+    // The UI can show the transaction hash immediately while monitoring continues
+    monitorTransaction(norm.chainId, executionResult.txHash as any).then(status => {
+      console.log("📊 Final transaction status:", formatMonitoringStatus(status));
+    }).catch(error => {
+      console.warn("⚠️ Transaction monitoring failed:", error.message);
+    });
 
     return {
       success: true,
-      message: "Dummy transaction executed",
+      message: executionResult.message,
+      txHash: executionResult.txHash,
+      explorerUrl: executionResult.explorerUrl,
     };
   } catch (error: any) {
     // Handle token selection error specially
@@ -142,6 +189,23 @@ export async function orchestrateTransaction(
       throw error;
     }
 
+    // Handle ExecutionError and MonitoringError specifically
+    if (error.name === "ExecutionError") {
+      throw new OrchestrationError(
+        formatExecutionError(error),
+        error.code,
+        "execute"
+      );
+    }
+
+    if (error.name === "MonitoringError") {
+      throw new OrchestrationError(
+        error.message,
+        error.code,
+        "monitor"
+      );
+    }
+
     // Map specific errors to orchestration errors
     const errorMessage = error?.message || "Unknown error";
     const errorCode = error?.code || "UNKNOWN_ERROR";
@@ -162,6 +226,7 @@ export async function orchestrateTransaction(
       errorMessage.includes("balance") ||
       errorMessage.includes("gas") ||
       errorMessage.includes("validate") ||
+      errorMessage.includes("CLIENT_NOT_AVAILABLE") ||
       errorCode === "INSUFFICIENT_FUNDS" ||
       errorCode === "INSUFFICIENT_FUNDS_WITH_GAS" ||
       errorCode === "BALANCE_TOO_LOW_AFTER_TX" ||
@@ -183,9 +248,13 @@ export async function orchestrateTransaction(
 export async function executeTransactionFromPrompt(
   prompt: string,
   userId: string,
+  smartWalletClient?: any,
+  smartAccountAddress?: `0x${string}`,
 ): Promise<OrchestrationResponse> {
   return orchestrateTransaction(prompt, {
     userId,
+    smartWalletClient,
+    smartAccountAddress,
   });
 }
 
