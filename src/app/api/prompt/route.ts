@@ -45,6 +45,17 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("OpenRouter API error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+
+    let errorMessage = "Failed to process prompt";
+    if (err?.message) {
+      errorMessage = `AI service error: ${err.message}`;
+    } else if (typeof err === 'string') {
+      errorMessage = `AI service error: ${err}`;
+    }
+
+    return NextResponse.json({
+      error: errorMessage,
+      code: err?.code || "UNKNOWN_ERROR"
+    }, { status: 500 });
   }
 }

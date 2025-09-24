@@ -39,7 +39,14 @@ export async function POST(request: Request) {
     }
 
     return Response.json(data);
-  } catch (err) {
-    return Response.json({});
+  } catch (err: any) {
+    console.error("Relay API error:", err);
+    return Response.json(
+      {
+        error: "Failed to fetch token data",
+        message: err?.message || "Unknown error occurred"
+      },
+      { status: 500 }
+    );
   }
 }
