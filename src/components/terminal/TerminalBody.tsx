@@ -8,6 +8,8 @@ import CurrentQuestion from "./CurrentQuestion";
 import ChatHistory from "./ChatHistory";
 import CurLine from "./CurLine";
 import useSmartWallet from "@/hooks/useSmartWallet";
+import { useSendTransaction, useWallets } from "@privy-io/react-auth";
+import { useEOA } from "@/providers/EOAProvider";
 
 const QUESTIONS: QuestionType[] = [
   {
@@ -29,7 +31,13 @@ const QUESTIONS: QuestionType[] = [
 const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   const { authenticated, ready, user } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
-  const { smartWalletClient, isReady: smartWalletReady, smartAccountAddress } = useSmartWallet();
+  const {
+    smartWalletClient,
+    isReady: smartWalletReady,
+    smartAccountAddress,
+  } = useSmartWallet();
+  const { selectedWallet } = useEOA();
+  const { sendTransaction } = useSendTransaction();
 
   const [questions, setQuestions] = useState(QUESTIONS);
   const [chat, setChat] = useState<ChatMessage[]>([]);
@@ -56,6 +64,8 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
   }, [ready, authenticated]);
 
   const handleSubmitLine = async (value: string) => {
+    // dummy transaction test
+
     // Handle token selection input
     if (tokenSelectionState?.isWaitingForSelection) {
       const selectedIndex = parseInt(value);
@@ -63,14 +73,14 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       if (
         isNaN(selectedIndex) ||
         selectedIndex < 1 ||
-        selectedIndex > tokenSelectionState.availableTokens.length
+        selectedIndex > (tokenSelectionState?.availableTokens || [])?.length
       ) {
         setChat((prev) => [
           ...prev,
           { role: "user", content: value },
           {
             role: "assistant",
-            content: `⚠️ Please enter a number between 1 and ${tokenSelectionState.availableTokens.length}`,
+            content: `⚠️ Please enter a number between 1 and ${tokenSelectionState?.availableTokens.length}`,
           },
         ]);
         setText("");
@@ -78,7 +88,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       }
 
       const selectedToken =
-        tokenSelectionState.availableTokens[selectedIndex - 1];
+        tokenSelectionState?.availableTokens[selectedIndex - 1];
 
       setChat((prev) => [
         ...prev,
@@ -95,7 +105,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
 
       if (isNativeETH) {
         // Clear token selection state and continue with native ETH transaction
-        const originalPrompt = tokenSelectionState.originalPrompt;
+        const originalPrompt = tokenSelectionState?.originalPrompt;
         setTokenSelectionState(null);
         setText("");
 
@@ -117,11 +127,11 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
           );
 
           // Modify the original prompt to explicitly use native ETH
-          const nativeETHPrompt = originalPrompt.replace(/\beth\b/gi, "ETH"); // Ensure ETH is uppercase for native detection
+          const nativeETHPrompt = originalPrompt?.replace(/\beth\b/gi, "ETH"); // Ensure ETH is uppercase for native detection
 
           // Execute the full transaction pipeline with native ETH and session support
-          const result = await executeTransactionFromPrompt(
-            nativeETHPrompt,
+          const result: any = await executeTransactionFromPrompt(
+            nativeETHPrompt as string,
             user?.id || "user-id",
             smartWalletClient,
             smartAccountAddress,
@@ -302,7 +312,11 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
       if (!smartWalletReady || !smartWalletClient) {
         setChat((prev) => [
           ...prev,
-          { role: "assistant", content: "⚠️ Smart Wallet not ready. Please wait a moment and try again." },
+          {
+            role: "assistant",
+            content:
+              "⚠️ Smart Wallet not ready. Please wait a moment and try again.",
+          },
         ]);
         return;
       }
@@ -337,7 +351,7 @@ const TerminalBody = ({ containerRef, inputRef }: TerminalBodyProps) => {
         );
 
         // Execute the full transaction pipeline with session support
-        const result = await executeTransactionFromPrompt(
+        const result: any = await executeTransactionFromPrompt(
           value,
           user?.id || "user-id",
           smartWalletClient,
