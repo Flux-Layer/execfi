@@ -20,8 +20,8 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
     dispatch({
       type: "EXEC.FAIL",
       error: {
-        code: "CLIENT_NOT_AVAILABLE",
-        message: "Smart Wallet client not available",
+        code: "AUTH_REQUIRED",
+        message: "Please log in to execute transactions. You can continue using the terminal to explore, but transactions require authentication.",
         phase: "execute",
       },
     });
@@ -33,10 +33,14 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
   try {
     console.log("🔄 Executing transaction...");
 
-    // Check for idempotency
+    // Check for idempotency (skip if no userId - unauthenticated users)
     try {
-      promptId = validateNoDuplicate(core.userId, ctx.norm);
-      console.log("✅ No duplicates found, promptId:", promptId);
+      if (core.userId) {
+        promptId = validateNoDuplicate(core.userId, ctx.norm);
+        console.log("✅ No duplicates found, promptId:", promptId);
+      } else {
+        console.log("⚠️ Skipping idempotency check - user not authenticated");
+      }
     } catch (error: any) {
       if (error.name === "IdempotencyError") {
         dispatch({

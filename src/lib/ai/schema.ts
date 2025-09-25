@@ -62,15 +62,23 @@ const IntentClarifySchema = z.object({
   missing: z.array(z.string()), // fields needed
 });
 
+// Chat response schema (for casual conversation/questions)
+const IntentChatSchema = z.object({
+  ok: z.literal("chat"),
+  response: z.string().min(1), // natural conversational response
+});
+
 // Main intent schema (discriminated union)
 export const IntentSchema = z.discriminatedUnion('ok', [
   IntentSuccessSchema,
   IntentClarifySchema,
+  IntentChatSchema,
 ]);
 
 // Export types
 export type IntentSuccess = z.infer<typeof IntentSuccessSchema>;
 export type IntentClarify = z.infer<typeof IntentClarifySchema>;
+export type IntentChat = z.infer<typeof IntentChatSchema>;
 export type Intent = z.infer<typeof IntentSchema>;
 export type TransferIntent = z.infer<typeof TransferIntentSchema>;
 
@@ -86,6 +94,10 @@ export function isIntentSuccess(intent: Intent): intent is IntentSuccess {
 
 export function isIntentClarify(intent: Intent): intent is IntentClarify {
   return intent.ok === false;
+}
+
+export function isIntentChat(intent: Intent): intent is IntentChat {
+  return intent.ok === "chat";
 }
 
 export function isTransferIntent(intent: IntentSuccess['intent']): intent is TransferIntent {

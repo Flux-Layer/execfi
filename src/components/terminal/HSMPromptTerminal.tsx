@@ -23,7 +23,7 @@ export default function HSMPromptTerminal() {
 }
 
 function HSMTerminalContent() {
-  const { ready } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const overlays = useTerminalOverlays();
@@ -46,7 +46,7 @@ function HSMTerminalContent() {
               onClick={() => inputRef.current?.focus()}
               className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
             >
-              <TerminalHeader isSessionActive />
+              <TerminalHeader isSessionActive={authenticated} />
               <HSMTerminalBody inputRef={inputRef} containerRef={containerRef} />
             </div>
           </div>

@@ -29,7 +29,7 @@ interface HSMTerminalBodyProps {
 const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
   const { authenticated, ready } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
-  const { isAuthenticated, isReady } = useTerminalAuth();
+  const { isAuthenticated } = useTerminalAuth();
   const { dispatch } = useTerminalStore();
 
   // HSM state hooks
@@ -58,6 +58,21 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
     }
   }, [ready, authenticated]);
 
+  // Auto-exit auth mode when user becomes authenticated
+  useEffect(() => {
+    if (mode === "AUTH" && authenticated) {
+      dispatch({
+        type: "CHAT.ADD",
+        message: {
+          role: "assistant",
+          content: "✅ Successfully signed in! You can now execute transactions.",
+          timestamp: Date.now(),
+        }
+      });
+      dispatch({ type: "AUTH.STOP" });
+    }
+  }, [mode, authenticated, dispatch]);
+
   const handleAuthSubmitLine = async (value: string) => {
     if (curQuestion) {
       if (curQuestion?.key === "email") {
@@ -78,8 +93,8 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
     }
   };
 
-  // Show loading while initializing
-  if (!ready || !isReady) {
+  // Show loading only while Privy is initializing
+  if (!ready) {
     return (
       <div className="p-2 text-slate-100 text-lg">
         <PageBarLoader />
@@ -87,8 +102,10 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
     );
   }
 
-  // Show auth flow if not authenticated
-  if (!isAuthenticated) {
+  // Show auth flow when in AUTH mode or when explicitly requested
+  const showAuthFlow = mode === "AUTH" && !isAuthenticated;
+
+  if (showAuthFlow) {
     return (
       <ErrorBoundary fallback={TerminalErrorFallback}>
         <div className="p-2 text-slate-100 text-lg">
@@ -161,6 +178,10 @@ function getCommandPrompt(mode: string, flow: any): string {
     return "view-mode";
   }
 
+  if (mode === "AUTH") {
+    return "login";
+  }
+
   return "ask-ai";
 }
 
@@ -179,6 +200,14 @@ const ModeIndicator = ({ mode, viewStack }: { mode: string; viewStack: any[] }) 
     return (
       <div className="mb-2 text-sm text-slate-400">
         ⚡ TRANSACTION FLOW - Processing your request...
+      </div>
+    );
+  }
+
+  if (mode === "AUTH") {
+    return (
+      <div className="mb-2 text-sm text-slate-400">
+        🔐 AUTHENTICATION MODE - Enter your email, or type /cancel to exit
       </div>
     );
   }

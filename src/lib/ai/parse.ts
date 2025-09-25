@@ -47,16 +47,22 @@ export function validateIntentShape(parsed: any): boolean {
   if (!parsed || typeof parsed !== 'object') return false;
 
   // Must have 'ok' field
-  if (typeof parsed.ok !== 'boolean') return false;
+  const okField = parsed.ok;
+  if (typeof okField !== 'boolean' && okField !== 'chat') return false;
 
-  if (parsed.ok === true) {
+  if (okField === true) {
     // Success case - must have 'intent' field
     return parsed.intent && typeof parsed.intent === 'object';
-  } else {
+  } else if (okField === false) {
     // Clarify case - must have 'clarify' and 'missing' fields
     return (
       typeof parsed.clarify === 'string' &&
       Array.isArray(parsed.missing)
     );
+  } else if (okField === 'chat') {
+    // Chat case - must have 'response' field
+    return typeof parsed.response === 'string' && parsed.response.length > 0;
   }
+
+  return false;
 }

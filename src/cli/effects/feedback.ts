@@ -66,26 +66,30 @@ export const failureFx: StepDef["onEnter"] = (ctx, core, dispatch, signal) => {
 
   console.error("❌ Flow failed:", error);
 
-  // Add error toast
-  dispatch({
-    type: "OVERLAY.PUSH",
-    overlay: {
-      kind: "toast",
-      level: "error",
-      text: errorMessage,
-      ttlMs: 8000, // Keep error messages longer
-    },
-  });
+  // Add error toast (skip for auth errors as they show inline message)
+  if (error?.code !== "AUTH_REQUIRED") {
+    dispatch({
+      type: "OVERLAY.PUSH",
+      overlay: {
+        kind: "toast",
+        level: "error",
+        text: errorMessage,
+        ttlMs: 8000, // Keep error messages longer
+      },
+    });
+  }
 
-  // Add error message to chat
-  dispatch({
-    type: "CHAT.ADD",
-    message: {
-      role: "assistant",
-      content: errorMessage,
-      timestamp: Date.now(),
-    },
-  });
+  // Add error message to chat (skip for auth errors as they're already handled in reducer)
+  if (error?.code !== "AUTH_REQUIRED") {
+    dispatch({
+      type: "CHAT.ADD",
+      message: {
+        role: "assistant",
+        content: errorMessage,
+        timestamp: Date.now(),
+      },
+    });
+  }
 
   // Provide helpful suggestions based on error type
   const suggestions = getErrorSuggestions(error?.code);
@@ -139,6 +143,10 @@ function getErrorSuggestions(errorCode?: string): string[] {
 
     case "DUPLICATE_TRANSACTION":
       suggestions.push("This transaction was already submitted recently.");
+      break;
+
+    case "AUTH_REQUIRED":
+      suggestions.push("Click the profile icon or type 'login' to authenticate and unlock transaction features.");
       break;
 
     default:
