@@ -42,6 +42,11 @@ export function parseSlashCommand(text: string): AppEvent | null {
     case "help":
       return { type: "NAV.VIEW.PUSH", page: { kind: "settings" } }; // Using settings as help for now
 
+    case "login":
+    case "signin":
+    case "auth":
+      return { type: "AUTH.START" };
+
     case "settings":
       return { type: "NAV.VIEW.PUSH", page: { kind: "settings" } };
 
@@ -55,6 +60,9 @@ export function parseSlashCommand(text: string): AppEvent | null {
       break;
 
     case "cancel":
+      // In AUTH mode, cancel means exit auth flow
+      // In FLOW mode, cancel means cancel flow
+      // Context will be determined by the reducer
       return { type: "FLOW.CANCEL" };
 
     case "retry":

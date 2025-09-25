@@ -2,7 +2,7 @@
 import type { Intent, IntentSuccess } from "@/lib/ai";
 import type { NormalizedIntent } from "@/lib/normalize";
 
-export type Mode = "IDLE" | "FLOW" | "VIEW" | "GUIDE";
+export type Mode = "IDLE" | "FLOW" | "VIEW" | "GUIDE" | "AUTH";
 
 export type FlowName = "transfer" | "swap" | "bridge" | "bridge-swap";
 
@@ -41,7 +41,7 @@ export type ViewPage =
   | { kind: "settings" };
 
 export type CoreContext = {
-  userId: string;
+  userId?: string; // undefined when not authenticated
   chainId: number; // default Base 8453
   saAddress?: `0x${string}`;
   smartWalletClient?: any; // Privy Smart Wallet client
@@ -137,7 +137,9 @@ export type AppEvent =
   | { type: "APP.INIT"; coreContext: CoreContext }
   | { type: "APP.RESET" }
   | { type: "INPUT.CHANGE"; text: string }
-  | { type: "CHAT.ADD"; message: AppState["chatHistory"][0] };
+  | { type: "CHAT.ADD"; message: AppState["chatHistory"][0] }
+  | { type: "AUTH.START" }
+  | { type: "AUTH.STOP" };
 
 // Helper types for effect definitions
 export type Dispatch = (e: AppEvent) => void;

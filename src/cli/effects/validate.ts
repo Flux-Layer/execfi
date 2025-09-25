@@ -19,8 +19,8 @@ export const validateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal
     dispatch({
       type: "VALIDATE.FAIL",
       error: {
-        code: "MISSING_SA_ADDRESS",
-        message: "Smart Account address not available",
+        code: "AUTH_REQUIRED",
+        message: "Please sign in to execute transactions. Click the sign in button in the top right corner.",
         phase: "validate",
       },
     });

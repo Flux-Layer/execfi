@@ -1,6 +1,6 @@
 // lib/ai/intent.ts - Client-side intent parsing via API route
 
-import { type Intent, type IntentSuccess, type IntentClarify } from "./schema";
+import { type Intent, type IntentSuccess, type IntentClarify, type IntentChat } from "./schema";
 
 export class IntentParseError extends Error {
    constructor(
@@ -70,4 +70,4 @@ export async function parseIntent(prompt: string): Promise<Intent> {
 
 
 // Export types for use in other modules
-export type { Intent, IntentSuccess, IntentClarify };
+export type { Intent, IntentSuccess, IntentClarify, IntentChat };

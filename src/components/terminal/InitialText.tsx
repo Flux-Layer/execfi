@@ -7,8 +7,13 @@ const InitialText = () => {
   return !authenticated ? (
     <>
       <p>
-        👋 Hey there! Let&apos;s{" "}
-        <span className="text-blue-200">get you connected.</span>
+        👋 Hey there! Welcome to <span className="text-emerald-400">ExecFi Terminal</span>.
+      </p>
+      <p>
+        💬 You can explore and ask questions without logging in.
+      </p>
+      <p>
+        🔐 <span className="text-blue-200">Log in</span> to execute transactions and manage your assets.
       </p>
       <p className="whitespace-nowrap overflow-hidden font-light">
         ------------------------------------------------------------------------

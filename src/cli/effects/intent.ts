@@ -1,6 +1,6 @@
 // Intent parsing effects using existing orchestrator logic
 import type { StepDef, Dispatch } from "../state/types";
-import { parseIntent, isIntentSuccess, isIntentClarify } from "@/lib/ai";
+import { parseIntent, isIntentSuccess, isIntentClarify, isIntentChat } from "@/lib/ai";
 
 export const parseIntentFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   if (!ctx.raw) {
@@ -18,6 +18,24 @@ export const parseIntentFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
     const intentResult = await parseIntent(ctx.raw);
 
     if (signal.aborted) return;
+
+    if (isIntentChat(intentResult)) {
+      console.log("💬 Chat response:", intentResult.response);
+      // For chat responses, add to chat history and return to idle
+      dispatch({
+        type: "CHAT.ADD",
+        message: {
+          role: "assistant",
+          content: intentResult.response,
+          timestamp: Date.now(),
+        },
+      });
+      // Return to idle mode instead of continuing flow
+      dispatch({
+        type: "FLOW.CANCEL", // This will show proper completion message
+      });
+      return;
+    }
 
     if (isIntentClarify(intentResult)) {
       dispatch({

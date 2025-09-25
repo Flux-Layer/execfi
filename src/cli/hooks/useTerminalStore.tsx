@@ -55,18 +55,30 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
 
   const state = store.getState();
 
-  // Initialize core context when auth is ready
+  // Initialize core context - allow basic initialization even when unauthenticated
   useEffect(() => {
-    if (ready && authenticated && user && smartWalletReady) {
+    if (ready) {
+      const coreContext = {
+        chainId: 8453, // Base mainnet default
+        idempotency: new Map(),
+
+        // Auth-specific fields only when authenticated
+        ...(authenticated && user && smartWalletReady
+          ? {
+              userId: user.id,
+              saAddress: smartAccountAddress,
+              smartWalletClient: smartWalletClient,
+            }
+          : {
+              userId: undefined,
+              saAddress: undefined,
+              smartWalletClient: undefined,
+            }),
+      };
+
       store.dispatch({
         type: "APP.INIT",
-        coreContext: {
-          userId: user.id,
-          chainId: 8453, // Base mainnet default
-          saAddress: smartAccountAddress,
-          smartWalletClient: smartWalletClient,
-          idempotency: new Map(),
-        },
+        coreContext,
       });
     }
   }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, store]);

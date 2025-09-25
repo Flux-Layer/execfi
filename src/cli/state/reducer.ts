@@ -99,6 +99,33 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         };
       }
 
+      // Handle input during clarification
+      if (state.mode === "FLOW" && state.flow?.step === "clarify") {
+        // Update the raw input with clarification response and restart parsing
+        const updatedRaw = state.flow.raw ? `${state.flow.raw} ${text}` : text;
+        return reducer(
+          {
+            ...state,
+            inputText: "",
+            chatHistory: [
+              ...state.chatHistory,
+              {
+                role: "user",
+                content: text,
+                timestamp: Date.now(),
+              },
+            ],
+            flow: {
+              ...state.flow,
+              raw: updatedRaw,
+              step: "parse", // Restart parsing with updated context
+              error: undefined,
+            },
+          },
+          { type: "APP.TICK" } // Trigger effects runner
+        );
+      }
+
       // Handle input during confirmation
       if (state.mode === "FLOW" && state.flow?.step === "confirm") {
         const confirmResponse = text.toLowerCase();
@@ -347,14 +374,32 @@ export function reducer(state: AppState, event: AppEvent): AppState {
 
     case "VALIDATE.FAIL":
       if (state.mode === "FLOW" && state.flow?.step === "validate") {
-        return {
+        // For auth errors, show message immediately in chat
+        const isAuthError = event.error.code === "AUTH_REQUIRED";
+        const nextState = {
           ...state,
           flow: {
             ...state.flow,
-            step: "failure",
+            step: "failure" as const,
             error: event.error,
           },
         };
+
+        if (isAuthError) {
+          return {
+            ...nextState,
+            chatHistory: [
+              ...state.chatHistory,
+              {
+                role: "assistant" as const,
+                content: `🔒 ${event.error.message}`,
+                timestamp: Date.now(),
+              },
+            ],
+          };
+        }
+
+        return nextState;
       }
       return state;
 
@@ -539,6 +584,24 @@ export function reducer(state: AppState, event: AppEvent): AppState {
 
     // Flow control
     case "FLOW.CANCEL":
+      // Handle AUTH mode cancellation
+      if (state.mode === "AUTH") {
+        return {
+          ...state,
+          mode: "IDLE",
+          inputText: "",
+          chatHistory: [
+            ...state.chatHistory,
+            {
+              role: "assistant",
+              content: "Authentication cancelled. You can try /login again anytime.",
+              timestamp: Date.now(),
+            },
+          ],
+        };
+      }
+
+      // Handle FLOW mode cancellation
       return {
         ...state,
         mode: "IDLE",
@@ -667,6 +730,36 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         };
       }
       return state;
+
+    case "AUTH.START":
+      return {
+        ...state,
+        mode: "AUTH",
+        inputText: "",
+        chatHistory: [
+          ...state.chatHistory,
+          {
+            role: "assistant",
+            content: "🔐 Starting authentication flow. Please enter your email to sign in.",
+            timestamp: Date.now(),
+          },
+        ],
+      };
+
+    case "AUTH.STOP":
+      return {
+        ...state,
+        mode: "IDLE",
+        inputText: "",
+        chatHistory: [
+          ...state.chatHistory,
+          {
+            role: "assistant",
+            content: "Authentication cancelled. You can try /login again anytime.",
+            timestamp: Date.now(),
+          },
+        ],
+      };
 
     default:
       return state;
