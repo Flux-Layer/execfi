@@ -586,19 +586,8 @@ export function reducer(state: AppState, event: AppEvent): AppState {
     case "FLOW.CANCEL":
       // Handle AUTH mode cancellation
       if (state.mode === "AUTH") {
-        return {
-          ...state,
-          mode: "IDLE",
-          inputText: "",
-          chatHistory: [
-            ...state.chatHistory,
-            {
-              role: "assistant",
-              content: "Authentication cancelled. You can try /login again anytime.",
-              timestamp: Date.now(),
-            },
-          ],
-        };
+        // Use AUTH.CANCEL to handle the cancellation message
+        return reducer(state, { type: "AUTH.CANCEL" });
       }
 
       // Handle FLOW mode cancellation
@@ -746,7 +735,22 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         ],
       };
 
-    case "AUTH.STOP":
+    case "AUTH.SUCCESS":
+      return {
+        ...state,
+        mode: "IDLE",
+        inputText: "",
+        chatHistory: [
+          ...state.chatHistory,
+          {
+            role: "assistant",
+            content: "✅ Successfully signed in! You can now execute transactions.",
+            timestamp: Date.now(),
+          },
+        ],
+      };
+
+    case "AUTH.CANCEL":
       return {
         ...state,
         mode: "IDLE",
@@ -756,6 +760,37 @@ export function reducer(state: AppState, event: AppEvent): AppState {
           {
             role: "assistant",
             content: "Authentication cancelled. You can try /login again anytime.",
+            timestamp: Date.now(),
+          },
+        ],
+      };
+
+    case "AUTH.LOGOUT":
+      // Only allow logout if user has a userId (is authenticated)
+      if (!state.core.userId) {
+        return {
+          ...state,
+          inputText: "",
+          chatHistory: [
+            ...state.chatHistory,
+            {
+              role: "assistant",
+              content: "❌ You are not signed in. Use /login to sign in first.",
+              timestamp: Date.now(),
+            },
+          ],
+        };
+      }
+
+      return {
+        ...state,
+        mode: "IDLE",
+        inputText: "",
+        chatHistory: [
+          ...state.chatHistory,
+          {
+            role: "assistant",
+            content: "🔓 Signing out...",
             timestamp: Date.now(),
           },
         ],

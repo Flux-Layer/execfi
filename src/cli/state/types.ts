@@ -139,7 +139,9 @@ export type AppEvent =
   | { type: "INPUT.CHANGE"; text: string }
   | { type: "CHAT.ADD"; message: AppState["chatHistory"][0] }
   | { type: "AUTH.START" }
-  | { type: "AUTH.STOP" };
+  | { type: "AUTH.SUCCESS" }
+  | { type: "AUTH.CANCEL" }
+  | { type: "AUTH.LOGOUT" };
 
 // Helper types for effect definitions
 export type Dispatch = (e: AppEvent) => void;

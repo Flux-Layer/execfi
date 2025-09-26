@@ -27,7 +27,7 @@ interface HSMTerminalBodyProps {
 }
 
 const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, ready, logout } = usePrivy();
   const { sendCode, loginWithCode } = useLoginWithEmail();
   const { isAuthenticated } = useTerminalAuth();
   const { dispatch } = useTerminalStore();
@@ -61,17 +61,36 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
   // Auto-exit auth mode when user becomes authenticated
   useEffect(() => {
     if (mode === "AUTH" && authenticated) {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: "✅ Successfully signed in! You can now execute transactions.",
-          timestamp: Date.now(),
-        }
-      });
-      dispatch({ type: "AUTH.STOP" });
+      dispatch({ type: "AUTH.SUCCESS" });
     }
   }, [mode, authenticated, dispatch]);
+
+  // Handle logout when logout message appears
+  useEffect(() => {
+    const lastMessage = chatHistory[chatHistory.length - 1];
+    if (lastMessage?.role === "assistant" && lastMessage?.content === "🔓 Signing out..." && authenticated) {
+      logout().then(() => {
+        dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: "✅ Successfully signed out. You can use /login to sign in again.",
+            timestamp: Date.now(),
+          },
+        });
+      }).catch((error) => {
+        console.error("Logout failed:", error);
+        dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: "❌ Sign out failed. Please try again or use the profile menu.",
+            timestamp: Date.now(),
+          },
+        });
+      });
+    }
+  }, [chatHistory, authenticated, logout, dispatch]);
 
   const handleAuthSubmitLine = async (value: string) => {
     if (curQuestion) {
