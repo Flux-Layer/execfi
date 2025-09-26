@@ -47,6 +47,10 @@ export function parseSlashCommand(text: string): AppEvent | null {
     case "auth":
       return { type: "AUTH.START" };
 
+    case "logout":
+    case "signout":
+      return { type: "AUTH.LOGOUT" };
+
     case "settings":
       return { type: "NAV.VIEW.PUSH", page: { kind: "settings" } };
 
