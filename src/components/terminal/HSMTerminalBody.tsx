@@ -10,6 +10,7 @@ import {
   useTerminalChat,
   useTerminalAuth,
   useTerminalStore,
+  useTerminalCore,
 } from "@/cli/hooks/useTerminalStore";
 
 // Import existing components that we'll reuse
@@ -20,6 +21,7 @@ import CurrentQuestion from "./CurrentQuestion";
 // New HSM-aware components
 import HSMChatHistory from "./HSMChatHistory";
 import HSMCurLine from "./HSMCurLine";
+import HSMViewRenderer from "./HSMViewRenderer";
 
 interface HSMTerminalBodyProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -37,6 +39,7 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
   const flow = useTerminalState((state) => state.flow);
   const viewStack = useTerminalState((state) => state.viewStack);
   const chatHistory = useTerminalChat();
+  const coreContext = useTerminalCore();
 
   // Submit handler for HSM flows
   const submitInput = (text: string) => {
@@ -64,6 +67,23 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
       dispatch({ type: "AUTH.SUCCESS" });
     }
   }, [mode, authenticated, dispatch]);
+
+  // Auto-scroll to bottom when chat history updates
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [chatHistory, containerRef]);
+
+  // Auto-focus input on page load and mode changes
+  useEffect(() => {
+    if (inputRef.current && mode !== "FLOW") {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100); // Small delay to ensure DOM is ready
+      return () => clearTimeout(timer);
+    }
+  }, [mode, inputRef]);
 
   // Handle logout when logout message appears
   useEffect(() => {
@@ -153,6 +173,20 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
 
           {/* Mode Indicator */}
           <ModeIndicator mode={mode} viewStack={viewStack} />
+
+          {/* View Renderer - show view content when in VIEW mode */}
+          {mode === "VIEW" && (
+            <HSMViewRenderer
+              viewStack={viewStack}
+              core={coreContext || {
+                chainId: 8453,
+                userId: undefined,
+                accountMode: "EOA",
+                idempotency: new Map()
+              }}
+            />
+          )}
+
 
           {/* Debug Info - show if stuck in FLOW for too long */}
           {mode === "FLOW" && flow && (

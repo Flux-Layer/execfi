@@ -254,3 +254,8 @@ export function useTerminalAuth() {
     smartAccountAddress,
   };
 }
+
+export function useTerminalCore() {
+  const state = useTerminalState((state) => state);
+  return state.core;
+}

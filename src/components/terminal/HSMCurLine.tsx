@@ -65,15 +65,29 @@ const HSMCurLine = ({
 
   // Auto-focus and scroll
   useEffect(() => {
-    if (inputRef.current) {
+    if (inputRef.current && !loading) {
       inputRef.current.focus();
     }
     scrollToBottom();
-  }, [command, inputRef]);
+  }, [command, inputRef, loading]);
 
+  // Scroll when container changes or when content updates
   useEffect(() => {
-    scrollToBottom();
+    const scrollTimer = setTimeout(() => {
+      scrollToBottom();
+    }, 50); // Small delay to ensure DOM updates are complete
+    return () => clearTimeout(scrollTimer);
   }, [containerRef]);
+
+  // Auto-focus on page load
+  useEffect(() => {
+    const focusTimer = setTimeout(() => {
+      if (inputRef.current && !loading) {
+        inputRef.current.focus();
+      }
+    }, 200); // Longer delay for initial page load
+    return () => clearTimeout(focusTimer);
+  }, []);
 
   const getCommandPrompt = (): string => {
     switch (command) {
