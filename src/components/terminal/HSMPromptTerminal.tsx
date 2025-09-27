@@ -15,6 +15,7 @@ import HSMTerminalBody from "./HSMTerminalBody";
 import { motion } from "framer-motion";
 import { TerminalStoreProvider, useTerminalOverlays } from "@/cli/hooks/useTerminalStore";
 import HSMOverlays from "./HSMOverlays";
+import { useDock } from "@/context/DockContext";
 
 // Grid and beam configurations (keeping the same visual design)
 const GRID_BOX_SIZE = 32;
@@ -22,6 +23,12 @@ const BEAM_WIDTH_OFFSET = 1;
 const CARD_POS_VH = 60; // 60vh ≈ "3/4 dari atas hampir ke tengah"
 
 export default function HSMPromptTerminal() {
+  const { terminalOpen } = useDock();
+
+  if (!terminalOpen) {
+    return null;
+  }
+
   return (
     <TerminalStoreProvider>
       <HSMTerminalContent />
@@ -206,7 +213,6 @@ function HSMTerminalContent() {
               draggable={false}
             >
               <TerminalHeader
-                isSessionActive={authenticated}
                 onDragHandle={handleDragStart}
                 isDragging={isDragging}
               />
