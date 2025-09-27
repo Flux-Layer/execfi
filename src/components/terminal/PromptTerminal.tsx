@@ -37,7 +37,7 @@ export default function PromptTerminal() {
             <div
               ref={containerRef}
               onClick={() => inputRef.current?.focus()}
-              className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
+              className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono scrollbar-hide"
             >
               <TerminalHeader />
               <TerminalBody inputRef={inputRef} containerRef={containerRef} />

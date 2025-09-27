@@ -68,6 +68,23 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
     }
   }, [mode, authenticated, dispatch]);
 
+  // Auto-scroll to bottom when chat history updates
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [chatHistory, containerRef]);
+
+  // Auto-focus input on page load and mode changes
+  useEffect(() => {
+    if (inputRef.current && mode !== "FLOW") {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100); // Small delay to ensure DOM is ready
+      return () => clearTimeout(timer);
+    }
+  }, [mode, inputRef]);
+
   // Handle logout when logout message appears
   useEffect(() => {
     const lastMessage = chatHistory[chatHistory.length - 1];
