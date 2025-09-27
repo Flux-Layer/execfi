@@ -31,19 +31,11 @@ export default function HSMPromptTerminal() {
     toggleFullscreenTerminal,
   } = useDock();
 
-  // When closed, keep the background visible
-  if (!open) {
-    return (
-      <div className="relative h-full w-full overflow-hidden bg-slate-950 text-slate-200">
-        <BGGrid />
-      </div>
-    );
-  }
-
   return (
     <TerminalStoreProvider key={version}>
       <HSMTerminalContent
         ready={ready}
+        open={open}
         minimized={minimized}
         fullscreen={fullscreen}
         onClose={closeTerminal}
@@ -56,6 +48,7 @@ export default function HSMPromptTerminal() {
 
 type HSMTerminalContentProps = {
   ready: boolean;
+  open: boolean;
   minimized: boolean;
   fullscreen: boolean;
   onClose: () => void;
@@ -65,6 +58,7 @@ type HSMTerminalContentProps = {
 
 function HSMTerminalContent({
   ready,
+  open,
   minimized,
   fullscreen,
   onClose,
@@ -78,6 +72,8 @@ function HSMTerminalContent({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isPositionReady, setIsPositionReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const isActive = open && !minimized && ready;
+  const [renderWindow, setRenderWindow] = useState<boolean>(isActive);
   const dragPointerIdRef = useRef<number | null>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const dragCaptureTargetRef = useRef<EventTarget & { releasePointerCapture?: (pointerId: number) => void } | null>(null);
@@ -132,6 +128,16 @@ function HSMTerminalContent({
     });
     return () => cancelAnimationFrame(frame);
   }, [ready, isPositionReady, initializePosition, clampWithinViewport, fullscreen]);
+
+  // Handle presence without AnimatePresence for React 19 compatibility
+  useEffect(() => {
+    if (isActive) {
+      setRenderWindow(true);
+      return;
+    }
+    const t = setTimeout(() => setRenderWindow(false), 180);
+    return () => clearTimeout(t);
+  }, [isActive]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -241,9 +247,11 @@ function HSMTerminalContent({
 
       {/* === Content === */}
       <div className="relative z-10">
-        {minimized ? null : ready ? (
-          <div
+        {renderWindow && (
+          <motion.div
             ref={windowRef}
+            layout
+            transition={isDragging ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 24 }}
             className={
               fullscreen
                 ? "fixed inset-0 z-30 flex items-center justify-center"
@@ -252,18 +260,22 @@ function HSMTerminalContent({
             style={{
               left: fullscreen ? undefined : position.x,
               top: fullscreen ? undefined : position.y,
-              visibility: isPositionReady ? "visible" : "hidden",
               userSelect: isDragging ? "none" : undefined,
               width: fullscreen ? "100vw" : undefined,
               height: fullscreen ? "100vh" : undefined,
+              willChange: "transform",
             }}
           >
-            <div
+            <motion.div
               ref={containerRef}
+              layout
+              initial={false}
+              animate={isActive ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -8, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 300, damping: 28, mass: 0.9 }}
               onClick={() => inputRef.current?.focus()}
               className={
                 fullscreen
-                  ? "relative flex h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] cursor-text overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
+                  ? "relative flex flex-col h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] cursor-text overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
                   : "mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
               }
               draggable={false}
@@ -279,9 +291,11 @@ function HSMTerminalContent({
               <div className={fullscreen ? "h-[calc(100%-3rem)] overflow-y-auto" : ""}>
                 <HSMTerminalBody inputRef={inputRef} containerRef={containerRef} />
               </div>
-            </div>
-          </div>
-        ) : (
+            </motion.div>
+          </motion.div>
+        )}
+
+        {open && !minimized && !ready && (
           <div
             className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl px-4"
             style={{ top: `${CARD_POS_VH}vh` }}

@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Smooth fade in/out pulse for loader caption */
+@keyframes fadePulse {
+  0% { opacity: 0.35; }
+  50% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+.animate-fadePulse {
+  animation: fadePulse 2.4s ease-in-out infinite;
+}
+
+/* Neon silver text glow */
+.neon-silver {
+  color: #e5e7eb; /* slate-200 */
+  text-shadow:
+    0 0 6px rgba(192,192,255,0.85),
+    0 0 18px rgba(192,192,255,0.45);
+}
+
 html{
    box-sizing: border-box;
    padding: 0;

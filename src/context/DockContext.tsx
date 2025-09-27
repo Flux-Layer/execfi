@@ -21,7 +21,7 @@ const DockContext = createContext<DockContextValue | undefined>(undefined);
 
 export function DockProvider({ children }: { children: ReactNode }) {
   const [terminalState, setTerminalState] = useState<TerminalWindowState>({
-    open: true,
+    open: false,
     minimized: false,
     fullscreen: false,
     version: 0,
