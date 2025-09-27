@@ -5,18 +5,29 @@ import logo from "../../../public/execfi.icon.svg";
 type TerminalHeaderProps = {
   isSessionActive?: boolean;
   className?: string;
+  onDragHandle?: (event: React.PointerEvent<HTMLDivElement>) => void;
+  isDragging?: boolean;
 };
 
-const TerminalHeader = ({ isSessionActive, className = "" }: TerminalHeaderProps) => {
+const TerminalHeader = ({
+  isSessionActive,
+  className = "",
+  onDragHandle,
+  isDragging,
+}: TerminalHeaderProps) => {
+  const headerClasses = [
+    "sticky top-0 z-10 border-b border-white/10",
+    "bg-slate-800/80 backdrop-blur",
+    "grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2",
+    onDragHandle ? "cursor-grab active:cursor-grabbing select-none" : "",
+    isDragging ? "ring-1 ring-blue-500/40" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div
-      className={[
-        "sticky top-0 z-10 border-b border-white/10",
-        "bg-slate-800/80 backdrop-blur",
-        "grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2",
-        className,
-      ].join(" ")}
-    >
+    <div onPointerDown={onDragHandle} className={headerClasses}>
       {/* traffic lights (left) */}
       <div className="flex items-center gap-2">
         <div className="flex gap-1.5">

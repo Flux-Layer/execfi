@@ -2,12 +2,12 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { NavDrawer } from "@components/rounded-drawer-nav";
 import PrivyAppProvider from "@providers/privy-provider";
 import { WagmiAppProvider } from "@providers/wagmi-provider"; // ⬅️ import baru
 import { QCProvider } from "@providers/query-client.provider";
 import { EOAProvider } from "@providers/EOAProvider";
 import { Toaster } from "react-hot-toast";
+import Dock from "@components/dock";
 
 const geistSans = Geist({
    variable: "--font-geist-sans",
@@ -31,8 +31,8 @@ export default function RootLayout({
                <EOAProvider>
                   <WagmiAppProvider>
                      <QCProvider>
-                        <NavDrawer />
                         {children}
+                        <Dock />
                         <Toaster
                            position="top-right"
                            toastOptions={{
