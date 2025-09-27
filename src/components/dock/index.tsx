@@ -4,38 +4,43 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   FiHome,
   FiInfo,
-  FiTag,
+  FiFileText,
   FiTerminal,
   FiSettings,
   FiUser,
 } from "react-icons/fi";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import HSMTerminalBody from "@/components/terminal/HSMTerminalBody";
 import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { useDock } from "@/context/DockContext";
+import ExecFiNotesWindow, { NotesApp } from "@/components/apps/ExecFiNotes";
 
 const DOCK_ITEMS = [
   { key: "home", label: "Home", href: "#home", icon: <FiHome /> },
   { key: "about", label: "About", href: "#about", icon: <FiInfo /> },
-  { key: "pricing", label: "Pricing", href: "#pricing", icon: <FiTag /> },
+  { key: "pricing", label: "Notes", href: "/execfi", icon: <FiFileText /> },
   { key: "terminal", label: "Terminal", href: "#terminal", icon: <FiTerminal /> },
   { key: "settings", label: "Settings", href: "#settings", icon: <FiSettings /> },
   { key: "profile", label: "Profile", href: "#profile", icon: <FiUser /> },
 ];
 
 export default function Dock() {
-  const { terminalState, openTerminal } = useDock();
+  const { terminalState, docsState, openTerminal, openDocs } = useDock();
   const [hovered, setHovered] = useState<string | null>(null);
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const previewInputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
 
   return (
     <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
-      <nav className="pointer-events-auto flex items-end gap-4 rounded-3xl border border-white/10 bg-slate-900/70 px-6 py-3 shadow-2xl shadow-black/40 backdrop-blur-xl">
+      <nav className="pointer-events-auto flex items-end gap-4 rounded-3xl border border-white/10 bg-slate-900/70 px-6 py-3 shadow-2xl shadow-black/40 backdrop-blur-xl relative">
         {DOCK_ITEMS.map((item) => {
           const isHover = hovered === item.key;
           const isTerminal = item.key === "terminal";
           const terminalMinimized = isTerminal && terminalState.minimized;
+          const isDocs = item.key === "pricing";
+          const docsMinimized = isDocs && docsState.minimized;
 
           return (
             <div
@@ -51,19 +56,25 @@ export default function Dock() {
               onClick={() => {
                 if (isTerminal) {
                   openTerminal();
+                } else if (item.key === "pricing") {
+                  openDocs();
                 }
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  if (isTerminal) openTerminal();
+                  if (isTerminal) {
+                    openTerminal();
+                  } else if (item.key === "pricing") {
+                    openDocs();
+                  }
                 }
               }}
             >
               <motion.span
                 animate={{
-                  scale: terminalMinimized ? 1.2 : isHover ? 1.15 : isTerminal && terminalState.open ? 1.05 : 1,
-                  y: isHover ? -6 : terminalMinimized ? -3 : 0,
+                  scale: (terminalMinimized || docsMinimized) ? 1.2 : isHover ? 1.15 : (isTerminal && terminalState.open) ? 1.05 : 1,
+                  y: isHover ? -6 : (terminalMinimized || docsMinimized) ? -3 : 0,
                 }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
                 className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800/85 text-xl shadow-inner"
@@ -72,7 +83,7 @@ export default function Dock() {
               </motion.span>
 
               <AnimatePresence>
-                {isHover && !(isTerminal && terminalMinimized) && (
+                {isHover && !((isTerminal && terminalMinimized) || (isDocs && docsMinimized)) && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -91,38 +102,57 @@ export default function Dock() {
                 )}
               </AnimatePresence>
 
-              {/* Minimized terminal preview on hover */}
-              <AnimatePresence>
-                {isTerminal && terminalMinimized && isHover && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                    className="absolute -top-[14rem] left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
-                    onClick={() => openTerminal()}
-                  >
-                    <div className="w-[400px] h-[200px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden">
-                      {/* Live preview (non-interactive) - full terminal shape */}
-                      <div ref={previewContainerRef} className="relative h-full w-full pointer-events-none">
-                        <div className="absolute inset-0 scale-92 origin-bottom">
-                          <div className="h-full w-full font-mono terminal-font-shrink text-left">
-                            <TerminalHeader isFullscreen={false} />
-                            <div className="h-[calc(100%-3rem)] overflow-hidden">
-                              <HSMTerminalBody inputRef={previewInputRef} containerRef={previewContainerRef} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Click catcher */}
-                      <div className="absolute inset-0" />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+
+              {/* Previews moved outside item wrapper to only appear when icon is hovered, not the preview itself */}
             </div>
           );
         })}
+        {/* Global hover previews anchored to dock center */}
+        <AnimatePresence>
+          {terminalState.minimized && hovered === 'terminal' && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+              className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+            >
+              <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 768, height: 384, transform: 'scale(0.55)', transformOrigin: 'center' }}>
+                  <div className="h-full w-full font-mono text-left">
+                    <TerminalHeader isFullscreen={false} showClock={false} />
+                    <div className="h-[calc(100%-3rem)] overflow-hidden">
+                      <HSMTerminalBody inputRef={previewInputRef} containerRef={previewContainerRef} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {docsState.minimized && hovered === 'pricing' && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+              className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+            >
+              <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 768, height: 448, transform: 'scale(0.55)', transformOrigin: 'center' }}>
+                  <div className="h-full w-full font-mono text-left">
+                    <TerminalHeader isFullscreen={false} showClock={false} />
+                    <div className="h-[calc(100%-3rem)] overflow-hidden">
+                      <NotesApp />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
     </div>
   );
