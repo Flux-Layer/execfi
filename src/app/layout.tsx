@@ -8,6 +8,7 @@ import { QCProvider } from "@providers/query-client.provider";
 import { EOAProvider } from "@providers/EOAProvider";
 import { Toaster } from "react-hot-toast";
 import Dock from "@components/dock";
+import { DockProvider } from "@/context/DockContext";
 
 const geistSans = Geist({
    variable: "--font-geist-sans",
@@ -29,11 +30,12 @@ export default function RootLayout({
          <body>
             <PrivyAppProvider>
                <EOAProvider>
-                  <WagmiAppProvider>
-                     <QCProvider>
-                        {children}
-                        <Dock />
-                        <Toaster
+                  <DockProvider>
+                     <WagmiAppProvider>
+                        <QCProvider>
+                           {children}
+                           <Dock />
+                           <Toaster
                            position="top-right"
                            toastOptions={{
                               duration: 4000,
@@ -55,9 +57,10 @@ export default function RootLayout({
                                  },
                               },
                            }}
-                        />
-                     </QCProvider>
-                  </WagmiAppProvider>
+                           />
+                        </QCProvider>
+                     </WagmiAppProvider>
+                  </DockProvider>
                </EOAProvider>
             </PrivyAppProvider>
          </body>
