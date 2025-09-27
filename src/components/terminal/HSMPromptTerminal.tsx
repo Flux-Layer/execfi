@@ -23,21 +23,54 @@ const BEAM_WIDTH_OFFSET = 1;
 const CARD_POS_VH = 60; // 60vh ≈ "3/4 dari atas hampir ke tengah"
 
 export default function HSMPromptTerminal() {
-  const { terminalOpen } = useDock();
+  const { ready } = usePrivy();
+  const {
+    terminalState: { open, minimized, fullscreen, version },
+    closeTerminal,
+    minimizeTerminal,
+    toggleFullscreenTerminal,
+  } = useDock();
 
-  if (!terminalOpen) {
-    return null;
+  // When closed, keep the background visible
+  if (!open) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-slate-950 text-slate-200">
+        <BGGrid />
+      </div>
+    );
   }
 
   return (
-    <TerminalStoreProvider>
-      <HSMTerminalContent />
+    <TerminalStoreProvider key={version}>
+      <HSMTerminalContent
+        ready={ready}
+        minimized={minimized}
+        fullscreen={fullscreen}
+        onClose={closeTerminal}
+        onMinimize={minimizeTerminal}
+        onToggleFullscreen={toggleFullscreenTerminal}
+      />
     </TerminalStoreProvider>
   );
 }
 
-function HSMTerminalContent() {
-  const { ready, authenticated } = usePrivy();
+type HSMTerminalContentProps = {
+  ready: boolean;
+  minimized: boolean;
+  fullscreen: boolean;
+  onClose: () => void;
+  onMinimize: () => void;
+  onToggleFullscreen: () => void;
+};
+
+function HSMTerminalContent({
+  ready,
+  minimized,
+  fullscreen,
+  onClose,
+  onMinimize,
+  onToggleFullscreen,
+}: HSMTerminalContentProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -55,7 +88,7 @@ function HSMTerminalContent() {
   }, []);
 
   const clampWithinViewport = useCallback(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || fullscreen) return;
     const node = windowRef.current;
     if (!node) return;
     const width = node.offsetWidth;
@@ -69,7 +102,7 @@ function HSMTerminalContent() {
   }, []);
 
   const initializePosition = useCallback(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || fullscreen) return;
     const node = windowRef.current;
     if (!node) return;
     const width = node.offsetWidth;
@@ -85,6 +118,12 @@ function HSMTerminalContent() {
   useEffect(() => {
     if (!ready) return;
     const frame = requestAnimationFrame(() => {
+      if (fullscreen) {
+        setPosition({ x: 0, y: 0 });
+        setIsPositionReady(true);
+        return;
+      }
+
       if (!isPositionReady) {
         initializePosition();
       } else {
@@ -92,7 +131,7 @@ function HSMTerminalContent() {
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [ready, isPositionReady, initializePosition, clampWithinViewport]);
+  }, [ready, isPositionReady, initializePosition, clampWithinViewport, fullscreen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -105,8 +144,15 @@ function HSMTerminalContent() {
     };
   }, [clampWithinViewport]);
 
+  useEffect(() => {
+    if (!fullscreen) {
+      setIsPositionReady(false);
+    }
+  }, [fullscreen]);
+
   const handlePointerMove = useCallback(
     (event: PointerEvent) => {
+      if (fullscreen || minimized) return;
       if (dragPointerIdRef.current !== event.pointerId) return;
       if (typeof window === "undefined") return;
       const node = windowRef.current;
@@ -149,7 +195,7 @@ function HSMTerminalContent() {
 
   const handleDragStart = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined" || fullscreen || minimized) return;
       if (event.button !== 0 && event.pointerType !== "touch") return;
       const node = windowRef.current;
       if (!node) return;
@@ -195,28 +241,44 @@ function HSMTerminalContent() {
 
       {/* === Content === */}
       <div className="relative z-10">
-        {ready ? (
+        {minimized ? null : ready ? (
           <div
             ref={windowRef}
-            className="absolute px-4"
+            className={
+              fullscreen
+                ? "fixed inset-0 z-30 flex items-center justify-center"
+                : "absolute px-4"
+            }
             style={{
-              left: position.x,
-              top: position.y,
+              left: fullscreen ? undefined : position.x,
+              top: fullscreen ? undefined : position.y,
               visibility: isPositionReady ? "visible" : "hidden",
               userSelect: isDragging ? "none" : undefined,
+              width: fullscreen ? "100vw" : undefined,
+              height: fullscreen ? "100vh" : undefined,
             }}
           >
             <div
               ref={containerRef}
               onClick={() => inputRef.current?.focus()}
-              className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono scrollbar-hide"
+              className={
+                fullscreen
+                  ? "relative flex h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] cursor-text overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
+                  : "mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
+              }
               draggable={false}
             >
               <TerminalHeader
-                onDragHandle={handleDragStart}
+                onDragHandle={fullscreen ? undefined : handleDragStart}
                 isDragging={isDragging}
+                onClose={onClose}
+                onMinimize={onMinimize}
+                onToggleFullscreen={onToggleFullscreen}
+                isFullscreen={fullscreen}
               />
-              <HSMTerminalBody inputRef={inputRef} containerRef={containerRef} />
+              <div className={fullscreen ? "h-[calc(100%-3rem)] overflow-y-auto" : ""}>
+                <HSMTerminalBody inputRef={inputRef} containerRef={containerRef} />
+              </div>
             </div>
           </div>
         ) : (

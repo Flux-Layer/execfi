@@ -22,7 +22,7 @@ const DOCK_ITEMS = [
 ];
 
 export default function Dock() {
-  const { openTerminal } = useDock();
+  const { terminalState, openTerminal } = useDock();
   const [hovered, setHovered] = useState<string | null>(null);
 
   return (
@@ -30,6 +30,8 @@ export default function Dock() {
       <nav className="pointer-events-auto flex items-end gap-4 rounded-3xl border border-white/10 bg-slate-900/70 px-6 py-3 shadow-2xl shadow-black/40 backdrop-blur-xl">
         {DOCK_ITEMS.map((item) => {
           const isHover = hovered === item.key;
+          const isTerminal = item.key === "terminal";
+          const terminalMinimized = isTerminal && terminalState.minimized;
 
           return (
             <button
@@ -42,13 +44,16 @@ export default function Dock() {
               onBlur={() => setHovered(null)}
               aria-label={item.label}
               onClick={() => {
-                if (item.key === "terminal") {
+                if (isTerminal) {
                   openTerminal();
                 }
               }}
             >
               <motion.span
-                animate={{ scale: isHover ? 1.15 : 1, y: isHover ? -6 : 0 }}
+                animate={{
+                  scale: terminalMinimized ? 1.2 : isHover ? 1.15 : isTerminal && terminalState.open ? 1.05 : 1,
+                  y: isHover ? -6 : terminalMinimized ? -3 : 0,
+                }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
                 className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800/85 text-xl shadow-inner"
               >
