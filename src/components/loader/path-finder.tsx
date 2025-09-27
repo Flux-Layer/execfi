@@ -2,9 +2,22 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-export const PathFinderLoader = ({ caption = "Initializing" }: { caption?: string }) => {
+type LoaderVariant = 'fullscreen' | 'inline';
+
+export const PathFinderLoader = ({ caption = "Initializing", variant = 'fullscreen' }: { caption?: string; variant?: LoaderVariant }) => {
+  if (variant === 'fullscreen') {
+    return (
+      <div className="relative h-screen w-screen bg-neutral-950 overflow-hidden">
+        <div className="absolute inset-0 grid place-content-center">
+          <PathFinder caption={caption} />
+        </div>
+      </div>
+    );
+  }
+
+  // Inline variant: fill parent (e.g., terminal card body)
   return (
-    <div className="relative h-screen w-screen bg-neutral-950 overflow-hidden">
+    <div className="relative h-full w-full overflow-hidden">
       <div className="absolute inset-0 grid place-content-center">
         <PathFinder caption={caption} />
       </div>

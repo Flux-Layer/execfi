@@ -13,14 +13,14 @@ import PageBarLoader from "@components/loader";
 import TerminalHeader from "./TerminalHeader";
 import HSMTerminalBody from "./HSMTerminalBody";
 import { motion } from "framer-motion";
-import { TerminalStoreProvider, useTerminalOverlays } from "@/cli/hooks/useTerminalStore";
+import { useTerminalOverlays } from "@/cli/hooks/useTerminalStore";
 import HSMOverlays from "./HSMOverlays";
 import { useDock } from "@/context/DockContext";
 
 // Grid and beam configurations (keeping the same visual design)
 const GRID_BOX_SIZE = 32;
 const BEAM_WIDTH_OFFSET = 1;
-const CARD_POS_VH = 60; // 60vh ≈ "3/4 dari atas hampir ke tengah"
+const CARD_POS_VH = 60; // legacy default (not used for initial centering)
 
 export default function HSMPromptTerminal() {
   const { ready } = usePrivy();
@@ -32,7 +32,6 @@ export default function HSMPromptTerminal() {
   } = useDock();
 
   return (
-    <TerminalStoreProvider key={version}>
       <HSMTerminalContent
         ready={ready}
         open={open}
@@ -42,7 +41,6 @@ export default function HSMPromptTerminal() {
         onMinimize={minimizeTerminal}
         onToggleFullscreen={toggleFullscreenTerminal}
       />
-    </TerminalStoreProvider>
   );
 }
 
@@ -104,10 +102,9 @@ function HSMTerminalContent({
     const width = node.offsetWidth;
     const height = node.offsetHeight;
     const centeredX = Math.max((window.innerWidth - width) / 2, 0);
-    const desiredY = window.innerHeight * (CARD_POS_VH / 100) - height / 2;
-    const maxY = Math.max(window.innerHeight - height, 0);
-    const clampedY = Math.min(Math.max(desiredY, 0), maxY);
-    setPosition({ x: centeredX, y: clampedY });
+    // Center vertically on first open
+    const centeredY = Math.max((window.innerHeight - height) / 2, 0);
+    setPosition({ x: centeredX, y: centeredY });
     setIsPositionReady(true);
   }, []);
 
