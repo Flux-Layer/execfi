@@ -45,3 +45,9 @@ html{
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Safari and Chrome */
 }
+
+/* Shrink fonts for terminal preview without altering layout */
+.terminal-font-shrink, .terminal-font-shrink * {
+  font-size: 0.75rem !important; /* ~12px */
+  line-height: 1.2 !important;
+}
