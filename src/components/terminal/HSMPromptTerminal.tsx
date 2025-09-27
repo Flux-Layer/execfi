@@ -1,6 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import {
+  type DragEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "@components/loader";
 import TerminalHeader from "./TerminalHeader";
@@ -25,11 +32,157 @@ export default function HSMPromptTerminal() {
 function HSMTerminalContent() {
   const { ready, authenticated } = usePrivy();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const windowRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const overlays = useTerminalOverlays();
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isPositionReady, setIsPositionReady] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragPointerIdRef = useRef<number | null>(null);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+  const dragCaptureTargetRef = useRef<EventTarget & { releasePointerCapture?: (pointerId: number) => void } | null>(null);
+  const pointerUpListenerRef = useRef<((event: PointerEvent) => void) | null>(null);
+
+  const preventDrag = useCallback((event: DragEvent) => {
+    event.preventDefault();
+  }, []);
+
+  const clampWithinViewport = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const node = windowRef.current;
+    if (!node) return;
+    const width = node.offsetWidth;
+    const height = node.offsetHeight;
+    const maxX = Math.max(window.innerWidth - width, 0);
+    const maxY = Math.max(window.innerHeight - height, 0);
+    setPosition((prev) => ({
+      x: Math.min(Math.max(prev.x, 0), maxX),
+      y: Math.min(Math.max(prev.y, 0), maxY),
+    }));
+  }, []);
+
+  const initializePosition = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const node = windowRef.current;
+    if (!node) return;
+    const width = node.offsetWidth;
+    const height = node.offsetHeight;
+    const centeredX = Math.max((window.innerWidth - width) / 2, 0);
+    const desiredY = window.innerHeight * (CARD_POS_VH / 100) - height / 2;
+    const maxY = Math.max(window.innerHeight - height, 0);
+    const clampedY = Math.min(Math.max(desiredY, 0), maxY);
+    setPosition({ x: centeredX, y: clampedY });
+    setIsPositionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => {
+      if (!isPositionReady) {
+        initializePosition();
+      } else {
+        clampWithinViewport();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready, isPositionReady, initializePosition, clampWithinViewport]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      clampWithinViewport();
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [clampWithinViewport]);
+
+  const handlePointerMove = useCallback(
+    (event: PointerEvent) => {
+      if (dragPointerIdRef.current !== event.pointerId) return;
+      if (typeof window === "undefined") return;
+      const node = windowRef.current;
+      if (!node) return;
+      const width = node.offsetWidth;
+      const height = node.offsetHeight;
+      const maxX = Math.max(window.innerWidth - width, 0);
+      const maxY = Math.max(window.innerHeight - height, 0);
+      const nextX = Math.min(
+        Math.max(event.clientX - dragOffsetRef.current.x, 0),
+        maxX,
+      );
+      const nextY = Math.min(
+        Math.max(event.clientY - dragOffsetRef.current.y, 0),
+        maxY,
+      );
+      setPosition({ x: nextX, y: nextY });
+    },
+    [],
+  );
+
+  const endDrag = useCallback(
+    (event?: PointerEvent) => {
+      if (event && dragPointerIdRef.current !== event.pointerId) return;
+      if (dragPointerIdRef.current === null) return;
+      dragCaptureTargetRef.current?.releasePointerCapture?.(dragPointerIdRef.current);
+      dragPointerIdRef.current = null;
+      dragCaptureTargetRef.current = null;
+      setIsDragging(false);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pointermove", handlePointerMove);
+        if (pointerUpListenerRef.current) {
+          window.removeEventListener("pointerup", pointerUpListenerRef.current);
+          pointerUpListenerRef.current = null;
+        }
+      }
+    },
+    [handlePointerMove],
+  );
+
+  const handleDragStart = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (typeof window === "undefined") return;
+      if (event.button !== 0 && event.pointerType !== "touch") return;
+      const node = windowRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      dragPointerIdRef.current = event.pointerId;
+      dragOffsetRef.current = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+      dragCaptureTargetRef.current = event.currentTarget;
+      setIsDragging(true);
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      window.addEventListener("pointermove", handlePointerMove, { passive: true });
+      const pointerUpHandler = (nativeEvent: PointerEvent) => endDrag(nativeEvent);
+      pointerUpListenerRef.current = pointerUpHandler;
+      window.addEventListener("pointerup", pointerUpHandler, { passive: true });
+    },
+    [handlePointerMove, endDrag],
+  );
+
+  useEffect(() => {
+    return () => {
+      endDrag();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pointermove", handlePointerMove);
+        if (pointerUpListenerRef.current) {
+          window.removeEventListener("pointerup", pointerUpListenerRef.current);
+          pointerUpListenerRef.current = null;
+        }
+      }
+    };
+  }, [handlePointerMove, endDrag]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-slate-950 text-slate-200">
+    <div
+      className="relative h-full w-full overflow-hidden bg-slate-950 text-slate-200"
+      onDragStart={preventDrag}
+    >
       {/* === Background grid & beams === */}
       <BGGrid />
 
@@ -37,16 +190,26 @@ function HSMTerminalContent() {
       <div className="relative z-10">
         {ready ? (
           <div
-            // posisi: center horizontal, sekitar 60vh vertical
-            className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-full px-4"
-            style={{ top: `${CARD_POS_VH}vh` }}
+            ref={windowRef}
+            className="absolute px-4"
+            style={{
+              left: position.x,
+              top: position.y,
+              visibility: isPositionReady ? "visible" : "hidden",
+              userSelect: isDragging ? "none" : undefined,
+            }}
           >
             <div
               ref={containerRef}
               onClick={() => inputRef.current?.focus()}
               className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
+              draggable={false}
             >
-              <TerminalHeader isSessionActive={authenticated} />
+              <TerminalHeader
+                isSessionActive={authenticated}
+                onDragHandle={handleDragStart}
+                isDragging={isDragging}
+              />
               <HSMTerminalBody inputRef={inputRef} containerRef={containerRef} />
             </div>
           </div>
