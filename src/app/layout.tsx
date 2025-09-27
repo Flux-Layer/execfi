@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PrivyAppProvider from "@providers/privy-provider";
@@ -8,6 +9,7 @@ import { QCProvider } from "@providers/query-client.provider";
 import { EOAProvider } from "@providers/EOAProvider";
 import { Toaster } from "react-hot-toast";
 import Dock from "@components/dock";
+import PathFinderLoader from "@/components/loader/path-finder";
 import { DockProvider } from "@/context/DockContext";
 
 const geistSans = Geist({
@@ -25,6 +27,18 @@ export default function RootLayout({
 }: {
    children: React.ReactNode;
 }) {
+   // Intro loader: show for 5s, then fade out smoothly
+   const [introVisible, setIntroVisible] = useState(true);
+   const [introMounted, setIntroMounted] = useState(true);
+   useEffect(() => {
+      const t = setTimeout(() => setIntroVisible(false), 5000);
+      return () => clearTimeout(t);
+   }, []);
+   useEffect(() => {
+      if (introVisible) return;
+      const t = setTimeout(() => setIntroMounted(false), 700); // match fade/scale duration
+      return () => clearTimeout(t);
+   }, [introVisible]);
    return (
       <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
          <body>
@@ -33,6 +47,15 @@ export default function RootLayout({
                   <DockProvider>
                      <WagmiAppProvider>
                         <QCProvider>
+                           {/* Intro loader overlay for first 5s with smooth fade */}
+                           {introMounted && (
+                              <div
+                                className={`fixed inset-0 z-50 transition-[opacity,transform] duration-600 ease-out ${introVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
+                              >
+                                <PathFinderLoader caption="Initializing" />
+                              </div>
+                           )}
+
                            {children}
                            <Dock />
                            <Toaster
