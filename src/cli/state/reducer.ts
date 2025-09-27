@@ -18,6 +18,7 @@ export function createInitialState(): AppState {
     },
     inputText: "",
     chatHistory: [],
+    lastCommand: undefined,
   };
 }
 
@@ -56,25 +57,10 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       const text = event.text.trim();
       if (!text) return state;
 
-      // Check for slash commands first
-      const slashEvent = parseSlashCommand(text);
-      if (slashEvent) {
-        // Clear input and add to chat
-        const nextState = {
-          ...state,
-          inputText: "",
-          chatHistory: [
-            ...state.chatHistory,
-            {
-              role: "user" as const,
-              content: text,
-              timestamp: Date.now(),
-            },
-          ],
-        };
-        // Recursively handle the slash command
-        return reducer(nextState, slashEvent);
-      }
+      // NOTE: Old slash command system disabled - all commands now handled by intent.ts
+      // This ensures the new unified command system takes precedence
+      // const slashEvent = parseSlashCommand(text);
+      // if (slashEvent) { ... }
 
       // Regular input - start a flow if in IDLE or VIEW mode
       if (state.mode === "IDLE" || state.mode === "VIEW") {
@@ -794,6 +780,29 @@ export function reducer(state: AppState, event: AppEvent): AppState {
             timestamp: Date.now(),
           },
         ],
+      };
+
+    case "COMMAND.EXECUTE":
+      return {
+        ...state,
+        lastCommand: {
+          name: event.command,
+          timestamp: Date.now(),
+          result: event.args,
+        },
+      };
+
+    case "BALANCE.FETCH":
+      // This triggers a balance fetch effect - state change handled by effect result
+      return state;
+
+    case "TERMINAL.CLEAR":
+      return {
+        ...state,
+        chatHistory: [], // Clear chat history
+        overlays: [],   // Clear overlays
+        flow: undefined, // Clear any active flow
+        mode: "IDLE",    // Return to idle
       };
 
     default:

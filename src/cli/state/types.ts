@@ -38,7 +38,11 @@ export type ViewPage =
   | { kind: "tx-detail"; txHash: string }
   | { kind: "balances" }
   | { kind: "logs" }
-  | { kind: "settings" };
+  | { kind: "settings" }
+  | { kind: "help"; filter?: string }
+  | { kind: "help-detail"; command: string }
+  | { kind: "accountinfo" }
+  | { kind: "chains"; page?: number };
 
 /**
  * Account mode for transaction execution
@@ -116,6 +120,12 @@ export type AppState = {
     };
     timestamp: number;
   }>;
+  // Command system state
+  lastCommand?: {
+    name: string;
+    timestamp: number;
+    result?: any;
+  };
 };
 
 // Event types following the spec
@@ -156,7 +166,10 @@ export type AppEvent =
   | { type: "AUTH.START" }
   | { type: "AUTH.SUCCESS" }
   | { type: "AUTH.CANCEL" }
-  | { type: "AUTH.LOGOUT" };
+  | { type: "AUTH.LOGOUT" }
+  | { type: "COMMAND.EXECUTE"; command: string; args: any }
+  | { type: "BALANCE.FETCH"; chainId?: number; chainName?: string }
+  | { type: "TERMINAL.CLEAR" };
 
 // Helper types for effect definitions
 export type Dispatch = (e: AppEvent) => void;

@@ -40,7 +40,7 @@ export function parseSlashCommand(text: string): AppEvent | null {
 
   switch (cmd.toLowerCase()) {
     case "help":
-      return { type: "NAV.VIEW.PUSH", page: { kind: "settings" } }; // Using settings as help for now
+      return { type: "NAV.VIEW.PUSH", page: { kind: "help" } };
 
     case "login":
     case "signin":
