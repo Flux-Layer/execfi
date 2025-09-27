@@ -2,6 +2,7 @@
 
 import { formatEther } from "viem";
 import type { NormalizedNativeTransfer, NormalizedIntent } from "./normalize";
+import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 
 export class ExecutionError extends Error {
@@ -23,17 +24,36 @@ export interface ExecutionResult {
 }
 
 /**
- * Execute native ETH transfer using Privy Smart Account
+ * Execute native ETH transfer using either EOA or Smart Account
  */
 export async function executeNativeTransfer(
-  smartWalletClient: any, // Privy Smart Account client
   norm: NormalizedNativeTransfer,
+  accountMode: AccountMode = "EOA",
+  clients: {
+    smartWalletClient?: any; // Privy Smart Account client
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint },
+      options?: { address?: string }
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any; // Privy ConnectedWallet
+  }
 ): Promise<ExecutionResult> {
-  if (!smartWalletClient) {
-    throw new ExecutionError(
-      "Smart Account client not available. Please ensure you're logged in.",
-      "CLIENT_NOT_AVAILABLE"
-    );
+  // Validate required clients based on account mode
+  if (accountMode === "SMART_ACCOUNT") {
+    if (!clients.smartWalletClient) {
+      throw new ExecutionError(
+        "Smart Account client not available. Please ensure you're logged in.",
+        "CLIENT_NOT_AVAILABLE"
+      );
+    }
+  } else {
+    // EOA mode
+    if (!clients.eoaSendTransaction || !clients.selectedWallet) {
+      throw new ExecutionError(
+        "EOA transaction capability not available. Please ensure you're logged in.",
+        "EOA_CLIENT_NOT_AVAILABLE"
+      );
+    }
   }
 
   try {
@@ -41,13 +61,30 @@ export async function executeNativeTransfer(
       to: norm.to,
       amount: formatEther(norm.amountWei),
       chainId: norm.chainId,
+      accountMode,
     });
 
-    // Execute the transaction via Privy Smart Account
-    const txHash = await smartWalletClient.sendTransaction({
-      to: norm.to,
-      value: norm.amountWei,
-    });
+    let txHash: string;
+
+    if (accountMode === "SMART_ACCOUNT") {
+      // Execute via Privy Smart Account
+      txHash = await clients.smartWalletClient!.sendTransaction({
+        to: norm.to,
+        value: norm.amountWei,
+      });
+    } else {
+      // Execute via EOA
+      const result = await clients.eoaSendTransaction!(
+        {
+          to: norm.to,
+          value: norm.amountWei,
+        },
+        {
+          address: clients.selectedWallet!.address,
+        }
+      );
+      txHash = result.hash;
+    }
 
     if (!txHash || typeof txHash !== "string") {
       throw new ExecutionError(
@@ -56,7 +93,7 @@ export async function executeNativeTransfer(
       );
     }
 
-    console.log("✅ Transaction submitted successfully:", txHash);
+    console.log(`✅ Transaction submitted successfully via ${accountMode}:`, txHash);
 
     // Generate success message and explorer URL
     const amount = formatEther(norm.amountWei);
@@ -71,7 +108,7 @@ export async function executeNativeTransfer(
     };
 
   } catch (error: any) {
-    console.error("❌ Smart Account execution failed:", error);
+    console.error(`❌ ${accountMode} execution failed:`, error);
 
     // Handle specific Privy Smart Account errors
     if (error?.message?.includes("insufficient funds")) {
@@ -126,12 +163,20 @@ export async function executeNativeTransfer(
 }
 
 /**
- * Execute ERC-20 token transfer using Privy Smart Account
+ * Execute ERC-20 token transfer using either EOA or Smart Account
  * Note: This is prepared for future implementation but not active in MVP
  */
 export async function executeERC20Transfer(
-  smartWalletClient: any,
   norm: any, // NormalizedERC20Transfer when implemented
+  accountMode: AccountMode = "EOA",
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint },
+      options?: { address?: string }
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  }
 ): Promise<ExecutionResult> {
   throw new ExecutionError(
     "ERC-20 token transfers not yet supported in MVP",
@@ -143,13 +188,21 @@ export async function executeERC20Transfer(
  * Main execution router - handles all intent types
  */
 export async function executeIntent(
-  smartWalletClient: any,
   norm: NormalizedIntent,
+  accountMode: AccountMode = "EOA",
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint },
+      options?: { address?: string }
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  }
 ): Promise<ExecutionResult> {
   if (norm.kind === "native-transfer") {
-    return executeNativeTransfer(smartWalletClient, norm);
+    return executeNativeTransfer(norm, accountMode, clients);
   } else if (norm.kind === "erc20-transfer") {
-    return executeERC20Transfer(smartWalletClient, norm);
+    return executeERC20Transfer(norm, accountMode, clients);
   } else {
     throw new ExecutionError(
       `Unsupported transfer type: ${(norm as any).kind}`,

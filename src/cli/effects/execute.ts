@@ -16,7 +16,22 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
     return;
   }
 
-  if (!core.smartWalletClient) {
+  // Determine account mode and validate required clients
+  const accountMode = core.accountMode || "EOA";
+
+  if (accountMode === "SMART_ACCOUNT" && !core.smartWalletClient) {
+    dispatch({
+      type: "EXEC.FAIL",
+      error: {
+        code: "AUTH_REQUIRED",
+        message: "Smart Account client not available. Please log in to execute transactions.",
+        phase: "execute",
+      },
+    });
+    return;
+  }
+
+  if (accountMode === "EOA" && (!core.eoaSendTransaction || !core.selectedWallet)) {
     dispatch({
       type: "EXEC.FAIL",
       error: {
@@ -57,16 +72,30 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
       throw error;
     }
 
-    // Get smart account address
-    const smartAccountAddress = getSmartAccountAddress(core.saAddress);
-    console.log("✅ Smart Account address:", smartAccountAddress);
+    // Get the appropriate address for logging
+    let executionAddress: string;
+    if (accountMode === "SMART_ACCOUNT") {
+      executionAddress = getSmartAccountAddress(core.saAddress);
+      console.log("✅ Smart Account address:", executionAddress);
+    } else {
+      executionAddress = core.selectedWallet!.address;
+      console.log("✅ EOA address:", executionAddress);
+    }
 
-    // Execute the transaction
-    const executionResult = await executeIntent(core.smartWalletClient, ctx.norm);
+    // Execute the transaction with the appropriate mode and clients
+    const executionResult = await executeIntent(
+      ctx.norm,
+      accountMode,
+      {
+        smartWalletClient: core.smartWalletClient,
+        eoaSendTransaction: core.eoaSendTransaction,
+        selectedWallet: core.selectedWallet,
+      }
+    );
 
     if (signal.aborted) return;
 
-    console.log("✅ Transaction executed:", executionResult.txHash);
+    console.log(`✅ Transaction executed via ${accountMode}:`, executionResult.txHash);
 
     // Update idempotency status
     if (promptId) {

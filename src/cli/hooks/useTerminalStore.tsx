@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import useSmartWallet from "@/hooks/useSmartWallet";
+import { useEOA } from "@/providers/EOAProvider";
 import type { Store } from "../state/store";
 import type { AppState, Dispatch } from "../state/types";
 import { createPersistedStore, createStore } from "../state/store";
@@ -22,6 +23,8 @@ interface TerminalStoreProviderProps {
 export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) {
   const { authenticated, ready, user } = usePrivy();
   const { smartWalletClient, smartAccountAddress, isReady: smartWalletReady } = useSmartWallet();
+  const { selectedWallet } = useEOA();
+  const { sendTransaction } = useSendTransaction();
 
   // Create store once and persist it
   const storeRef = useRef<Store | null>(null);
@@ -61,6 +64,7 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
       const coreContext = {
         chainId: 8453, // Base mainnet default
         idempotency: new Map(),
+        accountMode: "EOA" as const, // Default to EOA mode
 
         // Auth-specific fields only when authenticated
         ...(authenticated && user && smartWalletReady
@@ -74,6 +78,17 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
               saAddress: undefined,
               smartWalletClient: undefined,
             }),
+
+        // EOA transaction support - available when user has wallets
+        ...(selectedWallet
+          ? {
+              selectedWallet,
+              eoaSendTransaction: sendTransaction,
+            }
+          : {
+              selectedWallet: undefined,
+              eoaSendTransaction: undefined,
+            }),
       };
 
       store.dispatch({
@@ -81,7 +96,7 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
         coreContext,
       });
     }
-  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, store]);
+  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, store]);
 
   // Cleanup on unmount
   useEffect(() => {

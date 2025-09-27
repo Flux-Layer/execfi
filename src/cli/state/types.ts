@@ -40,12 +40,27 @@ export type ViewPage =
   | { kind: "logs" }
   | { kind: "settings" };
 
+/**
+ * Account mode for transaction execution
+ */
+export type AccountMode = "EOA" | "SMART_ACCOUNT";
+
 export type CoreContext = {
   userId?: string; // undefined when not authenticated
   chainId: number; // default Base 8453
   saAddress?: `0x${string}`;
   smartWalletClient?: any; // Privy Smart Wallet client
   idempotency: Map<string, number>; // promptKey -> minute bucket
+
+  // EOA support
+  selectedWallet?: any; // Privy ConnectedWallet for EOA transactions
+  eoaSendTransaction?: (
+    transaction: { to: `0x${string}`; value: bigint },
+    options?: { address?: string }
+  ) => Promise<{ hash: `0x${string}` }>; // EOA transaction method from useSendTransaction
+
+  // Transaction mode (defaults to "EOA")
+  accountMode?: AccountMode;
 };
 
 export type AppError = {

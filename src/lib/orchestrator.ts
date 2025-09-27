@@ -132,9 +132,17 @@ export async function orchestrateTransaction(
     await simulateIntent(norm, smartAccountAddress);
     console.log("✅ Simulation successful");
 
-    // Phase 7: Execution
+    // Phase 7: Execution (using Smart Account mode for legacy orchestrator)
     console.log("🔄 Phase 7: Executing transaction...");
-    const executionResult = await executeIntent(ctx.smartWalletClient, norm);
+    const executionResult = await executeIntent(
+      norm,
+      "SMART_ACCOUNT",
+      {
+        smartWalletClient: ctx.smartWalletClient,
+        eoaSendTransaction: undefined,
+        selectedWallet: undefined,
+      }
+    );
     console.log("✅ Transaction executed:", executionResult.txHash);
 
     // Phase 8: Monitoring (optional - immediate return for better UX)

@@ -15,31 +15,53 @@ export const simulateGasFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
     return;
   }
 
-  if (!core.saAddress) {
-    dispatch({
-      type: "SIM.FAIL",
-      error: {
-        code: "MISSING_SA_ADDRESS",
-        message: "Smart Account address not available",
-        phase: "simulate",
-      },
-    });
-    return;
+  // Determine the correct address to use for simulation based on account mode
+  const accountMode = core.accountMode || "EOA";
+  let fromAddress: `0x${string}` | undefined;
+
+  if (accountMode === "SMART_ACCOUNT") {
+    if (!core.saAddress) {
+      dispatch({
+        type: "SIM.FAIL",
+        error: {
+          code: "MISSING_SA_ADDRESS",
+          message: "Smart Account address not available",
+          phase: "simulate",
+        },
+      });
+      return;
+    }
+    fromAddress = core.saAddress;
+  } else {
+    // EOA mode
+    if (!core.selectedWallet?.address) {
+      dispatch({
+        type: "SIM.FAIL",
+        error: {
+          code: "MISSING_EOA_ADDRESS",
+          message: "EOA wallet address not available",
+          phase: "simulate",
+        },
+      });
+      return;
+    }
+    fromAddress = core.selectedWallet.address as `0x${string}`;
   }
 
   try {
-    console.log("🔄 Simulating transaction:", ctx.norm);
+    console.log("🔄 Simulating transaction:", ctx.norm, "using", accountMode, "mode with address:", fromAddress);
 
-    await simulateIntent(ctx.norm, core.saAddress);
+    await simulateIntent(ctx.norm, fromAddress);
 
     if (signal.aborted) return;
 
-    console.log("✅ Simulation successful");
+    console.log("✅ Simulation successful with", accountMode, "mode");
     dispatch({
       type: "SIM.OK",
       sim: {
         success: true,
         timestamp: Date.now(),
+        accountMode,
       },
     });
   } catch (error: any) {
