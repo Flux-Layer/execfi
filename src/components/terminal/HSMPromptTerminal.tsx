@@ -13,7 +13,7 @@ import PageBarLoader from "@components/loader";
 import TerminalHeader from "./TerminalHeader";
 import HSMTerminalBody from "./HSMTerminalBody";
 import { motion } from "framer-motion";
-import { useTerminalOverlays } from "@/cli/hooks/useTerminalStore";
+import { useTerminalOverlays, useTerminalStore } from "@/cli/hooks/useTerminalStore";
 import HSMOverlays from "./HSMOverlays";
 import { useDock } from "@/context/DockContext";
 
@@ -30,6 +30,7 @@ export default function HSMPromptTerminal() {
     minimizeTerminal,
     toggleFullscreenTerminal,
   } = useDock();
+  const { dispatch } = useTerminalStore();
 
   return (
       <HSMTerminalContent
@@ -37,7 +38,11 @@ export default function HSMPromptTerminal() {
         open={open}
         minimized={minimized}
         fullscreen={fullscreen}
-        onClose={closeTerminal}
+        onClose={() => {
+          // Close first to allow exit animation, then reset store a bit later
+          closeTerminal();
+          setTimeout(() => dispatch({ type: "APP.RESET" }), 320);
+        }}
         onMinimize={minimizeTerminal}
         onToggleFullscreen={toggleFullscreenTerminal}
       />
@@ -99,12 +104,9 @@ function HSMTerminalContent({
     if (typeof window === "undefined" || fullscreen) return;
     const node = windowRef.current;
     if (!node) return;
-    const width = node.offsetWidth;
-    const height = node.offsetHeight;
-    const centeredX = Math.max((window.innerWidth - width) / 2, 0);
-    // Center vertically on first open
-    const centeredY = Math.max((window.innerHeight - height) / 2, 0);
-    setPosition({ x: centeredX, y: centeredY });
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+    setPosition({ x: Math.max((window.innerWidth - w) / 2, 0), y: Math.max((window.innerHeight - h) / 2, 0) });
     setIsPositionReady(true);
   }, []);
 
@@ -132,7 +134,7 @@ function HSMTerminalContent({
       setRenderWindow(true);
       return;
     }
-    const t = setTimeout(() => setRenderWindow(false), 180);
+    const t = setTimeout(() => setRenderWindow(false), 320);
     return () => clearTimeout(t);
   }, [isActive]);
 

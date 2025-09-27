@@ -34,17 +34,11 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       };
 
     case "APP.RESET":
+      // Reset to a clean initial state while preserving core context.
+      // Do not append any system message so the UI looks like first render.
       return {
         ...createInitialState(),
-        core: state.core, // Keep core context (auth, wallet, etc.)
-        chatHistory: [
-          ...state.chatHistory,
-          {
-            role: "assistant",
-            content: "🔄 Terminal reset. All flows cleared.",
-            timestamp: Date.now(),
-          },
-        ],
+        core: state.core,
       };
 
     case "INPUT.CHANGE":
