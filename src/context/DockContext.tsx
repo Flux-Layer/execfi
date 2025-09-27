@@ -2,24 +2,63 @@
 
 import { createContext, useContext, useMemo, useState, ReactNode } from "react";
 
+type TerminalWindowState = {
+  open: boolean;
+  minimized: boolean;
+  fullscreen: boolean;
+  version: number;
+};
+
 type DockContextValue = {
-  terminalOpen: boolean;
+  terminalState: TerminalWindowState;
   openTerminal: () => void;
   closeTerminal: () => void;
+  minimizeTerminal: () => void;
+  toggleFullscreenTerminal: () => void;
 };
 
 const DockContext = createContext<DockContextValue | undefined>(undefined);
 
 export function DockProvider({ children }: { children: ReactNode }) {
-  const [terminalOpen, setTerminalOpen] = useState(true);
+  const [terminalState, setTerminalState] = useState<TerminalWindowState>({
+    open: true,
+    minimized: false,
+    fullscreen: false,
+    version: 0,
+  });
 
   const value = useMemo<DockContextValue>(
     () => ({
-      terminalOpen,
-      openTerminal: () => setTerminalOpen(true),
-      closeTerminal: () => setTerminalOpen(false),
+      terminalState,
+      openTerminal: () =>
+        setTerminalState((prev) => ({
+          ...prev,
+          open: true,
+          minimized: false,
+        })),
+      closeTerminal: () =>
+        setTerminalState((prev) => ({
+          open: false,
+          minimized: false,
+          fullscreen: false,
+          version: prev.version + 1,
+        })),
+      minimizeTerminal: () =>
+        setTerminalState((prev) => ({
+          ...prev,
+          open: true,
+          minimized: true,
+          fullscreen: false,
+        })),
+      toggleFullscreenTerminal: () =>
+        setTerminalState((prev) => ({
+          ...prev,
+          open: true,
+          minimized: false,
+          fullscreen: !prev.fullscreen,
+        })),
     }),
-    [terminalOpen],
+    [terminalState],
   );
 
   return <DockContext.Provider value={value}>{children}</DockContext.Provider>;

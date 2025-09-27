@@ -6,8 +6,7 @@ import PageBarLoader from "@components/loader";
 import TerminalHeader from "./TerminalHeader";
 import TerminalBody from "./TerminalBody";
 import { motion } from "framer-motion";
-// Removed session hook since isSessionActive is not used in this component
-import logo from "../../../public/execfi.icon.svg";
+import { useDock } from "@/context/DockContext";
 
 // ukuran grid
 const GRID_BOX_SIZE = 32;
@@ -18,8 +17,24 @@ const CARD_POS_VH = 60; // 60vh ≈ "3/4 dari atas hampir ke tengah"
 
 export default function PromptTerminal() {
   const { ready } = usePrivy();
+  const {
+    terminalState: { open, minimized, fullscreen },
+    closeTerminal,
+    minimizeTerminal,
+    toggleFullscreenTerminal,
+  } = useDock();
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // If closed entirely, hide the window but keep background present
+  if (!open) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-slate-950 text-slate-200">
+        <BGGrid />
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-slate-950 text-slate-200">
@@ -27,22 +42,46 @@ export default function PromptTerminal() {
       <BGGrid />
 
       {/* === Content === */}
-      <div className="relative z-10">
-        {ready ? (
-          <div
-            // posisi: center horizontal, sekitar 60vh vertical
-            className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-full px-4"
-            style={{ top: `${CARD_POS_VH}vh` }}
-          >
-            <div
-              ref={containerRef}
-              onClick={() => inputRef.current?.focus()}
-              className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono scrollbar-hide"
-            >
-              <TerminalHeader />
-              <TerminalBody inputRef={inputRef} containerRef={containerRef} />
+      <div className="relative z-30">
+        {minimized ? null : ready ? (
+          fullscreen ? (
+            // Fullscreen: keep same card layout; align header to viewport top (top-0)
+            <div className="fixed inset-0 z-30 flex items-start justify-center px-0 pt-0">
+              <div
+                ref={containerRef}
+                onClick={() => inputRef.current?.focus()}
+                className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono bg-slate-900/95"
+              >
+                <TerminalHeader
+                  onClose={closeTerminal}
+                  onMinimize={minimizeTerminal}
+                  onToggleFullscreen={toggleFullscreenTerminal}
+                  isFullscreen={true}
+                />
+                <TerminalBody inputRef={inputRef} containerRef={containerRef} />
+              </div>
             </div>
-          </div>
+          ) : (
+            // Windowed: center card around 60vh vertically
+            <div
+              className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-full px-4"
+              style={{ top: `${CARD_POS_VH}vh` }}
+            >
+              <div
+                ref={containerRef}
+                onClick={() => inputRef.current?.focus()}
+                className="mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
+              >
+                <TerminalHeader
+                  onClose={closeTerminal}
+                  onMinimize={minimizeTerminal}
+                  onToggleFullscreen={toggleFullscreenTerminal}
+                  isFullscreen={false}
+                />
+                <TerminalBody inputRef={inputRef} containerRef={containerRef} />
+              </div>
+            </div>
+          )
         ) : (
           <div
             className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl px-4"

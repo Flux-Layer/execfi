@@ -6,12 +6,20 @@ type TerminalHeaderProps = {
   className?: string;
   onDragHandle?: (event: React.PointerEvent<HTMLDivElement>) => void;
   isDragging?: boolean;
+  onClose?: () => void;
+  onMinimize?: () => void;
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
 };
 
 const TerminalHeader = ({
   className = "",
   onDragHandle,
   isDragging,
+  onClose,
+  onMinimize,
+  onToggleFullscreen,
+  isFullscreen = false,
 }: TerminalHeaderProps) => {
   const [time, setTime] = useState(() => new Date());
 
@@ -49,9 +57,21 @@ const TerminalHeader = ({
       {/* traffic lights (left) */}
       <div className="flex items-center gap-2">
         <div className="flex gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-red-500" />
-          <span className="h-3 w-3 rounded-full bg-yellow-500" />
-          <span className="h-3 w-3 rounded-full bg-green-500" />
+          <TrafficLightButton
+            color="bg-red-500"
+            label="Close"
+            onClick={onClose}
+          />
+          <TrafficLightButton
+            color="bg-yellow-500"
+            label="Minimize"
+            onClick={onMinimize}
+          />
+          <TrafficLightButton
+            color="bg-green-500"
+            label={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            onClick={onToggleFullscreen}
+          />
         </div>
       </div>
 
@@ -67,3 +87,36 @@ const TerminalHeader = ({
 };
 
 export default TerminalHeader;
+
+type TrafficLightButtonProps = {
+  color: string;
+  label: string;
+  onClick?: () => void;
+};
+
+const TrafficLightButton = ({ color, label, onClick }: TrafficLightButtonProps) => {
+  const enabled = typeof onClick === "function";
+
+  return (
+    <button
+      type="button"
+      onClick={enabled ? onClick : undefined}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        if (!enabled) return;
+        // Menghindari seleksi teks saat klik tombol kontrol
+        event.preventDefault();
+      }}
+      className={`h-3 w-3 rounded-full ${color} ${
+        enabled
+          ? "cursor-pointer hover:brightness-110 focus:outline-none"
+          : "cursor-default opacity-60"
+      }`}
+      aria-label={label}
+      title={label}
+      disabled={!enabled}
+    >
+      <span className="sr-only">{label}</span>
+    </button>
+  );
+};
