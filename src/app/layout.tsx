@@ -10,7 +10,7 @@ import { EOAProvider } from "@providers/EOAProvider";
 import { Toaster } from "react-hot-toast";
 import Dock from "@components/dock";
 import PathFinderLoader from "@/components/loader/path-finder";
-import TerminalHeader from "@/components/terminal/TerminalHeader";
+// import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { DockProvider } from "@/context/DockContext";
 import { TerminalStoreProvider } from "@/cli/hooks/useTerminalStore";
 
@@ -55,17 +55,7 @@ export default function RootLayout({
                               <div
                                 className={`fixed inset-0 z-50 transition-[opacity,transform] duration-600 ease-out ${introVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
                               >
-                                <div
-                                  className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 w-full px-4"
-                                  style={{ top: `60vh` }}
-                                >
-                                  <div className="mx-auto h-96 w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono bg-slate-900/95">
-                                    <TerminalHeader isFullscreen={false} />
-                                    <div className="h-[calc(100%-3rem)] overflow-hidden">
-                                      <PathFinderLoader variant="inline" caption="Initializing" />
-                                    </div>
-                                  </div>
-                                </div>
+                                <PathFinderLoader caption="Initializing" />
                               </div>
                            )}
 

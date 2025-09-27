@@ -38,9 +38,10 @@ export default function Dock() {
           const terminalMinimized = isTerminal && terminalState.minimized;
 
           return (
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               key={item.key}
-              type="button"
               className="relative flex items-center justify-center text-slate-200 focus:outline-none"
               onMouseEnter={() => setHovered(item.key)}
               onMouseLeave={() => setHovered(null)}
@@ -50,6 +51,12 @@ export default function Dock() {
               onClick={() => {
                 if (isTerminal) {
                   openTerminal();
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  if (isTerminal) openTerminal();
                 }
               }}
             >
@@ -113,7 +120,7 @@ export default function Dock() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </button>
+            </div>
           );
         })}
       </nav>

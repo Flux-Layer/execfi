@@ -10,6 +10,7 @@ type TerminalHeaderProps = {
   onMinimize?: () => void;
   onToggleFullscreen?: () => void;
   isFullscreen?: boolean;
+  showClock?: boolean;
 };
 
 const TerminalHeader = ({
@@ -20,10 +21,13 @@ const TerminalHeader = ({
   onMinimize,
   onToggleFullscreen,
   isFullscreen = false,
+  showClock = true,
 }: TerminalHeaderProps) => {
   const [time, setTime] = useState(() => new Date());
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const interval = setInterval(() => {
       setTime(new Date());
     }, 1000);
@@ -81,7 +85,13 @@ const TerminalHeader = ({
       </div>
 
       {/* clock */}
-      <div className="ml-auto text-xs font-mono text-slate-200">{timeLabel}</div>
+      {showClock && mounted ? (
+        <div className="ml-auto text-xs font-mono text-slate-200">
+          <span suppressHydrationWarning>{timeLabel}</span>
+        </div>
+      ) : (
+        <div className="ml-auto text-xs font-mono text-slate-200" />
+      )}
     </div>
   );
 };
