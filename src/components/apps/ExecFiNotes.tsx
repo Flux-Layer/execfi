@@ -196,6 +196,28 @@ export function NotesApp() {
     setNotes(notes.map(n => n.id === selected.id ? { ...n, ...patch, updatedAt: now } : n));
   };
 
+  const execFi = notes.find(n => n.id === 'execfi');
+  const userNotes = notes.filter(n => n.id !== 'execfi');
+
+  // Drag & drop reordering for user notes (execFi pinned on top)
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const reorderToTarget = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const srcIdx = notes.findIndex(n => n.id === sourceId);
+    const tgtIdx = notes.findIndex(n => n.id === targetId);
+    if (srcIdx < 0 || tgtIdx < 0) return;
+    // Keep execFi pinned at index 0
+    if (notes[srcIdx]?.id === 'execfi') return;
+    const minIndex = execFi ? 1 : 0;
+    const next = notes.slice();
+    const [item] = next.splice(srcIdx, 1);
+    const insertAt = Math.max(minIndex, tgtIdx);
+    next.splice(insertAt, 0, item);
+    setNotes(next);
+  };
+
   return (
     <div className="h-full w-full flex divide-x divide-slate-800">
       {/* Sidebar */}
@@ -205,18 +227,39 @@ export function NotesApp() {
           <button onClick={addNote} className="text-xs px-2 py-1 rounded border border-slate-700 text-slate-200 hover:bg-slate-800">New</button>
         </div>
         <div className="space-y-2">
-          {notes.map(n => (
+          {/* Pinned execFi at top */}
+          {execFi && (
             <button
-              key={n.id}
-              onClick={() => setSelectedId(n.id)}
-              className={`w-full text-left p-2 rounded border ${selectedId===n.id? 'border-emerald-600 bg-slate-800/60' : 'border-slate-800 hover:bg-slate-800/40'} `}
+              key={execFi.id}
+              onClick={() => setSelectedId(execFi.id)}
+              className={`w-full text-left p-2 rounded border ${selectedId===execFi.id? 'border-emerald-600 bg-slate-800/60' : 'border-slate-800 hover:bg-slate-800/40'} `}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-200 font-medium truncate">{n.title}</span>
-                {n.readonly && <span className="text-[10px] text-slate-400">read‑only</span>}
+                <span className="text-sm text-slate-200 font-medium truncate">{execFi.title}</span>
+                <span className="text-[10px] text-slate-400">read‑only</span>
               </div>
-              <div className="text-[10px] text-slate-400 mt-1">{new Date(n.updatedAt).toLocaleString()}</div>
+              <div className="text-[10px] text-slate-400 mt-1">{new Date(execFi.updatedAt).toLocaleString()}</div>
             </button>
+          )}
+
+          {/* User notes with drag to reorder */}
+          {userNotes.map((n) => (
+            <div
+              key={n.id}
+              draggable
+              onDragStart={() => setDragId(n.id)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverId(n.id); }}
+              onDrop={(e) => { e.preventDefault(); if (dragId) reorderToTarget(dragId, n.id); setDragId(null); setDragOverId(null); }}
+              onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+              className={`rounded border ${selectedId===n.id? 'border-emerald-600 bg-slate-800/60' : 'border-slate-800 hover:bg-slate-800/40'} ${dragOverId===n.id ? 'ring-1 ring-emerald-500/40' : ''}`}
+            >
+              <button onClick={() => setSelectedId(n.id)} className="w-full text-left p-2 cursor-move">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-200 font-medium truncate">{n.title}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1">{new Date(n.updatedAt).toLocaleString()}</div>
+              </button>
+            </div>
           ))}
         </div>
       </aside>
