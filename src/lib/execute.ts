@@ -1,13 +1,18 @@
 // lib/execute.ts - Smart Account execution engine using Privy + LI.FI
 
 import { formatEther, formatUnits } from "viem";
-import type { NormalizedNativeTransfer, NormalizedERC20Transfer, NormalizedIntent } from "./normalize";
+import type {
+  NormalizedNativeTransfer,
+  NormalizedERC20Transfer,
+  NormalizedIntent,
+} from "./normalize";
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 import { getChainConfig } from "./chains/registry";
 
 // Feature flag for LI.FI execution path
-const ENABLE_LIFI_EXECUTION = process.env.ENABLE_LIFI_EXECUTION === 'true';
+const ENABLE_LIFI_EXECUTION =
+  process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
 
 // Types for LI.FI API integration
 interface LifiTransactionData {
@@ -44,13 +49,13 @@ interface LifiPrepareResponse {
  */
 async function prepareLifiTransaction(
   norm: NormalizedIntent,
-  fromAddress: string
+  fromAddress: string,
 ): Promise<LifiTransactionData> {
   const chainConfig = getChainConfig(norm.chainId);
   if (!chainConfig) {
     throw new ExecutionError(
       `Chain configuration not found for chain ${norm.chainId}`,
-      "CHAIN_CONFIG_MISSING"
+      "CHAIN_CONFIG_MISSING",
     );
   }
 
@@ -88,20 +93,20 @@ async function prepareLifiTransaction(
   } else {
     throw new ExecutionError(
       `Unsupported transfer type for LI.FI: ${(norm as any).kind}`,
-      "UNSUPPORTED_TRANSFER_TYPE"
+      "UNSUPPORTED_TRANSFER_TYPE",
     );
   }
 
   try {
     console.log(`🔄 Calling LI.FI preparation API for ${norm.kind}...`);
 
-    const response = await fetch('/api/lifi/prepare', {
-      method: 'POST',
+    const response = await fetch("/api/lifi/prepare", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(prepareRequest),
-      cache: 'no-store', // Always get fresh quotes
+      cache: "no-store", // Always get fresh quotes
     });
 
     if (!response.ok) {
@@ -112,14 +117,18 @@ async function prepareLifiTransaction(
     const result: LifiPrepareResponse = await response.json();
 
     if (!result.success || !result.transactionData) {
-      const errorMessage = result.error?.message || "Unknown LI.FI preparation error";
+      const errorMessage =
+        result.error?.message || "Unknown LI.FI preparation error";
       const errorCode = result.error?.code || "LIFI_PREPARATION_FAILED";
 
-      console.error(`❌ LI.FI preparation failed [${result.requestId}]:`, result.error);
+      console.error(
+        `❌ LI.FI preparation failed [${result.requestId}]:`,
+        result.error,
+      );
 
       throw new ExecutionError(
         `LI.FI preparation failed: ${errorMessage}`,
-        errorCode
+        errorCode,
       );
     }
 
@@ -129,11 +138,12 @@ async function prepareLifiTransaction(
     if (result.quote) {
       const fromAmount = formatEther(BigInt(result.quote.fromAmount));
       const toAmount = formatEther(BigInt(result.quote.toAmount));
-      console.log(`📊 Route: ${fromAmount} → ${toAmount} (${result.quote.executionTime}s)`);
+      console.log(
+        `📊 Route: ${fromAmount} → ${toAmount} (${result.quote.executionTime}s)`,
+      );
     }
 
     return result.transactionData;
-
   } catch (error) {
     console.error("❌ LI.FI preparation request failed:", error);
 
@@ -143,7 +153,7 @@ async function prepareLifiTransaction(
 
     throw new ExecutionError(
       `Failed to prepare transaction via LI.FI: ${error instanceof Error ? error.message : "Unknown error"}`,
-      "LIFI_PREPARATION_REQUEST_FAILED"
+      "LIFI_PREPARATION_REQUEST_FAILED",
     );
   }
 }
@@ -164,29 +174,29 @@ async function prepareDirectTransaction(norm: NormalizedIntent): Promise<any> {
     const data = encodeFunctionData({
       abi: [
         {
-          name: 'transfer',
-          type: 'function',
+          name: "transfer",
+          type: "function",
           inputs: [
-            { name: 'to', type: 'address' },
-            { name: 'amount', type: 'uint256' }
+            { name: "to", type: "address" },
+            { name: "amount", type: "uint256" },
           ],
-          outputs: [{ name: '', type: 'bool' }],
-          stateMutability: 'nonpayable'
-        }
+          outputs: [{ name: "", type: "bool" }],
+          stateMutability: "nonpayable",
+        },
       ],
-      functionName: 'transfer',
-      args: [norm.to, norm.amountWei]
+      functionName: "transfer",
+      args: [norm.to, norm.amountWei],
     });
 
     return {
       to: norm.token.address,
       value: 0n,
-      data
+      data,
     };
   } else {
     throw new ExecutionError(
       `Unsupported transfer type: ${(norm as any).kind}`,
-      "UNSUPPORTED_TRANSFER_TYPE"
+      "UNSUPPORTED_TRANSFER_TYPE",
     );
   }
 }
@@ -219,17 +229,17 @@ export async function executeNativeTransfer(
     smartWalletClient?: any; // Privy Smart Account client
     eoaSendTransaction?: (
       transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
-      options?: { address?: string }
+      options?: { address?: string },
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any; // Privy ConnectedWallet
-  }
+  },
 ): Promise<ExecutionResult> {
   // Step 7.1: Client Validation (Enhanced with LI.FI connectivity check)
   if (accountMode === "SMART_ACCOUNT") {
     if (!clients.smartWalletClient) {
       throw new ExecutionError(
         "Smart Account client not available. Please ensure you're logged in.",
-        "CLIENT_NOT_AVAILABLE"
+        "CLIENT_NOT_AVAILABLE",
       );
     }
   } else {
@@ -237,7 +247,7 @@ export async function executeNativeTransfer(
     if (!clients.eoaSendTransaction || !clients.selectedWallet) {
       throw new ExecutionError(
         "EOA transaction capability not available. Please ensure you're logged in.",
-        "EOA_CLIENT_NOT_AVAILABLE"
+        "EOA_CLIENT_NOT_AVAILABLE",
       );
     }
   }
@@ -256,9 +266,10 @@ export async function executeNativeTransfer(
 
     if (ENABLE_LIFI_EXECUTION) {
       // New: LI.FI preparation path
-      const fromAddress = accountMode === "SMART_ACCOUNT"
-        ? clients.smartWalletClient!.getAddress()
-        : clients.selectedWallet!.address;
+      const fromAddress =
+        accountMode === "SMART_ACCOUNT"
+          ? clients.smartWalletClient!.getAddress()
+          : clients.selectedWallet!.address;
 
       const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
 
@@ -278,26 +289,27 @@ export async function executeNativeTransfer(
 
     if (accountMode === "SMART_ACCOUNT") {
       // Execute via Privy Smart Account
-      txHash = await clients.smartWalletClient!.sendTransaction(transactionData);
+      txHash =
+        await clients.smartWalletClient!.sendTransaction(transactionData);
     } else {
       // Execute via EOA
-      const result = await clients.eoaSendTransaction!(
-        transactionData,
-        {
-          address: clients.selectedWallet!.address,
-        }
-      );
+      const result = await clients.eoaSendTransaction!(transactionData, {
+        address: clients.selectedWallet!.address,
+      });
       txHash = result.hash;
     }
 
     if (!txHash || typeof txHash !== "string") {
       throw new ExecutionError(
         "Transaction failed: No transaction hash returned",
-        "NO_TX_HASH"
+        "NO_TX_HASH",
       );
     }
 
-    console.log(`✅ Transaction submitted successfully via ${accountMode}:`, txHash);
+    console.log(
+      `✅ Transaction submitted successfully via ${accountMode}:`,
+      txHash,
+    );
 
     // Generate success message and explorer URL
     const amount = formatEther(norm.amountWei);
@@ -310,7 +322,6 @@ export async function executeNativeTransfer(
       message,
       explorerUrl,
     };
-
   } catch (error: any) {
     console.error(`❌ ${accountMode} execution failed:`, error);
 
@@ -377,17 +388,17 @@ export async function executeERC20Transfer(
     smartWalletClient?: any;
     eoaSendTransaction?: (
       transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
-      options?: { address?: string }
+      options?: { address?: string },
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
-  }
+  },
 ): Promise<ExecutionResult> {
   // Get chain configuration for explorer URLs
   const chainConfig = getChainConfig(norm.chainId);
   if (!chainConfig) {
     throw new ExecutionError(
       `Chain configuration not found for chain ${norm.chainId}`,
-      "CHAIN_CONFIG_MISSING"
+      "CHAIN_CONFIG_MISSING",
     );
   }
 
@@ -396,9 +407,10 @@ export async function executeERC20Transfer(
 
   if (ENABLE_LIFI_EXECUTION) {
     // New: LI.FI preparation path for ERC-20 transfers
-    const fromAddress = accountMode === "SMART_ACCOUNT"
-      ? clients.smartWalletClient!.getAddress()
-      : clients.selectedWallet!.address;
+    const fromAddress =
+      accountMode === "SMART_ACCOUNT"
+        ? clients.smartWalletClient!.getAddress()
+        : clients.selectedWallet!.address;
 
     const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
 
@@ -413,24 +425,24 @@ export async function executeERC20Transfer(
     const data = encodeFunctionData({
       abi: [
         {
-          name: 'transfer',
-          type: 'function',
+          name: "transfer",
+          type: "function",
           inputs: [
-            { name: 'to', type: 'address' },
-            { name: 'amount', type: 'uint256' }
+            { name: "to", type: "address" },
+            { name: "amount", type: "uint256" },
           ],
-          outputs: [{ name: '', type: 'bool' }],
-          stateMutability: 'nonpayable'
-        }
+          outputs: [{ name: "", type: "bool" }],
+          stateMutability: "nonpayable",
+        },
       ],
-      functionName: 'transfer',
-      args: [norm.to, norm.amountWei]
+      functionName: "transfer",
+      args: [norm.to, norm.amountWei],
     });
 
     transaction = {
       to: norm.token.address,
       value: 0n, // ERC-20 transfers don't send native currency
-      data
+      data,
     };
   }
 
@@ -442,32 +454,31 @@ export async function executeERC20Transfer(
       console.log("🔄 Executing ERC-20 transfer via Smart Account...");
 
       const userOpHash = await clients.smartWalletClient.sendUserOperation({
-        calls: [transaction]
+        calls: [transaction],
       });
 
       // Wait for the user operation to be processed
-      const receipt = await clients.smartWalletClient.waitForUserOperationReceipt({
-        hash: userOpHash
-      });
+      const receipt =
+        await clients.smartWalletClient.waitForUserOperationReceipt({
+          hash: userOpHash,
+        });
 
       txHash = receipt.receipt.transactionHash as `0x${string}`;
       console.log("✅ Smart Account ERC-20 transfer executed:", txHash);
-
     } else if (accountMode === "EOA" && clients.eoaSendTransaction) {
       // Execute via EOA
       console.log("🔄 Executing ERC-20 transfer via EOA...");
 
       const result = await clients.eoaSendTransaction(transaction, {
-        address: clients.selectedWallet?.address
+        address: clients.selectedWallet?.address,
       });
 
       txHash = result.hash;
       console.log("✅ EOA ERC-20 transfer executed:", txHash);
-
     } else {
       throw new ExecutionError(
         `Invalid execution mode: ${accountMode} or missing client`,
-        "INVALID_EXECUTION_MODE"
+        "INVALID_EXECUTION_MODE",
       );
     }
 
@@ -484,35 +495,40 @@ export async function executeERC20Transfer(
       explorerUrl,
       message: `✅ Sent ${amountFormatted} ${norm.token.symbol} on ${chainConfig.name} — hash ${txHash}`,
     };
-
   } catch (error: any) {
     console.error("ERC-20 execution error:", error);
 
     // Handle specific error types
-    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+    if (
+      error.message?.includes("insufficient funds") ||
+      error.message?.includes("insufficient balance")
+    ) {
       throw new ExecutionError(
         "Insufficient token balance for transfer",
-        "INSUFFICIENT_FUNDS"
+        "INSUFFICIENT_FUNDS",
       );
     }
 
-    if (error.message?.includes("user rejected") || error.message?.includes("User rejected")) {
+    if (
+      error.message?.includes("user rejected") ||
+      error.message?.includes("User rejected")
+    ) {
       throw new ExecutionError(
         "Transaction was cancelled by user",
-        "USER_REJECTED"
+        "USER_REJECTED",
       );
     }
 
     if (error.message?.includes("gas")) {
       throw new ExecutionError(
         "Transaction failed due to gas issues",
-        "GAS_ERROR"
+        "GAS_ERROR",
       );
     }
 
     throw new ExecutionError(
       error.message || "ERC-20 transfer failed unexpectedly",
-      error.code || "EXECUTION_FAILED"
+      error.code || "EXECUTION_FAILED",
     );
   }
 }
@@ -527,10 +543,10 @@ export async function executeIntent(
     smartWalletClient?: any;
     eoaSendTransaction?: (
       transaction: { to: `0x${string}`; value: bigint },
-      options?: { address?: string }
+      options?: { address?: string },
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
-  }
+  },
 ): Promise<ExecutionResult> {
   if (norm.kind === "native-transfer") {
     return executeNativeTransfer(norm, accountMode, clients);
@@ -539,7 +555,7 @@ export async function executeIntent(
   } else {
     throw new ExecutionError(
       `Unsupported transfer type: ${(norm as any).kind}`,
-      "UNSUPPORTED_TRANSFER_TYPE"
+      "UNSUPPORTED_TRANSFER_TYPE",
     );
   }
 }
@@ -548,18 +564,23 @@ export async function executeIntent(
  * Get Smart Account address from user's linked accounts
  * Note: Privy Smart Wallet address is available through user.linkedAccounts, not client.getAddress()
  */
-export function getSmartAccountAddress(smartAccountAddress: `0x${string}` | undefined): `0x${string}` {
+export function getSmartAccountAddress(
+  smartAccountAddress: `0x${string}` | undefined,
+): `0x${string}` {
   if (!smartAccountAddress) {
     throw new ExecutionError(
       "Smart Account address not available. Please ensure you're logged in and have a Smart Wallet.",
-      "ADDRESS_NOT_AVAILABLE"
+      "ADDRESS_NOT_AVAILABLE",
     );
   }
 
-  if (!smartAccountAddress.startsWith("0x") || smartAccountAddress.length !== 42) {
+  if (
+    !smartAccountAddress.startsWith("0x") ||
+    smartAccountAddress.length !== 42
+  ) {
     throw new ExecutionError(
       "Invalid Smart Account address format",
-      "INVALID_ADDRESS"
+      "INVALID_ADDRESS",
     );
   }
 
@@ -587,7 +608,8 @@ export function isSmartAccountDeployed(
 export function formatExecutionError(error: ExecutionError): string {
   const errorMessages: Record<string, string> = {
     // Existing Privy/blockchain errors
-    CLIENT_NOT_AVAILABLE: "⚠️ Smart Account not ready. Please refresh and try again.",
+    CLIENT_NOT_AVAILABLE:
+      "⚠️ Smart Account not ready. Please refresh and try again.",
     INSUFFICIENT_FUNDS: "💰 Insufficient balance for transaction + gas fees.",
     USER_REJECTED: "❌ Transaction was canceled by user.",
     GAS_ERROR: "⛽ Gas estimation failed. Try a smaller amount.",
@@ -598,12 +620,15 @@ export function formatExecutionError(error: ExecutionError): string {
     EXECUTION_FAILED: "❌ Transaction execution failed.",
 
     // New LI.FI-specific errors
-    LIFI_PREPARATION_FAILED: "🔗 LI.FI route preparation failed. Please try again.",
-    LIFI_PREPARATION_REQUEST_FAILED: "🌐 LI.FI service unavailable. Please try again.",
+    LIFI_PREPARATION_FAILED:
+      "🔗 LI.FI route preparation failed. Please try again.",
+    LIFI_PREPARATION_REQUEST_FAILED:
+      "🌐 LI.FI service unavailable. Please try again.",
     NO_ROUTES_FOUND: "🚫 No routing available for this transaction.",
     ROUTE_SELECTION_FAILED: "🔗 Failed to find optimal route.",
     QUOTE_EXPIRED: "⏰ Route quote expired. Please try again.",
-    CHAIN_CONFIG_MISSING: "⚙️ Chain configuration error. Please contact support.",
+    CHAIN_CONFIG_MISSING:
+      "⚙️ Chain configuration error. Please contact support.",
     RATE_LIMIT_EXCEEDED: "⏱️ Too many requests. Please wait a moment.",
     SDK_ERROR: "🔗 LI.FI SDK error. Please try again.",
     API_ERROR: "🌐 LI.FI API error. Please try again later.",

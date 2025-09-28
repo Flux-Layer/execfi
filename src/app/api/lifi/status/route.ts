@@ -18,16 +18,25 @@ const StatusRequestSchema = z.object({
   txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/, "Invalid transaction hash"),
   bridge: z.string().optional(),
   fromChain: z.number().optional(),
-  toChain: z.number().optional()
+  toChain: z.number().optional(),
 });
 
 const BulkStatusRequestSchema = z.object({
-  requests: z.array(StatusRequestSchema).max(10, "Maximum 10 status requests per call")
+  requests: z
+    .array(StatusRequestSchema)
+    .max(10, "Maximum 10 status requests per call"),
 });
 
 // LI.FI Status Response Schema
 const LifiStatusSchema = z.object({
-  status: z.enum(['NOT_FOUND', 'INVALID', 'PENDING', 'DONE', 'FAILED', 'PARTIAL']),
+  status: z.enum([
+    "NOT_FOUND",
+    "INVALID",
+    "PENDING",
+    "DONE",
+    "FAILED",
+    "PARTIAL",
+  ]),
   substatus: z.string().optional(),
   substatusMessage: z.string().optional(),
   txHash: z.string(),
@@ -36,35 +45,43 @@ const LifiStatusSchema = z.object({
   toChain: z.number(),
   tool: z.string().optional(),
   bridge: z.string().optional(),
-  fromToken: z.object({
-    symbol: z.string(),
-    address: z.string(),
-    amount: z.string(),
-    decimals: z.number()
-  }).optional(),
-  toToken: z.object({
-    symbol: z.string(),
-    address: z.string(),
-    amount: z.string(),
-    decimals: z.number()
-  }).optional(),
-  gasUsed: z.string().optional(),
-  gasPrice: z.string().optional(),
-  gasToken: z.object({
-    symbol: z.string(),
-    address: z.string(),
-    price: z.number().optional()
-  }).optional(),
-  receiving: z.object({
-    txHash: z.string(),
-    txLink: z.string(),
-    amount: z.string(),
-    token: z.object({
+  fromToken: z
+    .object({
       symbol: z.string(),
       address: z.string(),
-      decimals: z.number()
+      amount: z.string(),
+      decimals: z.number(),
     })
-  }).optional()
+    .optional(),
+  toToken: z
+    .object({
+      symbol: z.string(),
+      address: z.string(),
+      amount: z.string(),
+      decimals: z.number(),
+    })
+    .optional(),
+  gasUsed: z.string().optional(),
+  gasPrice: z.string().optional(),
+  gasToken: z
+    .object({
+      symbol: z.string(),
+      address: z.string(),
+      price: z.number().optional(),
+    })
+    .optional(),
+  receiving: z
+    .object({
+      txHash: z.string(),
+      txLink: z.string(),
+      amount: z.string(),
+      token: z.object({
+        symbol: z.string(),
+        address: z.string(),
+        decimals: z.number(),
+      }),
+    })
+    .optional(),
 });
 
 type LifiStatusResponse = z.infer<typeof LifiStatusSchema>;
@@ -84,14 +101,16 @@ const EnhancedStatusSchema = z.object({
       estimatedTimeRemaining: z.string().optional(),
       nextAction: z.string().optional(),
       errorMessage: z.string().optional(),
-      canRetry: z.boolean()
+      canRetry: z.boolean(),
     }),
-    fallback: z.object({
-      blockNumber: z.number().optional(),
-      confirmations: z.number().optional(),
-      timestamp: z.number().optional()
-    }).optional()
-  })
+    fallback: z
+      .object({
+        blockNumber: z.number().optional(),
+        confirmations: z.number().optional(),
+        timestamp: z.number().optional(),
+      })
+      .optional(),
+  }),
 });
 
 type EnhancedStatusResponse = z.infer<typeof EnhancedStatusSchema>;
@@ -112,8 +131,8 @@ export async function GET(): Promise<NextResponse> {
         "multi-chain-operations",
         "enhanced-status-context",
         "viem-fallback-monitoring",
-        "bulk-status-queries"
-      ]
+        "bulk-status-queries",
+      ],
     });
   } catch (error) {
     console.error("[LiFi Status] Health check failed:", error);
@@ -121,9 +140,9 @@ export async function GET(): Promise<NextResponse> {
       {
         success: false,
         error: "Service health check failed",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -140,10 +159,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
 
     // Handle bulk requests
-    if ('requests' in body) {
+    if ("requests" in body) {
       const bulkRequest = BulkStatusRequestSchema.parse(body);
       const statuses = await Promise.allSettled(
-        bulkRequest.requests.map(req => getTransactionStatus(req, requestId))
+        bulkRequest.requests.map((req) => getTransactionStatus(req, requestId)),
       );
 
       return NextResponse.json({
@@ -152,10 +171,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         timestamp: new Date().toISOString(),
         results: statuses.map((result, index) => ({
           request: bulkRequest.requests[index],
-          success: result.status === 'fulfilled',
-          status: result.status === 'fulfilled' ? result.value : undefined,
-          error: result.status === 'rejected' ? String(result.reason) : undefined
-        }))
+          success: result.status === "fulfilled",
+          status: result.status === "fulfilled" ? result.value : undefined,
+          error:
+            result.status === "rejected" ? String(result.reason) : undefined,
+        })),
       });
     }
 
@@ -167,9 +187,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: true,
       requestId,
       timestamp: new Date().toISOString(),
-      status
+      status,
     });
-
   } catch (error) {
     console.error(`[LiFi Status] Request ${requestId} failed:`, error);
 
@@ -180,9 +199,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           requestId,
           error: "Invalid request format",
           details: error.issues,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -192,9 +211,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         requestId,
         error: "Status tracking failed",
         message: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -204,35 +223,53 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
  */
 async function getTransactionStatus(
   request: z.infer<typeof StatusRequestSchema>,
-  requestId: string
-): Promise<EnhancedStatusResponse['status']> {
+  requestId: string,
+): Promise<EnhancedStatusResponse["status"]> {
   let lifiStatus: LifiStatusResponse | undefined;
-  const fallbackData: { blockNumber?: number; confirmations?: number; timestamp?: number } = {};
+  const fallbackData: {
+    blockNumber?: number;
+    confirmations?: number;
+    timestamp?: number;
+  } = {};
+  console.log({ lifiStatus });
 
   try {
     // Try LI.FI status API first
+    console.log("Checking lifi tx status... ", {
+      txHash: request.txHash,
+      bridge: request.bridge,
+      fromChain: request.fromChain,
+      toChain: request.toChain,
+    });
     const statusResponse = await lifiClient.getStatus({
       txHash: request.txHash,
       bridge: request.bridge,
       fromChain: request.fromChain,
-      toChain: request.toChain
+      toChain: request.toChain,
     });
+
+    console.log({ statusResponse });
 
     if (statusResponse) {
       // Validate and parse LI.FI response
       lifiStatus = LifiStatusSchema.parse(statusResponse);
     }
   } catch (error) {
-    console.warn(`[LiFi Status] ${requestId} - LI.FI API failed, using fallback:`, error);
+    console.warn(
+      `[LiFi Status] ${requestId} - LI.FI API failed, using fallback:`,
+      error,
+    );
   }
 
   // Enhanced status analysis
+
   const enhanced = analyzeLifiStatus(lifiStatus);
+  console.log({ enhanced });
 
   return {
     lifi: lifiStatus,
     enhanced,
-    fallback: Object.keys(fallbackData).length > 0 ? fallbackData : undefined
+    fallback: Object.keys(fallbackData).length > 0 ? fallbackData : undefined,
   };
 }
 
@@ -247,24 +284,24 @@ function analyzeLifiStatus(lifiStatus?: LifiStatusResponse) {
       isPending: true,
       progressPercent: 0,
       nextAction: "Waiting for transaction confirmation",
-      canRetry: false
+      canRetry: false,
     };
   }
 
   const { status, substatus, substatusMessage } = lifiStatus;
 
   switch (status) {
-    case 'DONE':
+    case "DONE":
       return {
         isCompleted: true,
         isFailed: false,
         isPending: false,
         progressPercent: 100,
         nextAction: "Transaction completed successfully",
-        canRetry: false
+        canRetry: false,
       };
 
-    case 'FAILED':
+    case "FAILED":
       return {
         isCompleted: false,
         isFailed: true,
@@ -272,42 +309,46 @@ function analyzeLifiStatus(lifiStatus?: LifiStatusResponse) {
         progressPercent: 0,
         errorMessage: substatusMessage || "Transaction failed",
         nextAction: "Check transaction details and retry if needed",
-        canRetry: true
+        canRetry: true,
       };
 
-    case 'PENDING':
+    case "PENDING":
       const progressPercent = getProgressFromSubstatus(substatus);
       return {
         isCompleted: false,
         isFailed: false,
         isPending: true,
         progressPercent,
-        estimatedTimeRemaining: getEstimatedTime(substatus, lifiStatus.fromChain, lifiStatus.toChain),
+        estimatedTimeRemaining: getEstimatedTime(
+          substatus,
+          lifiStatus.fromChain,
+          lifiStatus.toChain,
+        ),
         nextAction: substatusMessage || "Transaction in progress",
-        canRetry: false
+        canRetry: false,
       };
 
-    case 'PARTIAL':
+    case "PARTIAL":
       return {
         isCompleted: false,
         isFailed: false,
         isPending: true,
         progressPercent: 50,
         nextAction: "Multi-step transaction in progress",
-        canRetry: false
+        canRetry: false,
       };
 
-    case 'NOT_FOUND':
+    case "NOT_FOUND":
       return {
         isCompleted: false,
         isFailed: false,
         isPending: true,
         progressPercent: 0,
         nextAction: "Transaction not yet indexed",
-        canRetry: false
+        canRetry: false,
       };
 
-    case 'INVALID':
+    case "INVALID":
       return {
         isCompleted: false,
         isFailed: true,
@@ -315,7 +356,7 @@ function analyzeLifiStatus(lifiStatus?: LifiStatusResponse) {
         progressPercent: 0,
         errorMessage: "Invalid transaction hash or parameters",
         nextAction: "Verify transaction details",
-        canRetry: false
+        canRetry: false,
       };
 
     default:
@@ -325,7 +366,7 @@ function analyzeLifiStatus(lifiStatus?: LifiStatusResponse) {
         isPending: true,
         progressPercent: 0,
         nextAction: "Status unknown",
-        canRetry: false
+        canRetry: false,
       };
   }
 }
@@ -337,14 +378,14 @@ function getProgressFromSubstatus(substatus?: string): number {
   if (!substatus) return 10;
 
   const progressMap: Record<string, number> = {
-    'WAIT_SOURCE_CONFIRMATIONS': 25,
-    'WAIT_DESTINATION_TRANSACTION': 50,
-    'BRIDGE_NOT_AVAILABLE': 0,
-    'CHAIN_NOT_AVAILABLE': 0,
-    'NOT_PROCESSABLE_REFUND_NEEDED': 0,
-    'UNKNOWN_ERROR': 0,
-    'REFUND_IN_PROGRESS': 75,
-    'PARTIAL': 50
+    WAIT_SOURCE_CONFIRMATIONS: 25,
+    WAIT_DESTINATION_TRANSACTION: 50,
+    BRIDGE_NOT_AVAILABLE: 0,
+    CHAIN_NOT_AVAILABLE: 0,
+    NOT_PROCESSABLE_REFUND_NEEDED: 0,
+    UNKNOWN_ERROR: 0,
+    REFUND_IN_PROGRESS: 75,
+    PARTIAL: 50,
   };
 
   return progressMap[substatus] || 30;
@@ -353,7 +394,11 @@ function getProgressFromSubstatus(substatus?: string): number {
 /**
  * Estimate remaining time based on chain and bridge type
  */
-function getEstimatedTime(substatus?: string, fromChain?: number, toChain?: number): string | undefined {
+function getEstimatedTime(
+  substatus?: string,
+  fromChain?: number,
+  toChain?: number,
+): string | undefined {
   if (!substatus) return undefined;
 
   // Same chain operations
@@ -363,10 +408,10 @@ function getEstimatedTime(substatus?: string, fromChain?: number, toChain?: numb
 
   // Cross-chain estimations
   const timeMap: Record<string, string> = {
-    'WAIT_SOURCE_CONFIRMATIONS': "~2-5 minutes",
-    'WAIT_DESTINATION_TRANSACTION': "~1-3 minutes",
-    'BRIDGE_NOT_AVAILABLE': "Unknown",
-    'REFUND_IN_PROGRESS': "~5-10 minutes"
+    WAIT_SOURCE_CONFIRMATIONS: "~2-5 minutes",
+    WAIT_DESTINATION_TRANSACTION: "~1-3 minutes",
+    BRIDGE_NOT_AVAILABLE: "Unknown",
+    REFUND_IN_PROGRESS: "~5-10 minutes",
   };
 
   return timeMap[substatus] || "~3-7 minutes";

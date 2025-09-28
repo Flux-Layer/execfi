@@ -6,13 +6,15 @@ import {
   getQuote as lifiGetQuote,
   getTokens as lifiGetTokens,
   type Route,
-  type Token
+  type Token,
 } from "@lifi/sdk";
 
 // Environment configuration
 const LIFI_API_URL = process.env.LIFI_API_URL || "https://li.quest/v1";
 const LIFI_API_KEY = process.env.LIFI_API_KEY;
-const LIFI_RATE_LIMIT = parseInt(process.env.LIFI_RATE_LIMIT_PER_MINUTE || "60");
+const LIFI_RATE_LIMIT = parseInt(
+  process.env.LIFI_RATE_LIMIT_PER_MINUTE || "60",
+);
 
 // Rate limiting state
 interface RateLimitState {
@@ -31,7 +33,7 @@ export class LifiError extends Error {
     message: string,
     public code: string,
     public status?: number,
-    public details?: any
+    public details?: any,
   ) {
     super(message);
     this.name = "LifiError";
@@ -73,32 +75,38 @@ export const LifiRouteStepSchema = z.object({
     toAmountMin: z.string(),
     approvalAddress: z.string(),
     executionDuration: z.number(),
-    feeCosts: z.array(z.object({
-      name: z.string(),
-      description: z.string(),
-      token: LifiTokenSchema,
-      amount: z.string(),
-      amountUSD: z.string().optional(),
-    })),
-    gasCosts: z.array(z.object({
-      type: z.string(),
-      price: z.string(),
-      estimate: z.string(),
-      limit: z.string(),
-      amount: z.string(),
-      amountUSD: z.string().optional(),
-      token: LifiTokenSchema,
-    })),
+    feeCosts: z.array(
+      z.object({
+        name: z.string(),
+        description: z.string(),
+        token: LifiTokenSchema,
+        amount: z.string(),
+        amountUSD: z.string().optional(),
+      }),
+    ),
+    gasCosts: z.array(
+      z.object({
+        type: z.string(),
+        price: z.string(),
+        estimate: z.string(),
+        limit: z.string(),
+        amount: z.string(),
+        amountUSD: z.string().optional(),
+        token: LifiTokenSchema,
+      }),
+    ),
   }),
-  transactionRequest: z.object({
-    data: z.string(),
-    to: z.string(),
-    value: z.string(),
-    from: z.string(),
-    chainId: z.number(),
-    gasLimit: z.string().optional(),
-    gasPrice: z.string().optional(),
-  }).optional(),
+  transactionRequest: z
+    .object({
+      data: z.string(),
+      to: z.string(),
+      value: z.string(),
+      from: z.string(),
+      chainId: z.number(),
+      gasLimit: z.string().optional(),
+      gasPrice: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const LifiRouteSchema = z.object({
@@ -122,23 +130,27 @@ export const LifiStatusSchema = z.object({
   status: z.enum(["NOT_FOUND", "INVALID", "PENDING", "DONE", "FAILED"]),
   substatus: z.string().optional(),
   transactionHash: z.string().optional(),
-  sending: z.object({
-    txHash: z.string(),
-    txLink: z.string().optional(),
-    amount: z.string(),
-    token: LifiTokenSchema,
-    chainId: z.number(),
-    gasPrice: z.string().optional(),
-    gasUsed: z.string().optional(),
-    gasLimit: z.string().optional(),
-  }).optional(),
-  receiving: z.object({
-    txHash: z.string().optional(),
-    txLink: z.string().optional(),
-    amount: z.string().optional(),
-    token: LifiTokenSchema,
-    chainId: z.number(),
-  }).optional(),
+  sending: z
+    .object({
+      txHash: z.string(),
+      txLink: z.string().optional(),
+      amount: z.string(),
+      token: LifiTokenSchema,
+      chainId: z.number(),
+      gasPrice: z.string().optional(),
+      gasUsed: z.string().optional(),
+      gasLimit: z.string().optional(),
+    })
+    .optional(),
+  receiving: z
+    .object({
+      txHash: z.string().optional(),
+      txLink: z.string().optional(),
+      amount: z.string().optional(),
+      token: LifiTokenSchema,
+      chainId: z.number(),
+    })
+    .optional(),
 });
 
 // Type exports
@@ -166,7 +178,7 @@ function checkRateLimit(): boolean {
 
   // Remove old requests outside current window
   rateLimitState.requests = rateLimitState.requests.filter(
-    (timestamp) => now - timestamp < windowDuration
+    (timestamp) => now - timestamp < windowDuration,
   );
 
   // Check if we can make a new request
@@ -192,19 +204,19 @@ function sleep(ms: number): Promise<void> {
 async function lifiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
-  schema?: z.ZodSchema<T>
+  schema?: z.ZodSchema<T>,
 ): Promise<T> {
   // Check rate limit
   if (!checkRateLimit()) {
     throw new LifiError(
       "Rate limit exceeded. Please try again later.",
-      "RATE_LIMIT_EXCEEDED"
+      "RATE_LIMIT_EXCEEDED",
     );
   }
 
   const url = `${LIFI_API_URL}${endpoint}`;
   const headers: Record<string, string> = {
-    "Accept": "application/json",
+    Accept: "application/json",
     "Content-Type": "application/json",
     ...((options.headers as Record<string, string>) || {}),
   };
@@ -238,10 +250,11 @@ async function lifiRequest<T>(
         }
 
         throw new LifiError(
-          errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          errorData.message ||
+            `HTTP ${response.status}: ${response.statusText}`,
           "API_ERROR",
           response.status,
-          errorData
+          errorData,
         );
       }
 
@@ -254,24 +267,32 @@ async function lifiRequest<T>(
           console.log(`✅ LI.FI API Response validated successfully`);
           return validatedData;
         } catch (validationError) {
-          console.error("❌ LI.FI API Response validation failed:", validationError);
+          console.error(
+            "❌ LI.FI API Response validation failed:",
+            validationError,
+          );
           throw new LifiError(
             "Invalid response format from LI.FI API",
             "VALIDATION_ERROR",
             undefined,
-            validationError
+            validationError,
           );
         }
       }
 
       console.log(`✅ LI.FI API Response received successfully`);
       return data;
-
     } catch (error) {
       console.error(`❌ LI.FI API Request failed (attempt ${attempt}):`, error);
 
       // Don't retry on client errors (4xx) except rate limits
-      if (error instanceof LifiError && error.status && error.status >= 400 && error.status < 500 && error.status !== 429) {
+      if (
+        error instanceof LifiError &&
+        error.status &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 429
+      ) {
         throw error;
       }
 
@@ -287,7 +308,7 @@ async function lifiRequest<T>(
         }
         throw new LifiError(
           `Network error after ${maxRetries} attempts: ${error instanceof Error ? error.message : "Unknown error"}`,
-          "NETWORK_ERROR"
+          "NETWORK_ERROR",
         );
       }
 
@@ -325,7 +346,10 @@ export async function searchTokens(params: {
       for (const [chainId, tokens] of Object.entries(tokensResult.tokens)) {
         for (const token of tokens) {
           // Filter by symbol if provided
-          if (!params.symbol || token.symbol.toLowerCase().includes(params.symbol.toLowerCase())) {
+          if (
+            !params.symbol ||
+            token.symbol.toLowerCase().includes(params.symbol.toLowerCase())
+          ) {
             allTokens.push(token);
           }
         }
@@ -346,7 +370,7 @@ export async function searchTokens(params: {
       error instanceof Error ? error.message : "Unknown SDK error",
       "SDK_ERROR",
       undefined,
-      error
+      error,
     );
   }
 }
@@ -401,7 +425,7 @@ export async function getRoutes(params: {
       error instanceof Error ? error.message : "Unknown SDK error",
       "SDK_ERROR",
       undefined,
-      error
+      error,
     );
   }
 }
@@ -430,6 +454,7 @@ export async function getStatus(params: {
   }
 
   const endpoint = `/status?${searchParams.toString()}`;
+  console.log({ endpoint });
   return lifiRequest(endpoint, { method: "GET" }, LifiStatusSchema);
 }
 
@@ -460,30 +485,36 @@ export async function validateQuote(route: Route): Promise<{
     }
 
     // Find a similar route (same tools/bridges)
-    const freshRoute = freshRoutes.routes.find(r =>
-      r.steps.length === route.steps.length &&
-      r.steps.every((step, i) => step.tool === route.steps[i]?.tool)
-    ) || freshRoutes.routes[0];
+    const freshRoute =
+      freshRoutes.routes.find(
+        (r) =>
+          r.steps.length === route.steps.length &&
+          r.steps.every((step, i) => step.tool === route.steps[i]?.tool),
+      ) || freshRoutes.routes[0];
 
     // Check if the route is still viable (within reasonable slippage tolerance)
     const originalToAmount = BigInt(route.toAmount);
     const freshToAmount = BigInt(freshRoute.toAmount);
     const slippageTolerance = 0.05; // 5% tolerance
 
-    const maxSlippage = originalToAmount * BigInt(Math.floor(slippageTolerance * 10000)) / 10000n;
+    const maxSlippage =
+      (originalToAmount * BigInt(Math.floor(slippageTolerance * 10000))) /
+      10000n;
     const isWithinTolerance = originalToAmount - freshToAmount <= maxSlippage;
 
     return {
       valid: isWithinTolerance,
-      reason: isWithinTolerance ? undefined : "Route prices have changed significantly",
+      reason: isWithinTolerance
+        ? undefined
+        : "Route prices have changed significantly",
       freshRoute,
     };
-
   } catch (error) {
     console.error("Quote validation failed:", error);
     return {
       valid: false,
-      reason: error instanceof Error ? error.message : "Quote validation failed",
+      reason:
+        error instanceof Error ? error.message : "Quote validation failed",
     };
   }
 }
@@ -493,14 +524,20 @@ export async function validateQuote(route: Route): Promise<{
  */
 export function pickBestRoute(
   routes: Route[],
-  preference: "fastest" | "cheapest" | "recommended" = "recommended"
+  preference: "fastest" | "cheapest" | "recommended" = "recommended",
 ): Route | null {
   if (!routes.length) return null;
 
   if (preference === "fastest") {
     return routes.reduce((best, current) => {
-      const bestDuration = best.steps.reduce((sum, step) => sum + step.estimate.executionDuration, 0);
-      const currentDuration = current.steps.reduce((sum, step) => sum + step.estimate.executionDuration, 0);
+      const bestDuration = best.steps.reduce(
+        (sum, step) => sum + step.estimate.executionDuration,
+        0,
+      );
+      const currentDuration = current.steps.reduce(
+        (sum, step) => sum + step.estimate.executionDuration,
+        0,
+      );
       return currentDuration < bestDuration ? current : best;
     });
   }
