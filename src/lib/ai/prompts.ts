@@ -11,9 +11,10 @@ CRITICAL RULES:
 6. Default chain is "base" if unspecified
 
 WHEN TO USE EACH SCHEMA:
-- If input is clearly a TRANSACTION (send, transfer, swap): use SUCCESS, CLARIFY, or TOKEN_SELECTION schema
-- If token is ambiguous (like "arb", "op") without chain context: use TOKEN_SELECTION schema
+- If input is clearly a TRANSACTION (send, transfer, swap): use SUCCESS or TOKEN_SELECTION schema ONLY
+- If token is ambiguous (like "arb", "op", "lsk", "usd") without chain context: ALWAYS use TOKEN_SELECTION schema
 - If input is CASUAL CONVERSATION, QUESTIONS, or GREETINGS: use CHAT schema
+- NEVER use clarify schema - always provide token selection or return success
 
 SUCCESS SCHEMA (when all fields are clear):
 {
@@ -41,12 +42,7 @@ OR for ERC-20 tokens:
   }
 }
 
-CLARIFY SCHEMA (when transaction fields missing/ambiguous):
-{
-  "ok": false,
-  "clarify": "Which address should I send to?",
-  "missing": ["recipient"]
-}
+DO NOT USE CLARIFY SCHEMA - Instead use TOKEN_SELECTION for ambiguous tokens or SUCCESS with best-guess defaults.
 
 TOKEN_SELECTION SCHEMA (when token is ambiguous across chains):
 {
@@ -85,8 +81,8 @@ TOKEN PARSING RULES:
 - Native tokens: ETH (on Ethereum/Base/Arbitrum/Optimism), MATIC (on Polygon), AVAX (on Avalanche)
 - If user says native token name matching the chain → use native type with correct symbol and decimals
 - For ERC-20 tokens: use erc20 type (USDC, WETH, DAI, etc.)
-- If token name is ambiguous (like "arb", "op", "eth" without chain context) → return TOKEN_SELECTION with list of matching options across all chains
-- If unclear which token or wrong native token for chain → return clarify
+- If token name is ambiguous (like "arb", "op", "lsk", "usd", "eth" without chain context) → ALWAYS return TOKEN_SELECTION with matching options
+- NEVER use clarify - always provide token selection for ambiguous tokens
 
 EXAMPLES:
 
@@ -100,11 +96,14 @@ Output: {"ok":true,"intent":{"action":"transfer","chain":"avalanche","token":{"t
 Input: "transfer 1 MATIC on polygon to 0x1234..."
 Output: {"ok":true,"intent":{"action":"transfer","chain":"polygon","token":{"type":"native","symbol":"MATIC","decimals":18},"amount":"1","recipient":"0x1234...","useSession":false}}
 
-Input: "transfer some eth"
-Output: {"ok":false,"clarify":"How much ETH should I transfer?","missing":["amount","recipient"]}
+Input: "send 0.000001 lsk to 0x1234..."
+Output: {"ok":"tokenSelection","tokenSelection":{"message":"Multiple tokens found for 'lsk'. Please select:","tokens":[{"id":1,"chainId":1,"address":"0x6033F7f88332B8db6ad452B7C6D5bB643990aE3f","name":"Lisk","symbol":"LSK","verified":true}]}}
 
 Input: "send 0.000001 arb to 0x1234..."
 Output: {"ok":"tokenSelection","tokenSelection":{"message":"Multiple tokens found for 'arb'. Please select:","tokens":[{"id":1,"chainId":42161,"address":"0x0000000000000000000000000000000000000000","name":"Ethereum","symbol":"ETH","verified":true},{"id":2,"chainId":42161,"address":"0x912CE59144191C1204E64559FE8253a0e49E6548","name":"Arbitrum","symbol":"ARB","verified":true}]}}
+
+Input: "send 0.000001 usd to 0x1234..."
+Output: {"ok":"tokenSelection","tokenSelection":{"message":"Multiple USD tokens found. Please select:","tokens":[{"id":1,"chainId":8453,"address":"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913","name":"USD Coin","symbol":"USDC","verified":true},{"id":2,"chainId":8453,"address":"0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb","name":"Dai Stablecoin","symbol":"DAI","verified":true}]}}
 
 Input: "auto send 0.001 ETH using session to 0x1234..."
 Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.001","recipient":"0x1234...","useSession":true}}
@@ -130,6 +129,8 @@ The user's prompt needs to be parsed into this exact JSON format:
 
 SUCCESS: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"amount_here","recipient":"address_here","useSession":false}}
 
-OR CLARIFY: {"ok":false,"clarify":"question_here","missing":["field1","field2"]}
+OR TOKEN_SELECTION: {"ok":"tokenSelection","tokenSelection":{"message":"Multiple tokens found for 'token'. Please select:","tokens":[{"id":1,"chainId":8453,"address":"0x...","name":"Token Name","symbol":"TOKEN","verified":true}]}}
+
+NEVER use clarify schema. For ambiguous tokens, always use TOKEN_SELECTION.
 
 Output JSON only:`;
