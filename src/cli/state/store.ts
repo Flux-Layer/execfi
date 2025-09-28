@@ -184,15 +184,10 @@ export function saveStateToStorage(state: AppState, key = "execfi-state"): void 
   try {
     if (typeof window !== "undefined" && window.localStorage) {
       const persistedState = {
-        mode: state.mode,
-        flow: state.flow ? {
-          ...state.flow,
-          // Handle potential BigInt values in normalized intent
-          norm: state.flow.norm ? {
-            ...state.flow.norm,
-            amountWei: state.flow.norm.amountWei, // Will be serialized as BigInt
-          } : undefined,
-        } : undefined,
+        // DO NOT persist mode - terminal should start in IDLE mode on each page load
+        mode: "IDLE" as const,
+        // DO NOT persist flow state - terminal should start fresh on each page load
+        flow: undefined,
         viewStack: state.viewStack,
         core: {
           ...state.core,
@@ -220,6 +215,10 @@ export function loadStateFromStorage(key = "execfi-state"): Partial<AppState> | 
         if (parsed.core?.idempotency && Array.isArray(parsed.core.idempotency)) {
           parsed.core.idempotency = new Map(parsed.core.idempotency);
         }
+
+        // Always ensure fresh terminal state on page load
+        parsed.mode = "IDLE";
+        parsed.flow = undefined;
 
         return parsed;
       }
