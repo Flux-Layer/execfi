@@ -36,12 +36,19 @@ CORE COMMANDS:
   /clear (/cls) - Clear terminal screen
   /accountinfo - Show detailed account information
   /send - Send native or ERC-20 tokens
+  /chain (/network, /net) - Manage blockchain network selection
   /login (/signin, /auth) - Start authentication flow
   /logout (/signout) - Sign out of current session
   /home (/main) - Return to main terminal
   /exit (/close) - Exit current view or return to main terminal
   /cancel - Cancel current flow or operation
   /reset (/restart) - Emergency reset
+
+CHAIN MANAGEMENT:
+  /chain list - Show all supported chains
+  /chain switch <name> - Switch to a different chain
+  /chain current - Show current chain status
+  /chain info <name> - Show detailed chain information
 
 💡 Tip: You can also use natural language like "send 0.1 ETH to vitalik.eth"`;
 
@@ -386,18 +393,10 @@ export const resetCmd: CommandDef = {
   },
 };
 
+import { getChainDisplayName } from "@/lib/chains/registry";
+
 // Utility function to get chain name from ID
 function getChainName(chainId: number | string): string {
-  const chainNames: Record<number, string> = {
-    1: "Ethereum",
-    8453: "Base",
-    84532: "Base Sepolia",
-    137: "Polygon",
-    42161: "Arbitrum",
-    10: "Optimism",
-    43114: "Avalanche",
-  };
-
   if (typeof chainId === "string") return chainId;
-  return chainNames[chainId] || `Chain ${chainId}`;
+  return getChainDisplayName(chainId);
 }

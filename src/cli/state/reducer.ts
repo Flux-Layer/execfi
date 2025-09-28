@@ -292,12 +292,57 @@ export function reducer(state: AppState, event: AppEvent): AppState {
     case "TOKEN.SELECT":
       if (state.mode === "FLOW" && state.flow?.tokenSelection) {
         const selectedToken = state.flow.tokenSelection.tokens[event.index];
+
+        // Reconstruct intent with selected token by parsing the original raw input
+        // Extract components from the original raw prompt
+        const raw = state.flow.raw || "";
+        const recipientMatch = raw.match(/to\s+(0x[a-fA-F0-9]{40}|[\w\d.-]+\.eth)/i);
+        const amountMatch = raw.match(/send\s+([\d.]+)/i);
+
+        if (!recipientMatch || !amountMatch) {
+          // Fallback error if we can't parse the original intent
+          return {
+            ...state,
+            flow: {
+              ...state.flow,
+              step: "failure",
+              error: {
+                code: "INTENT_RECONSTRUCTION_FAILED",
+                message: "Failed to reconstruct intent with selected token",
+                phase: "normalize",
+              },
+            },
+          };
+        }
+
+        // Create reconstructed intent with selected token
+        const isNativeToken = selectedToken.address === "0x0000000000000000000000000000000000000000";
+        const reconstructedIntent = {
+          action: "transfer" as const,
+          chain: selectedToken.chainId,
+          token: isNativeToken ? {
+            type: "native" as const,
+            symbol: selectedToken.symbol,
+            decimals: 18,
+          } : {
+            type: "erc20" as const,
+            symbol: selectedToken.symbol,
+            address: selectedToken.address,
+            decimals: 18, // Default, will be resolved during normalization
+          },
+          amount: amountMatch[1],
+          recipient: recipientMatch[1],
+          // Store the exact selected token data for normalization bypass
+          _selectedToken: selectedToken,
+        };
+
         return {
           ...state,
           flow: {
             ...state.flow,
             selectedTokenIndex: event.index,
             tokenSelection: undefined, // Clear selection state
+            intent: reconstructedIntent, // Set the reconstructed intent
             step: "normalize", // Continue to normalize
           },
           chatHistory: [
@@ -797,6 +842,15 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         overlays: [],   // Clear overlays
         flow: undefined, // Clear any active flow
         mode: "IDLE",    // Return to idle
+      };
+
+    case "CHAIN.UPDATE":
+      return {
+        ...state,
+        core: {
+          ...state.core,
+          chainId: event.chainId,
+        },
       };
 
     default:

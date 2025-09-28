@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { ConnectedWallet } from "@privy-io/react-auth";
 
@@ -45,10 +51,13 @@ export function EOAProvider({ children }: EOAProviderProps) {
   const selectedWallet = React.useMemo(() => {
     return privyWallets[selectedWalletIndex] || null;
   }, [privyWallets, selectedWalletIndex]);
+  useEffect(() => {
+    console.log({ selectedWallet });
+  }, [selectedWallet]);
 
   // Persist selected wallet index to localStorage
   useEffect(() => {
-    const savedIndex = localStorage.getItem('selectedWalletIndex');
+    const savedIndex = localStorage.getItem("selectedWalletIndex");
     if (savedIndex && !isNaN(parseInt(savedIndex))) {
       const index = parseInt(savedIndex);
       if (index < privyWallets.length) {
@@ -59,7 +68,7 @@ export function EOAProvider({ children }: EOAProviderProps) {
 
   // Save selected wallet index to localStorage
   useEffect(() => {
-    localStorage.setItem('selectedWalletIndex', selectedWalletIndex.toString());
+    localStorage.setItem("selectedWalletIndex", selectedWalletIndex.toString());
   }, [selectedWalletIndex]);
 
   // Reset selected index if it's out of bounds
@@ -71,41 +80,50 @@ export function EOAProvider({ children }: EOAProviderProps) {
 
   // Utility functions
   const formatAddress = React.useCallback((address: string): string => {
-    if (!address) return '';
+    if (!address) return "";
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }, []);
 
-  const copyAddress = React.useCallback(async (address: string): Promise<void> => {
-    try {
-      setIsLoading(true);
-      await navigator.clipboard.writeText(address);
-      setCopiedAddress(true);
-      setTimeout(() => setCopiedAddress(false), 2000);
-    } catch (err) {
-      const errorMessage = 'Failed to copy address to clipboard';
-      setError(errorMessage);
+  const copyAddress = React.useCallback(
+    async (address: string): Promise<void> => {
+      try {
+        setIsLoading(true);
+        await navigator.clipboard.writeText(address);
+        setCopiedAddress(true);
+        setTimeout(() => setCopiedAddress(false), 2000);
+      } catch (err) {
+        const errorMessage = "Failed to copy address to clipboard";
+        setError(errorMessage);
 
-      // Toast error to user (you can integrate with your preferred toast library)
-      console.error(errorMessage, err);
+        // Toast error to user (you can integrate with your preferred toast library)
+        console.error(errorMessage, err);
 
-      // Clear error after showing
-      setTimeout(() => setError(null), 5000);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+        // Clear error after showing
+        setTimeout(() => setError(null), 5000);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
 
   // Update selected wallet index with bounds checking
-  const handleSetSelectedWalletIndex = React.useCallback((index: number) => {
-    if (index >= 0 && index < privyWallets.length) {
-      setSelectedWalletIndex(index);
-    } else {
-      const errorMessage = 'Invalid wallet index selected';
-      setError(errorMessage);
-      console.error(errorMessage, { index, availableWallets: privyWallets.length });
-      setTimeout(() => setError(null), 5000);
-    }
-  }, [privyWallets.length]);
+  const handleSetSelectedWalletIndex = React.useCallback(
+    (index: number) => {
+      if (index >= 0 && index < privyWallets.length) {
+        setSelectedWalletIndex(index);
+      } else {
+        const errorMessage = "Invalid wallet index selected";
+        setError(errorMessage);
+        console.error(errorMessage, {
+          index,
+          availableWallets: privyWallets.length,
+        });
+        setTimeout(() => setError(null), 5000);
+      }
+    },
+    [privyWallets.length],
+  );
 
   const contextValue: EOAContextType = {
     // Wallet Management
@@ -126,16 +144,14 @@ export function EOAProvider({ children }: EOAProviderProps) {
   };
 
   return (
-    <EOAContext.Provider value={contextValue}>
-      {children}
-    </EOAContext.Provider>
+    <EOAContext.Provider value={contextValue}>{children}</EOAContext.Provider>
   );
 }
 
 export function useEOA(): EOAContextType {
   const context = useContext(EOAContext);
   if (context === undefined) {
-    throw new Error('useEOA must be used within an EOAProvider');
+    throw new Error("useEOA must be used within an EOAProvider");
   }
   return context;
 }

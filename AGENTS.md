@@ -148,7 +148,7 @@ Fail → error with actionable message.
 ## 5) Planner
 
 - `transfer` + native → native transfer.
-- `transfer` + ERC-20 → erc20 transfer (future).
+- `transfer` + ERC-20 → erc20 transfer.
 - `swap` / `bridge` / `bridge_swap` → LI.FI route.
 
 Route policy: pick reputable routes, enforce slippage cap, ETA/deadline checks.

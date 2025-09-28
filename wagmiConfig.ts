@@ -1,11 +1,17 @@
 import { createConfig } from "@privy-io/wagmi";
-
-import { baseSepolia } from "viem/chains";
 import { http } from "wagmi";
+import { getAllWagmiChains, getSupportedChains } from "./src/lib/chains/registry";
+
+// Get all supported chains from registry
+const supportedChains = getAllWagmiChains();
+
+// Create transports for all supported chains
+const transports = getSupportedChains().reduce((acc, chain) => {
+  acc[chain.id] = http(chain.rpcUrl);
+  return acc;
+}, {} as Record<number, ReturnType<typeof http>>);
 
 export const wagmiConfig = createConfig({
-  chains: [baseSepolia], // Pass your required chains as an array
-  transports: {
-    [baseSepolia.id]: http(),
-  },
+  chains: supportedChains as any,
+  transports,
 });

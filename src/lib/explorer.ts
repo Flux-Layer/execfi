@@ -1,104 +1,38 @@
 // lib/explorer.ts - Blockchain explorer URL helpers
-
-/**
- * Explorer configurations for supported chains
- */
-const EXPLORER_CONFIG = {
-  // Base Mainnet
-  8453: {
-    name: "BaseScan",
-    baseUrl: "https://basescan.org",
-    txPath: "/tx/",
-    addressPath: "/address/",
-  },
-  // Base Sepolia
-  84532: {
-    name: "BaseScan Sepolia",
-    baseUrl: "https://sepolia.basescan.org",
-    txPath: "/tx/",
-    addressPath: "/address/",
-  },
-  // Ethereum Mainnet (future)
-  1: {
-    name: "Etherscan",
-    baseUrl: "https://etherscan.io",
-    txPath: "/tx/",
-    addressPath: "/address/",
-  },
-  // Polygon (future)
-  137: {
-    name: "PolygonScan",
-    baseUrl: "https://polygonscan.com",
-    txPath: "/tx/",
-    addressPath: "/address/",
-  },
-  // Arbitrum (future)
-  42161: {
-    name: "Arbiscan",
-    baseUrl: "https://arbiscan.io",
-    txPath: "/tx/",
-    addressPath: "/address/",
-  },
-  // Optimism (future)
-  10: {
-    name: "Optimistic Etherscan",
-    baseUrl: "https://optimistic.etherscan.io",
-    txPath: "/tx/",
-    addressPath: "/address/",
-  },
-};
+import {
+  getChainConfig,
+  getExplorerTxUrl,
+  getExplorerAddressUrl,
+  getChainDisplayName
+} from "./chains/registry";
 
 /**
  * Get explorer name for a chain
  */
 export function getExplorerName(chainId: number): string {
-  const config = EXPLORER_CONFIG[chainId as keyof typeof EXPLORER_CONFIG];
-  return config?.name || "Unknown Explorer";
+  const config = getChainConfig(chainId);
+  return config?.explorerName || "Unknown Explorer";
 }
 
 /**
  * Generate transaction URL for blockchain explorer
  */
 export function getTxUrl(chainId: number, txHash: string): string {
-  const config = EXPLORER_CONFIG[chainId as keyof typeof EXPLORER_CONFIG];
-
-  if (!config) {
-    console.warn(`No explorer config found for chainId ${chainId}`);
-    return `#${txHash}`; // Fallback to hash anchor
-  }
-
-  return `${config.baseUrl}${config.txPath}${txHash}`;
+  return getExplorerTxUrl(chainId, txHash);
 }
 
 /**
  * Generate address URL for blockchain explorer
  */
 export function getAddressUrl(chainId: number, address: string): string {
-  const config = EXPLORER_CONFIG[chainId as keyof typeof EXPLORER_CONFIG];
-
-  if (!config) {
-    console.warn(`No explorer config found for chainId ${chainId}`);
-    return `#${address}`; // Fallback to hash anchor
-  }
-
-  return `${config.baseUrl}${config.addressPath}${address}`;
+  return getExplorerAddressUrl(chainId, address);
 }
 
 /**
  * Get chain name from chainId
  */
 export function getChainName(chainId: number): string {
-  const chainNames: Record<number, string> = {
-    8453: "Base",
-    84532: "Base Sepolia",
-    1: "Ethereum",
-    137: "Polygon",
-    42161: "Arbitrum",
-    10: "Optimism",
-    43114: "Avalanche",
-  };
-
-  return chainNames[chainId] || `Chain ${chainId}`;
+  return getChainDisplayName(chainId);
 }
 
 /**
@@ -109,9 +43,11 @@ export function formatSuccessMessage(
   chainId: number,
   txHash: string,
 ): string {
-  const chainName = getChainName(chainId);
+  const config = getChainConfig(chainId);
+  const chainName = config?.name || `Chain ${chainId}`;
+  const symbol = config?.nativeCurrency.symbol || "ETH";
 
-  return `✅ Sent ${amount} ETH on ${chainName} — hash ${txHash}`;
+  return `✅ Sent ${amount} ${symbol} on ${chainName} — hash ${txHash}`;
 }
 
 /**

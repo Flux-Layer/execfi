@@ -22,7 +22,7 @@ Amounts (e.g. "0.5 ETH", "100 USDC")
 
 Addresses (hex strings like 0x...)
 
-Networks/chains ("Ethereum", "Base", "Polygon", etc.)
+Networks/chains: **Supported chains are Base (8453, default), Ethereum (1), Polygon (137), Arbitrum (42161), Optimism (10), Avalanche (43114), and their testnets including Base Sepolia (84532), Ethereum Sepolia (11155111)**
 
 
 Clear user intent to initiate a blockchain operation rather than just ask about it.
@@ -42,6 +42,8 @@ If "operation"="transfer", require "token", "amount", "recipient".
 Use defaults where missing (native ETH w/ 18 decimals, "data":"0x" for transfers).
 
 Convert amounts to wei hex for the raw transaction.
+
+**Chain Defaults:** If no chain is specified, use Base (8453) as the default. Accept chain names (base, ethereum, polygon, arbitrum, optimism, avalanche) or chain IDs.
 
 Always output [intent, raw_tx] only, no prose.
 

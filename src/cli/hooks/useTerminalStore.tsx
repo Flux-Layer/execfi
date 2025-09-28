@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import useSmartWallet from "@/hooks/useSmartWallet";
 import { useEOA } from "@/providers/EOAProvider";
+import { useChainSelection } from "@/hooks/useChainSelection";
 import type { Store } from "../state/store";
 import type { AppState, Dispatch } from "../state/types";
 import { createPersistedStore, createStore } from "../state/store";
@@ -25,6 +26,7 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   const { smartWalletClient, smartAccountAddress, isReady: smartWalletReady } = useSmartWallet();
   const { selectedWallet } = useEOA();
   const { sendTransaction } = useSendTransaction();
+  const { selectedChainId } = useChainSelection();
 
   // Create store once and persist it
   const storeRef = useRef<Store | null>(null);
@@ -62,7 +64,7 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   useEffect(() => {
     if (ready) {
       const coreContext = {
-        chainId: 8453, // Base mainnet default
+        chainId: selectedChainId, // Use selected chain from chain selection context
         idempotency: new Map(),
         accountMode: "EOA" as const, // Default to EOA mode
 
@@ -96,7 +98,17 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
         coreContext,
       });
     }
-  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, store]);
+  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store]);
+
+  // Dispatch chain updates when selectedChainId changes
+  useEffect(() => {
+    if (ready && selectedChainId) {
+      store.dispatch({
+        type: "CHAIN.UPDATE",
+        chainId: selectedChainId,
+      });
+    }
+  }, [selectedChainId, ready, store]);
 
   // Cleanup on unmount
   useEffect(() => {

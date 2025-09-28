@@ -3,6 +3,7 @@
 import { parseEther, parseUnits, isAddress, getAddress } from "viem";
 import type { IntentSuccess, TransferIntent } from "./ai";
 import { resolveTokenSymbol, type Token } from "./tokens";
+import { resolveChain, isChainSupported, getChainConfig } from "./chains/registry";
 
 export type NormalizedNativeTransfer = {
   kind: "native-transfer";
@@ -47,57 +48,36 @@ export class TokenSelectionError extends Error {
 }
 
 /**
- * Chain name/ID mapping registry
+ * Resolve chain name to chainId using centralized registry
  */
-const CHAIN_REGISTRY: Record<string, number> = {
-  "base": 8453,
-  "baseSepolia": 84532,
-  "base-sepolia": 84532,
-  "baseMainnet": 8453,
-  "base-mainnet": 8453,
-  "ethereum": 1,
-  "mainnet": 1,
-  "polygon": 137,
-  "arbitrum": 42161,
-  "optimism": 10,
-  "avalanche": 43114,
-};
-
-/**
- * Supported chains for MVP
- */
-const SUPPORTED_CHAINS = new Set([8453, 84532]); // Base mainnet + sepolia only
-
-/**
- * Resolve chain name to chainId
- */
-function resolveChain(chain: string | number): number {
-  if (typeof chain === "number") {
-    return chain;
-  }
-
-  const chainId = CHAIN_REGISTRY[chain.toLowerCase()];
-  if (!chainId) {
+function resolveChainForNormalization(chain: string | number): number {
+  try {
+    const chainConfig = resolveChain(chain);
+    return chainConfig.id;
+  } catch (error) {
     throw new NormalizationError(
-      `Unsupported chain: ${chain}. Supported: base, baseSepolia`,
+      error instanceof Error ? error.message : `Unsupported chain: ${chain}`,
       "CHAIN_UNSUPPORTED"
     );
   }
-
-  return chainId;
 }
 
 /**
  * Normalize transfer intent to internal format
  */
 export function normalizeTransferIntent(intent: TransferIntent): NormalizedIntent {
-  // Resolve chain
-  const chainId = resolveChain(intent.chain);
+  // Check if we have a selected token with a specific chainId (from token selection flow)
+  const selectedToken = (intent as any)._selectedToken;
 
-  // Validate chain is supported in MVP
-  if (!SUPPORTED_CHAINS.has(chainId)) {
+  // Use the token's chainId if available, otherwise resolve from intent.chain
+  const chainId = selectedToken?.chainId || resolveChainForNormalization(intent.chain);
+
+  // Validate chain is supported
+  if (!isChainSupported(chainId)) {
+    const chainConfig = getChainConfig(chainId);
+    const chainName = chainConfig?.name || `Chain ${chainId}`;
     throw new NormalizationError(
-      `Chain ${chainId} not supported in MVP. Only Base (8453) and Base Sepolia (84532) are supported.`,
+      `Chain ${chainName} (${chainId}) is not supported. Use '/chain list' to see supported chains.`,
       "CHAIN_UNSUPPORTED"
     );
   }
@@ -147,22 +127,30 @@ export function normalizeTransferIntent(intent: TransferIntent): NormalizedInten
 
   // Handle token resolution
   if (intent.token.type === "native") {
-    // Native ETH transfer
-    if (intent.token.symbol !== "ETH") {
+    // Native token transfer - validate symbol matches chain's native currency
+    const chainConfig = getChainConfig(chainId);
+    if (!chainConfig) {
       throw new NormalizationError(
-        "Only ETH is supported for native transfers",
-        "NATIVE_TOKEN_UNSUPPORTED"
+        `Chain configuration not found for chain ${chainId}`,
+        "CHAIN_CONFIG_MISSING"
       );
     }
 
-    // Parse amount to wei
+    if (intent.token.symbol !== chainConfig.nativeCurrency.symbol) {
+      throw new NormalizationError(
+        `Native token '${intent.token.symbol}' is not valid for ${chainConfig.name}. Expected '${chainConfig.nativeCurrency.symbol}'`,
+        "NATIVE_TOKEN_MISMATCH"
+      );
+    }
+
+    // Parse amount to wei using the chain's native currency decimals
     let amountWei: bigint;
     try {
       const amountNumber = parseFloat(intent.amount);
       if (isNaN(amountNumber) || amountNumber <= 0) {
         throw new Error("Invalid amount");
       }
-      amountWei = parseEther(intent.amount);
+      amountWei = parseUnits(intent.amount, chainConfig.nativeCurrency.decimals);
     } catch {
       throw new NormalizationError(
         `Invalid amount: ${intent.amount}. Must be a positive decimal number`,
@@ -178,18 +166,36 @@ export function normalizeTransferIntent(intent: TransferIntent): NormalizedInten
     };
   } else {
     // ERC-20 token transfer
-    const tokenResolution = resolveTokenSymbol(intent.token.symbol, chainId);
+    let token: Token;
 
-    if (tokenResolution.needsSelection) {
-      // Multiple tokens found - throw TokenSelectionError
-      throw new TokenSelectionError(
-        tokenResolution.message,
-        "TOKEN_SELECTION_REQUIRED",
-        tokenResolution.tokens
-      );
+    // Check if we have pre-selected token data (from token selection flow)
+    if ((intent as any)._selectedToken) {
+      const selectedToken = (intent as any)._selectedToken;
+      token = {
+        id: selectedToken.id,
+        chainId: selectedToken.chainId,
+        address: selectedToken.address as `0x${string}`,
+        name: selectedToken.name,
+        symbol: selectedToken.symbol,
+        decimals: 18, // Default for ARB, will be validated later
+        logoURI: selectedToken.logoURI,
+        verified: selectedToken.verified,
+      };
+    } else {
+      // Normal token resolution path
+      const tokenResolution = resolveTokenSymbol(intent.token.symbol, chainId);
+
+      if (tokenResolution.needsSelection) {
+        // Multiple tokens found - throw TokenSelectionError
+        throw new TokenSelectionError(
+          tokenResolution.message,
+          "TOKEN_SELECTION_REQUIRED",
+          tokenResolution.tokens
+        );
+      }
+
+      token = tokenResolution.token;
     }
-
-    const token = tokenResolution.token;
 
     // Parse amount with token decimals
     let amountWei: bigint;

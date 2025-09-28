@@ -1,8 +1,8 @@
 // lib/validation.ts - Intent validation and policy enforcement
 
-import { createPublicClient, http, formatEther } from "viem";
-import { base, baseSepolia } from "viem/chains";
-import type { NormalizedNativeTransfer, NormalizedIntent } from "./normalize";
+import { createPublicClient, http, formatEther, formatUnits, erc20Abi, getContract } from "viem";
+import type { NormalizedNativeTransfer, NormalizedERC20Transfer, NormalizedIntent } from "./normalize";
+import { getChainConfig, isChainSupported } from "./chains/registry";
 
 export class ValidationError extends Error {
    constructor(message: string, public code: string) {
@@ -11,19 +11,7 @@ export class ValidationError extends Error {
    }
 }
 
-/**
- * Chain configuration for RPC calls
- */
-const CHAIN_CONFIG = {
-   8453: {
-      chain: base,
-      rpcUrl: `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
-   },
-   84532: {
-      chain: baseSepolia,
-      rpcUrl: `https://base-sepolia.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
-   },
-};
+// Chain configuration now dynamically retrieved from registry
 
 /**
  * Policy configuration (from env or defaults)
@@ -48,17 +36,24 @@ const POLICY = {
  * Create public client for chain operations
  */
 function getPublicClient(chainId: number) {
-   const config = CHAIN_CONFIG[chainId as keyof typeof CHAIN_CONFIG];
-   if (!config) {
+   if (!isChainSupported(chainId)) {
       throw new ValidationError(
          `Unsupported chainId: ${chainId}`,
          "CHAIN_UNSUPPORTED"
       );
    }
 
+   const chainConfig = getChainConfig(chainId);
+   if (!chainConfig) {
+      throw new ValidationError(
+         `Chain configuration not found for chainId: ${chainId}`,
+         "CHAIN_CONFIG_MISSING"
+      );
+   }
+
    return createPublicClient({
-      chain: config.chain,
-      transport: http(config.rpcUrl),
+      chain: chainConfig.wagmiChain,
+      transport: http(chainConfig.rpcUrl),
    });
 }
 
@@ -150,11 +145,13 @@ async function checkBasicBalance(
    // First check if we have enough balance for just the transfer amount
    console.log({balance, amountWei: norm.amountWei})
    if (balance < norm.amountWei) {
-      const balanceEth = formatEther(balance);
-      const amountEth = formatEther(norm.amountWei);
+      const chainConfig = getChainConfig(norm.chainId);
+      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+      const balanceFormatted = formatEther(balance);
+      const amountFormatted = formatEther(norm.amountWei);
 
       throw new ValidationError(
-         `Insufficient balance. You have ${balanceEth} ETH but trying to send ${amountEth} ETH`,
+         `Insufficient balance. You have ${balanceFormatted} ${nativeSymbol} but trying to send ${amountFormatted} ${nativeSymbol}`,
          "INSUFFICIENT_FUNDS"
       );
    }
@@ -181,13 +178,15 @@ async function validateBalance(
    // Check if balance is sufficient for total cost
    console.log({balance, totalCost})
    if (balance < totalCost) {
-      const balanceEth = formatEther(balance);
-      const totalCostEth = formatEther(totalCost);
-      const gasCostEth = formatEther(gasCost);
-      const amountEth = formatEther(norm.amountWei);
+      const chainConfig = getChainConfig(norm.chainId);
+      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+      const balanceFormatted = formatEther(balance);
+      const totalCostFormatted = formatEther(totalCost);
+      const gasCostFormatted = formatEther(gasCost);
+      const amountFormatted = formatEther(norm.amountWei);
 
       throw new ValidationError(
-         `Insufficient balance for transaction + gas. You have ${balanceEth} ETH but need ${totalCostEth} ETH (${amountEth} ETH + ${gasCostEth} ETH gas)`,
+         `Insufficient balance for transaction + gas. You have ${balanceFormatted} ${nativeSymbol} but need ${totalCostFormatted} ${nativeSymbol} (${amountFormatted} ${nativeSymbol} + ${gasCostFormatted} ${nativeSymbol} gas)`,
          "INSUFFICIENT_FUNDS_WITH_GAS"
       );
    }
@@ -199,9 +198,11 @@ async function validateBalance(
    );
 
    if (balanceAfterTx < minBalanceWei) {
-      const balanceAfterEth = formatEther(balanceAfterTx);
+      const chainConfig = getChainConfig(norm.chainId);
+      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+      const balanceAfterFormatted = formatEther(balanceAfterTx);
       throw new ValidationError(
-         `Transaction would leave balance too low (${balanceAfterEth} ETH). Minimum ${POLICY.MIN_BALANCE_AFTER_TX_ETH} ETH required`,
+         `Transaction would leave balance too low (${balanceAfterFormatted} ${nativeSymbol}). Minimum ${POLICY.MIN_BALANCE_AFTER_TX_ETH} ${nativeSymbol} required`,
          "BALANCE_TOO_LOW_AFTER_TX"
       );
    }
@@ -253,6 +254,121 @@ export async function validateNativeTransfer(
 }
 
 /**
+ * Validate ERC-20 token transfer
+ */
+export async function validateERC20Transfer(
+  norm: NormalizedERC20Transfer,
+  fromAddress: `0x${string}`
+): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
+  // Basic validation
+  validateRecipient(norm.to);
+
+  // Validate token amount
+  if (norm.amountWei <= 0n) {
+    throw new ValidationError(
+      "Amount must be greater than 0",
+      "AMOUNT_TOO_SMALL"
+    );
+  }
+
+  // Get public client for chain operations
+  const publicClient = getPublicClient(norm.chainId);
+
+  // Create ERC-20 contract instance
+  const tokenContract = getContract({
+    address: norm.token.address,
+    abi: erc20Abi,
+    client: publicClient,
+  });
+
+  try {
+    // Check token balance
+    const balance = await tokenContract.read.balanceOf([fromAddress]);
+
+    if (balance < norm.amountWei) {
+      const balanceFormatted = formatUnits(balance, norm.token.decimals);
+      const amountFormatted = formatUnits(norm.amountWei, norm.token.decimals);
+
+      throw new ValidationError(
+        `Insufficient ${norm.token.symbol} balance. You have ${balanceFormatted} ${norm.token.symbol} but trying to send ${amountFormatted} ${norm.token.symbol}`,
+        "INSUFFICIENT_TOKEN_BALANCE"
+      );
+    }
+
+    // Estimate gas for ERC-20 transfer
+    const gasEstimate = await publicClient.estimateContractGas({
+      address: norm.token.address,
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [norm.to, norm.amountWei],
+      account: fromAddress,
+    });
+
+    // Add gas headroom for ERC-20 transfers (higher than native due to contract complexity)
+    const gasWithHeadroom = BigInt(
+      Math.ceil(Number(gasEstimate) * POLICY.GAS_HEADROOM_MULT)
+    );
+
+    // Get current gas price
+    const gasPrice = await getCurrentGasPrice(norm.chainId);
+    const gasCost = gasWithHeadroom * gasPrice;
+
+    // Check if user has enough native currency for gas
+    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+
+    if (nativeBalance < gasCost) {
+      const chainConfig = getChainConfig(norm.chainId);
+      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+      const gasCostFormatted = formatEther(gasCost);
+      const nativeBalanceFormatted = formatEther(nativeBalance);
+
+      throw new ValidationError(
+        `Insufficient ${nativeSymbol} for gas fees. You need ${gasCostFormatted} ${nativeSymbol} for gas but only have ${nativeBalanceFormatted} ${nativeSymbol}`,
+        "INSUFFICIENT_GAS_FUNDS"
+      );
+    }
+
+    // Validate daily spend limits (convert to ETH equivalent for policy)
+    const tokenAmountFormatted = formatUnits(norm.amountWei, norm.token.decimals);
+    const tokenAmountEth = parseFloat(tokenAmountFormatted); // Simplified - in production would need price oracle
+
+    if (tokenAmountEth > POLICY.DAILY_SPEND_LIMIT_ETH) {
+      throw new ValidationError(
+        `Transaction amount ${tokenAmountFormatted} ${norm.token.symbol} exceeds daily limit`,
+        "DAILY_LIMIT_EXCEEDED"
+      );
+    }
+
+    return { gasEstimate: gasWithHeadroom, gasCost };
+
+  } catch (error: any) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+
+    // Handle contract call failures
+    if (error.message?.includes("revert") || error.message?.includes("execution reverted")) {
+      throw new ValidationError(
+        `Token contract error: ${norm.token.symbol} transfer would fail`,
+        "TOKEN_CONTRACT_ERROR"
+      );
+    }
+
+    if (error.message?.includes("gas")) {
+      throw new ValidationError(
+        "Failed to estimate gas for token transfer",
+        "GAS_ESTIMATION_FAILED"
+      );
+    }
+
+    throw new ValidationError(
+      `Token validation failed: ${error.message || "Unknown error"}`,
+      "TOKEN_VALIDATION_FAILED"
+    );
+  }
+}
+
+/**
  * Simulate transaction before execution
  */
 export async function simulateTransfer(
@@ -276,6 +392,32 @@ export async function simulateTransfer(
 }
 
 /**
+ * Simulate ERC-20 token transfer before execution
+ */
+export async function simulateERC20Transfer(
+  norm: NormalizedERC20Transfer,
+  fromAddress: `0x${string}`
+): Promise<void> {
+  const publicClient = getPublicClient(norm.chainId);
+
+  try {
+    await publicClient.simulateContract({
+      address: norm.token.address,
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [norm.to, norm.amountWei],
+      account: fromAddress,
+    });
+  } catch (error: any) {
+    console.error("ERC-20 simulation error:", error);
+    throw new ValidationError(
+      `Token transfer simulation failed. Transaction would likely fail on-chain: ${error.shortMessage || error.message}`,
+      "SIMULATION_FAILED"
+    );
+  }
+}
+
+/**
  * Validation router for different intent types
  */
 export async function validateIntent(
@@ -285,11 +427,7 @@ export async function validateIntent(
   if (norm.kind === "native-transfer") {
     return validateNativeTransfer(norm, fromAddress);
   } else if (norm.kind === "erc20-transfer") {
-    // For MVP, ERC-20 validation is not implemented yet
-    throw new ValidationError(
-      "ERC-20 token transfers not yet supported in MVP",
-      "ERC20_NOT_IMPLEMENTED"
-    );
+    return validateERC20Transfer(norm, fromAddress);
   } else {
     throw new ValidationError(
       `Unknown transfer type: ${(norm as any).kind}`,
@@ -308,11 +446,7 @@ export async function simulateIntent(
   if (norm.kind === "native-transfer") {
     return simulateTransfer(norm, fromAddress);
   } else if (norm.kind === "erc20-transfer") {
-    // For MVP, ERC-20 simulation is not implemented yet
-    throw new ValidationError(
-      "ERC-20 token simulation not yet supported in MVP",
-      "ERC20_SIMULATION_NOT_IMPLEMENTED"
-    );
+    return simulateERC20Transfer(norm, fromAddress);
   } else {
     throw new ValidationError(
       `Unknown transfer type for simulation: ${(norm as any).kind}`,

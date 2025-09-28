@@ -48,7 +48,7 @@ export function validateIntentShape(parsed: any): boolean {
 
   // Must have 'ok' field
   const okField = parsed.ok;
-  if (typeof okField !== 'boolean' && okField !== 'chat') return false;
+  if (typeof okField !== 'boolean' && okField !== 'chat' && okField !== 'tokenSelection') return false;
 
   if (okField === true) {
     // Success case - must have 'intent' field
@@ -62,6 +62,14 @@ export function validateIntentShape(parsed: any): boolean {
   } else if (okField === 'chat') {
     // Chat case - must have 'response' field
     return typeof parsed.response === 'string' && parsed.response.length > 0;
+  } else if (okField === 'tokenSelection') {
+    // Token selection case - must have 'tokenSelection' field with message and tokens array
+    return (
+      parsed.tokenSelection &&
+      typeof parsed.tokenSelection === 'object' &&
+      typeof parsed.tokenSelection.message === 'string' &&
+      Array.isArray(parsed.tokenSelection.tokens)
+    );
   }
 
   return false;

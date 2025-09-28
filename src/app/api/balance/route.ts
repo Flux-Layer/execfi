@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
-import { base } from "viem/chains";
-
-// Map chain IDs to RPC URLs
-const RPC_URLS: Record<number, string> = {
-  8453: `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
-  1: `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
-  42161: `https://arb-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
-  137: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
-};
-
-// Map chain IDs to viem chain configs
-const CHAIN_CONFIGS: Record<number, any> = {
-  8453: base,
-  // Add other chains as needed
-};
+import { getChainConfig, isChainSupported } from "@/lib/chains/registry";
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,22 +28,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get RPC URL for the chain
-    const rpcUrl = RPC_URLS[chainId];
-    if (!rpcUrl) {
+    // Validate chain is supported
+    if (!isChainSupported(chainId)) {
       return NextResponse.json(
-        { error: `Unsupported chain ID: ${chainId}` },
+        { error: `Unsupported chain ID: ${chainId}. Use '/chain list' to see supported chains.` },
         { status: 400 }
       );
     }
 
-    // Get chain config (fallback to base for now)
-    const chain = CHAIN_CONFIGS[chainId] || base;
+    // Get chain configuration
+    const chainConfig = getChainConfig(chainId)!;
 
-    // Create public client
+    // Create public client with chain config from registry
     const publicClient = createPublicClient({
-      chain,
-      transport: http(rpcUrl),
+      chain: chainConfig.wagmiChain,
+      transport: http(chainConfig.rpcUrl),
     });
 
     // Fetch ETH balance

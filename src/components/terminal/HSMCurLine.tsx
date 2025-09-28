@@ -61,6 +61,16 @@ const HSMCurLine = ({
       onSubmit("no");
       setInputText("");
     }
+
+    // Handle /exit command during processing state
+    if (e.key === "Enter" && command === "processing") {
+      const trimmedInput = inputText.trim();
+      if (trimmedInput === "/exit" || trimmedInput === "/close") {
+        e.preventDefault();
+        onSubmit(trimmedInput);
+        setInputText("");
+      }
+    }
   };
 
   // Auto-focus and scroll
@@ -127,7 +137,7 @@ const HSMCurLine = ({
       case "confirm":
         return "Press Enter to confirm, type 'no' or Esc to cancel";
       case "processing":
-        return "Please wait...";
+        return "Please wait... (type /exit to cancel)";
       case "view-mode":
         return "Type command or transaction (/exit to return)";
       default:
@@ -136,6 +146,10 @@ const HSMCurLine = ({
   };
 
   const isInputDisabled = (): boolean => {
+    // Always allow input when typing /exit to escape stuck states
+    if (inputText.startsWith("/exit") || inputText.startsWith("/close")) {
+      return false;
+    }
     return loading || command === "processing";
   };
 

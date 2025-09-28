@@ -9,8 +9,7 @@
 **GRAB** all informations from the docummentations provided in `DOCS_REFERENCES.md` file.
 
 **Goal:** From the terminal, a user types a prompt like `transfer 0.002 ETH on base to 0x…` → app parses intent → validates → executes via the user’s **Privy Smart Account** on **Base mainnet (8453)** → shows explorer link. Works reliably on **Base Sepolia** first, then **Base mainnet** behind an env flag.
-
-**Out of scope (for this PR):** ERC-20 transfers, swaps, bridges, paymaster sponsorship, session keys.
+ERC-20 transfers, swaps, bridges, paymaster sponsorship, session keys.
 
 ---
 
