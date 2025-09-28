@@ -1,36 +1,17 @@
-// app/api/lifi/tokens/search/route.ts - Backward compatibility layer for LI.FI token search
-// This endpoint now proxies to the new multi-provider system while maintaining the same response format
+// app/api/lifi/tokens/search/route.ts - Token search API endpoint
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { tokenQueryEngine } from "@/lib/token-query-engine";
-import {
-  tokenProviderRegistry,
-  lifiTokenProvider,
-  relayTokenProvider,
-  localTokenProvider
-} from "@/lib/token-providers";
-import type { UnifiedToken } from "@/types/unified-token";
+import { searchTokens, LifiError } from "@/lib/lifi-client";
 
-// Initialize providers if not already registered
-if (!tokenProviderRegistry.isProviderActive('lifi')) {
-  tokenProviderRegistry.register(lifiTokenProvider);
-}
-if (!tokenProviderRegistry.isProviderActive('relay')) {
-  tokenProviderRegistry.register(relayTokenProvider);
-}
-if (!tokenProviderRegistry.isProviderActive('local')) {
-  tokenProviderRegistry.register(localTokenProvider);
-}
-
-// Maintain original request validation schema for backward compatibility
+// Request validation schema
 const TokenSearchRequestSchema = z.object({
   symbol: z.string().min(1).max(20).optional(),
   chain: z.number().int().positive().optional(),
   limit: z.number().int().min(1).max(100).default(20),
 });
 
-// Original response schema for backward compatibility
+// Response schema for client-side validation
 const TokenSearchResponseSchema = z.object({
   success: z.boolean(),
   data: z.object({
@@ -79,27 +60,9 @@ const CHAIN_NAMES: Record<number, string> = {
 };
 
 /**
- * Convert UnifiedToken to legacy LI.FI token format
- */
-function convertToLegacyFormat(token: UnifiedToken) {
-  return {
-    address: token.address,
-    symbol: token.symbol,
-    name: token.name,
-    chainId: token.chainId,
-    chainName: token.chainName || CHAIN_NAMES[token.chainId] || `Chain ${token.chainId}`,
-    decimals: token.decimals,
-    logoURI: token.logoURI,
-    verified: token.verified,
-    priceUSD: token.priceUSD,
-  };
-}
-
-/**
  * GET /api/lifi/tokens/search
  *
- * BACKWARD COMPATIBLE endpoint - maintains the same API contract
- * Now powered by the multi-provider system under the hood
+ * Search for tokens across multiple chains using LI.FI
  *
  * Query Parameters:
  * - symbol (optional): Token symbol to search for
@@ -107,17 +70,17 @@ function convertToLegacyFormat(token: UnifiedToken) {
  * - limit (optional): Maximum number of results (default: 20, max: 100)
  *
  * Returns:
- * - tokens: Array of matching tokens with chain information (in original format)
+ * - tokens: Array of matching tokens with chain information
  * - count: Number of tokens returned
  * - requestId: Unique identifier for this search request
  */
 export async function GET(request: NextRequest) {
-  const requestId = `compat_search_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const requestId = `search_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
   try {
-    console.log(`🔍 LI.FI compatible token search request ${requestId} started`);
+    console.log(`🔍 Token search request ${requestId} started`);
 
-    // Parse and validate query parameters using original schema
+    // Parse and validate query parameters
     const { searchParams } = new URL(request.url);
     const rawParams = {
       symbol: searchParams.get("symbol") || undefined,
@@ -125,7 +88,7 @@ export async function GET(request: NextRequest) {
       limit: searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : 20,
     };
 
-    console.log(`📋 LI.FI compatible search parameters:`, rawParams);
+    console.log(`📋 Search parameters:`, rawParams);
 
     // Validate request parameters
     const validatedParams = TokenSearchRequestSchema.parse(rawParams);
@@ -141,36 +104,40 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Convert to multi-provider query format
-    const multiProviderParams = {
+    // Call LI.FI token search API
+    const lifiResponse = await searchTokens({
       symbol: validatedParams.symbol,
-      chainIds: validatedParams.chain ? [validatedParams.chain] : undefined,
+      chain: validatedParams.chain,
       limit: validatedParams.limit,
-      // Prioritize LI.FI for backward compatibility, but include others for better coverage
-      providers: ['lifi', 'local', 'relay'] as any,
-      deduplicate: true,
-      sortBy: 'confidence' as any,
-      sortOrder: 'desc' as any,
-    };
+    });
 
-    // Execute multi-provider search
-    console.log(`🚀 Executing multi-provider search for LI.FI compatibility`);
-    const searchResult = await tokenQueryEngine.searchTokens(multiProviderParams);
+    console.log(`✅ LI.FI returned ${lifiResponse.tokens.length} tokens`);
 
-    if (!searchResult.success) {
-      throw new Error('Multi-provider search failed');
-    }
+    // Enhance response with chain names and verification status
+    const enhancedTokens = lifiResponse.tokens.map(token => ({
+      address: token.address,
+      symbol: token.symbol,
+      name: token.name,
+      chainId: token.chainId,
+      chainName: CHAIN_NAMES[token.chainId] || `Chain ${token.chainId}`,
+      decimals: token.decimals,
+      logoURI: token.logoURI,
+      verified: true, // LI.FI tokens are generally verified
+      priceUSD: token.priceUSD,
+    }));
 
-    // Convert unified tokens back to legacy LI.FI format
-    const legacyTokens = searchResult.tokens.map(convertToLegacyFormat);
-
-    console.log(`✅ LI.FI compatible search returned ${legacyTokens.length} tokens from ${searchResult.metadata.providersSuccessful.length} providers`);
+    // Log successful search
+    console.log(`✅ Token search ${requestId} completed successfully:`, {
+      symbol: validatedParams.symbol,
+      chain: validatedParams.chain,
+      resultCount: enhancedTokens.length,
+    });
 
     const response: TokenSearchResponse = {
       success: true,
       data: {
-        tokens: legacyTokens,
-        count: legacyTokens.length,
+        tokens: enhancedTokens,
+        count: enhancedTokens.length,
         requestId,
       },
     };
@@ -180,14 +147,28 @@ export async function GET(request: NextRequest) {
       headers: {
         "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600", // Cache for 5 minutes
         "X-Request-ID": requestId,
-        "X-Powered-By": "Multi-Provider-System", // Indicate it's powered by the new system
-        "X-Provider-Count": searchResult.metadata.providersSuccessful.length.toString(),
-        "X-Compatibility-Mode": "lifi-legacy",
       },
     });
 
   } catch (error) {
-    console.error(`❌ LI.FI compatible token search ${requestId} failed:`, error);
+    console.error(`❌ Token search ${requestId} failed:`, error);
+
+    // Handle LI.FI specific errors
+    if (error instanceof LifiError) {
+      const response: TokenSearchResponse = {
+        success: false,
+        error: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        },
+      };
+
+      return NextResponse.json(response, {
+        status: error.status || 500,
+        headers: { "X-Request-ID": requestId },
+      });
+    }
 
     // Handle validation errors
     if (error instanceof z.ZodError) {
@@ -229,22 +210,21 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/lifi/tokens/search
  *
- * BACKWARD COMPATIBLE batch search endpoint
- * Now powered by the multi-provider system under the hood
+ * Batch search for multiple tokens or complex search criteria
  *
  * Body:
  * - searches: Array of search criteria objects
  * - options: Global search options
  */
 export async function POST(request: NextRequest) {
-  const requestId = `compat_batch_search_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const requestId = `batch_search_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
   try {
-    console.log(`🔍 LI.FI compatible batch token search request ${requestId} started`);
+    console.log(`🔍 Batch token search request ${requestId} started`);
 
     const body = await request.json();
 
-    // Batch search schema (maintaining original format)
+    // Batch search schema
     const BatchSearchSchema = z.object({
       searches: z.array(z.object({
         symbol: z.string().optional(),
@@ -259,21 +239,15 @@ export async function POST(request: NextRequest) {
 
     const validatedBody = BatchSearchSchema.parse(body);
 
-    console.log(`📋 LI.FI compatible batch search for ${validatedBody.searches.length} queries`);
+    console.log(`📋 Batch search for ${validatedBody.searches.length} queries`);
 
-    // Convert searches to multi-provider format and execute
+    // Execute all searches in parallel
     const searchPromises = validatedBody.searches.map(async (searchParams) => {
       try {
-        const result = await tokenQueryEngine.searchTokens({
-          symbol: searchParams.symbol,
-          chainIds: searchParams.chain ? [searchParams.chain] : undefined,
-          limit: searchParams.limit,
-          providers: ['lifi', 'local', 'relay'] as any,
-          deduplicate: true,
-        });
+        const result = await searchTokens(searchParams);
         return result.tokens;
       } catch (error) {
-        console.error(`❌ Individual compatible search failed:`, error);
+        console.error(`❌ Individual search failed:`, error);
         return [];
       }
     });
@@ -300,31 +274,37 @@ export async function POST(request: NextRequest) {
       return a.symbol.localeCompare(b.symbol);
     });
 
-    // Convert to legacy format
-    const legacyTokens = allTokens.map(convertToLegacyFormat);
+    // Enhance with chain names
+    const enhancedTokens = allTokens.map(token => ({
+      address: token.address,
+      symbol: token.symbol,
+      name: token.name,
+      chainId: token.chainId,
+      chainName: CHAIN_NAMES[token.chainId] || `Chain ${token.chainId}`,
+      decimals: token.decimals,
+      logoURI: token.logoURI,
+      verified: true,
+      priceUSD: token.priceUSD,
+    }));
 
-    console.log(`✅ LI.FI compatible batch token search ${requestId} completed: ${legacyTokens.length} unique tokens`);
+    console.log(`✅ Batch token search ${requestId} completed: ${enhancedTokens.length} unique tokens`);
 
     const response: TokenSearchResponse = {
       success: true,
       data: {
-        tokens: legacyTokens,
-        count: legacyTokens.length,
+        tokens: enhancedTokens,
+        count: enhancedTokens.length,
         requestId,
       },
     };
 
     return NextResponse.json(response, {
       status: 200,
-      headers: {
-        "X-Request-ID": requestId,
-        "X-Powered-By": "Multi-Provider-System",
-        "X-Compatibility-Mode": "lifi-legacy",
-      },
+      headers: { "X-Request-ID": requestId },
     });
 
   } catch (error) {
-    console.error(`❌ LI.FI compatible batch token search ${requestId} failed:`, error);
+    console.error(`❌ Batch token search ${requestId} failed:`, error);
 
     const response: TokenSearchResponse = {
       success: false,

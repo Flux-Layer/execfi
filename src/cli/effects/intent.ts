@@ -153,11 +153,50 @@ export const parseIntentFx: StepDef["onEnter"] = async (
     }
 
     if (isIntentTokenSelection(intentResult)) {
-      console.log("🎯 Token selection needed:", intentResult.tokenSelection);
-      dispatch({
-        type: "INTENT.TOKEN_SELECTION",
-        tokenSelection: intentResult.tokenSelection,
-      });
+      console.log("🎯 Token selection needed, using enhanced resolver");
+
+      // Extract the symbol from the original raw input instead of using AI's hardcoded tokens
+      // Look for token pattern in the raw input (e.g., "send 0.000001 arb to...")
+      const tokenMatch = ctx.raw.match(/(?:send|transfer)\s+[\d.]+\s+(\w+)/i);
+      const ambiguousSymbol = tokenMatch ? tokenMatch[1] : 'UNKNOWN';
+
+      console.log("🔍 Detected ambiguous token symbol:", ambiguousSymbol);
+
+      // Import and use our enhanced token resolver
+      try {
+        const { resolveTokensMultiProvider } = await import("@/lib/normalize");
+
+        console.log("🚀 Calling enhanced token resolver for symbol:", ambiguousSymbol);
+        const enhancedResult = await resolveTokensMultiProvider(ambiguousSymbol);
+
+        console.log("✅ Enhanced resolver returned", enhancedResult.tokens.length, "tokens");
+
+        // Convert to the expected tokenSelection format
+        const enhancedTokenSelection = {
+          message: enhancedResult.message || `Multiple tokens found for '${ambiguousSymbol}'. Please select:`,
+          tokens: enhancedResult.tokens.map((token, index) => ({
+            id: index + 1,
+            chainId: token.chainId,
+            address: token.address,
+            name: token.name,
+            symbol: token.symbol,
+            logoURI: token.logoURI,
+            verified: token.verified,
+          })),
+        };
+
+        dispatch({
+          type: "INTENT.TOKEN_SELECTION",
+          tokenSelection: enhancedTokenSelection,
+        });
+      } catch (error) {
+        console.error("❌ Enhanced token resolver failed, falling back to AI tokens:", error);
+        // Fallback to original AI response if enhanced resolver fails
+        dispatch({
+          type: "INTENT.TOKEN_SELECTION",
+          tokenSelection: intentResult.tokenSelection,
+        });
+      }
       return;
     }
 

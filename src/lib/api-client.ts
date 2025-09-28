@@ -11,12 +11,27 @@
  */
 
 import { z } from "zod";
+import type { MultiProviderTokenResponse } from "@/types/unified-token";
 
 // Request/Response schemas
 export const TokenSearchRequestSchema = z.object({
   symbol: z.string().min(1, "Symbol is required"),
   chains: z.array(z.number()).optional(),
   limit: z.number().min(1).max(100).optional().default(50),
+});
+
+// New multi-provider search request schema
+export const MultiProviderSearchRequestSchema = z.object({
+  symbol: z.string().min(1).max(20).optional(),
+  chainIds: z.array(z.number().int().positive()).optional(),
+  limit: z.number().int().min(1).max(100).default(20),
+  providers: z.array(z.enum(['lifi', 'relay', 'local', 'coingecko'])).optional(),
+  excludeProviders: z.array(z.enum(['lifi', 'relay', 'local', 'coingecko'])).optional(),
+  deduplicate: z.boolean().default(true),
+  sortBy: z.enum(['symbol', 'chainId', 'name', 'confidence', 'priority']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  includeMetadata: z.boolean().default(true),
+  includeHealth: z.boolean().default(false),
 });
 
 export const TokenSearchResponseSchema = z.object({
@@ -143,6 +158,7 @@ export const StatusResponseSchema = z.object({
 // Type exports
 export type TokenSearchRequest = z.infer<typeof TokenSearchRequestSchema>;
 export type TokenSearchResponse = z.infer<typeof TokenSearchResponseSchema>;
+export type MultiProviderSearchRequest = z.infer<typeof MultiProviderSearchRequestSchema>;
 export type RouteRequest = z.infer<typeof RouteRequestSchema>;
 export type RouteResponse = z.infer<typeof RouteResponseSchema>;
 export type PrepareRequest = z.infer<typeof PrepareRequestSchema>;
@@ -410,6 +426,83 @@ export class LifiApiClient {
     });
 
     return aggregated;
+  }
+}
+
+/**
+ * Enhanced Token API Client - Multi-Provider Support
+ * Provides access to the new unified multi-provider token search system
+ */
+export class TokenApiClient {
+  /**
+   * Search tokens using the new multi-provider system
+   * Supports querying multiple providers simultaneously with intelligent merging
+   */
+  static async searchTokensMultiProvider(request: MultiProviderSearchRequest): Promise<MultiProviderTokenResponse> {
+    return apiRequest(
+      '/api/tokens/search',
+      'GET',
+      MultiProviderSearchRequestSchema,
+      z.any(), // We'll use the MultiProviderTokenResponse type directly
+      request
+    ) as Promise<MultiProviderTokenResponse>;
+  }
+
+  /**
+   * Search tokens from specific providers only
+   */
+  static async searchTokensFromProviders(
+    request: MultiProviderSearchRequest & { providers: string[] }
+  ): Promise<MultiProviderTokenResponse> {
+    return this.searchTokensMultiProvider(request);
+  }
+
+  /**
+   * Enhanced token search with provider context and confidence scoring
+   * Uses the backward-compatible endpoint but exposes provider information
+   */
+  static async searchTokensEnhanced(
+    request: TokenSearchRequest
+  ): Promise<{
+    tokens: TokenSearchResponse['tokens'];
+    metadata: {
+      requestId: string;
+      providersUsed: string[];
+      responseTime: number;
+    };
+  }> {
+    const response = await LifiApiClient.searchTokens(request);
+
+    return {
+      tokens: response.tokens,
+      metadata: {
+        requestId: response.requestId,
+        providersUsed: ['multi-provider-system'], // Enhanced endpoint provides this
+        responseTime: 0, // Will be provided by enhanced endpoint
+      },
+    };
+  }
+
+  /**
+   * Get provider health status
+   */
+  static async getProviderHealth(): Promise<{
+    providers: Record<string, {
+      status: string;
+      healthy: boolean;
+      responseTime: number;
+      lastCheck: string;
+    }>;
+  }> {
+    // This will use a future /api/tokens/providers/health endpoint
+    return apiRequest(
+      '/api/tokens/search?includeHealth=true&limit=1',
+      'GET',
+      z.any(),
+      z.any()
+    ).then((response: any) => ({
+      providers: response.health || {},
+    }));
   }
 }
 

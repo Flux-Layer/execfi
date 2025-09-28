@@ -57,6 +57,7 @@ const HSMChatHistory = ({ history }: HSMChatHistoryProps) => {
                       <th className="border border-slate-700 px-3 py-2 text-left">#</th>
                       <th className="border border-slate-700 px-3 py-2 text-left">Token</th>
                       <th className="border border-slate-700 px-3 py-2 text-left">Symbol</th>
+                      <th className="border border-slate-700 px-3 py-2 text-left">Contract Address</th>
                       <th className="border border-slate-700 px-3 py-2 text-left">Chain</th>
                       <th className="border border-slate-700 px-3 py-2 text-left">Verified</th>
                     </tr>
@@ -81,6 +82,25 @@ const HSMChatHistory = ({ history }: HSMChatHistoryProps) => {
                         </td>
                         <td className="border border-slate-700 px-3 py-2 font-mono">
                           {t.symbol}
+                        </td>
+                        <td className="border border-slate-700 px-3 py-2 font-mono text-xs">
+                          {t.address ? (
+                            <span
+                              className="text-slate-300 cursor-pointer hover:text-blue-400 hover:bg-slate-800/50 rounded px-1 transition-colors"
+                              title={`${t.address} (click to copy)`}
+                              onClick={() => {
+                                if (t.address && t.address !== "0x0000000000000000000000000000000000000000") {
+                                  navigator.clipboard.writeText(t.address);
+                                }
+                              }}
+                            >
+                              {t.address === "0x0000000000000000000000000000000000000000"
+                                ? "Native Token"
+                                : `${t.address.slice(0, 6)}...${t.address.slice(-4)}`}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">N/A</span>
+                          )}
                         </td>
                         <td className="border border-slate-700 px-3 py-2">
                           {CHAIN_ID_TO_NAME[t.chainId] || `Chain ${t.chainId}`}
