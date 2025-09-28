@@ -109,7 +109,7 @@ export async function orchestrateTransaction(
 
     // Phase 2: Normalization
     console.log("🔄 Phase 2: Normalizing intent...");
-    const norm = normalizeIntent(intentResult);
+    const norm = await normalizeIntent(intentResult);
     console.log("✅ Intent normalized:", norm);
 
     // Phase 3: Idempotency Check
