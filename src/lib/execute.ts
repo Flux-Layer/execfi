@@ -1,10 +1,195 @@
-// lib/execute.ts - Smart Account execution engine using Privy
+// lib/execute.ts - Smart Account execution engine using Privy + LI.FI
 
-import { formatEther } from "viem";
+import { formatEther, formatUnits } from "viem";
 import type { NormalizedNativeTransfer, NormalizedERC20Transfer, NormalizedIntent } from "./normalize";
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 import { getChainConfig } from "./chains/registry";
+
+// Feature flag for LI.FI execution path
+const ENABLE_LIFI_EXECUTION = process.env.ENABLE_LIFI_EXECUTION === 'true';
+
+// Types for LI.FI API integration
+interface LifiTransactionData {
+  to: string;
+  value: string;
+  data?: string;
+  gasLimit?: string;
+  gasPrice?: string;
+  chainId: number;
+}
+
+interface LifiPrepareResponse {
+  success: boolean;
+  transactionData?: LifiTransactionData;
+  route?: any;
+  quote?: {
+    fromAmount: string;
+    toAmount: string;
+    toAmountMin: string;
+    gasEstimate: string;
+    executionTime: number;
+    priceImpact?: number;
+  };
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+  requestId: string;
+}
+
+/**
+ * Call LI.FI preparation API to get transaction data (Step 7.2 replacement)
+ */
+async function prepareLifiTransaction(
+  norm: NormalizedIntent,
+  fromAddress: string
+): Promise<LifiTransactionData> {
+  const chainConfig = getChainConfig(norm.chainId);
+  if (!chainConfig) {
+    throw new ExecutionError(
+      `Chain configuration not found for chain ${norm.chainId}`,
+      "CHAIN_CONFIG_MISSING"
+    );
+  }
+
+  // Build preparation request based on intent type
+  let prepareRequest: any;
+
+  if (norm.kind === "native-transfer") {
+    // Native ETH transfer via LI.FI (same-chain routing)
+    prepareRequest = {
+      fromChain: norm.chainId,
+      toChain: norm.chainId, // Same chain for native transfers
+      fromToken: "0x0000000000000000000000000000000000000000", // Native token address
+      toToken: "0x0000000000000000000000000000000000000000", // Native token address
+      amount: norm.amountWei.toString(),
+      fromAddress,
+      toAddress: norm.to,
+      slippage: 0.005, // 0.5% slippage for native transfers
+      routePreference: "recommended",
+      validateFreshness: true,
+    };
+  } else if (norm.kind === "erc20-transfer") {
+    // ERC-20 token transfer via LI.FI
+    prepareRequest = {
+      fromChain: norm.chainId,
+      toChain: norm.chainId, // Same chain for ERC-20 transfers
+      fromToken: norm.token.address,
+      toToken: norm.token.address, // Same token for transfers
+      amount: norm.amountWei.toString(),
+      fromAddress,
+      toAddress: norm.to,
+      slippage: 0.005,
+      routePreference: "recommended",
+      validateFreshness: true,
+    };
+  } else {
+    throw new ExecutionError(
+      `Unsupported transfer type for LI.FI: ${(norm as any).kind}`,
+      "UNSUPPORTED_TRANSFER_TYPE"
+    );
+  }
+
+  try {
+    console.log(`🔄 Calling LI.FI preparation API for ${norm.kind}...`);
+
+    const response = await fetch('/api/lifi/prepare', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(prepareRequest),
+      cache: 'no-store', // Always get fresh quotes
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`LI.FI API error: ${response.status} ${errorText}`);
+    }
+
+    const result: LifiPrepareResponse = await response.json();
+
+    if (!result.success || !result.transactionData) {
+      const errorMessage = result.error?.message || "Unknown LI.FI preparation error";
+      const errorCode = result.error?.code || "LIFI_PREPARATION_FAILED";
+
+      console.error(`❌ LI.FI preparation failed [${result.requestId}]:`, result.error);
+
+      throw new ExecutionError(
+        `LI.FI preparation failed: ${errorMessage}`,
+        errorCode
+      );
+    }
+
+    console.log(`✅ LI.FI preparation successful [${result.requestId}]`);
+
+    // Log route information for transparency
+    if (result.quote) {
+      const fromAmount = formatEther(BigInt(result.quote.fromAmount));
+      const toAmount = formatEther(BigInt(result.quote.toAmount));
+      console.log(`📊 Route: ${fromAmount} → ${toAmount} (${result.quote.executionTime}s)`);
+    }
+
+    return result.transactionData;
+
+  } catch (error) {
+    console.error("❌ LI.FI preparation request failed:", error);
+
+    if (error instanceof ExecutionError) {
+      throw error;
+    }
+
+    throw new ExecutionError(
+      `Failed to prepare transaction via LI.FI: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "LIFI_PREPARATION_REQUEST_FAILED"
+    );
+  }
+}
+
+/**
+ * Prepare transaction data directly (current Step 7.2 implementation)
+ */
+async function prepareDirectTransaction(norm: NormalizedIntent): Promise<any> {
+  if (norm.kind === "native-transfer") {
+    // Direct native transfer
+    return {
+      to: norm.to,
+      value: norm.amountWei,
+    };
+  } else if (norm.kind === "erc20-transfer") {
+    // Direct ERC-20 transfer with encoded function data
+    const { encodeFunctionData } = await import("viem");
+    const data = encodeFunctionData({
+      abi: [
+        {
+          name: 'transfer',
+          type: 'function',
+          inputs: [
+            { name: 'to', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ],
+          outputs: [{ name: '', type: 'bool' }],
+          stateMutability: 'nonpayable'
+        }
+      ],
+      functionName: 'transfer',
+      args: [norm.to, norm.amountWei]
+    });
+
+    return {
+      to: norm.token.address,
+      value: 0n,
+      data
+    };
+  } else {
+    throw new ExecutionError(
+      `Unsupported transfer type: ${(norm as any).kind}`,
+      "UNSUPPORTED_TRANSFER_TYPE"
+    );
+  }
+}
 
 export class ExecutionError extends Error {
   constructor(
@@ -25,7 +210,7 @@ export interface ExecutionResult {
 }
 
 /**
- * Execute native ETH transfer using either EOA or Smart Account
+ * Execute native ETH transfer using either EOA or Smart Account (Enhanced with LI.FI)
  */
 export async function executeNativeTransfer(
   norm: NormalizedNativeTransfer,
@@ -33,13 +218,13 @@ export async function executeNativeTransfer(
   clients: {
     smartWalletClient?: any; // Privy Smart Account client
     eoaSendTransaction?: (
-      transaction: { to: `0x${string}`; value: bigint },
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
       options?: { address?: string }
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any; // Privy ConnectedWallet
   }
 ): Promise<ExecutionResult> {
-  // Validate required clients based on account mode
+  // Step 7.1: Client Validation (Enhanced with LI.FI connectivity check)
   if (accountMode === "SMART_ACCOUNT") {
     if (!clients.smartWalletClient) {
       throw new ExecutionError(
@@ -63,23 +248,41 @@ export async function executeNativeTransfer(
       amount: formatEther(norm.amountWei),
       chainId: norm.chainId,
       accountMode,
+      lifiEnabled: ENABLE_LIFI_EXECUTION,
     });
 
+    // Step 7.2: Transaction Preparation (LI.FI vs Direct)
+    let transactionData: any;
+
+    if (ENABLE_LIFI_EXECUTION) {
+      // New: LI.FI preparation path
+      const fromAddress = accountMode === "SMART_ACCOUNT"
+        ? clients.smartWalletClient!.getAddress()
+        : clients.selectedWallet!.address;
+
+      const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
+
+      // Convert LI.FI response to format expected by Privy clients
+      transactionData = {
+        to: lifiTxData.to as `0x${string}`,
+        value: BigInt(lifiTxData.value),
+        data: lifiTxData.data as `0x${string}` | undefined,
+      };
+    } else {
+      // Current: Direct preparation path
+      transactionData = await prepareDirectTransaction(norm);
+    }
+
+    // Step 7.3: Transaction Execution (Unchanged - preserves existing Privy signing)
     let txHash: string;
 
     if (accountMode === "SMART_ACCOUNT") {
       // Execute via Privy Smart Account
-      txHash = await clients.smartWalletClient!.sendTransaction({
-        to: norm.to,
-        value: norm.amountWei,
-      });
+      txHash = await clients.smartWalletClient!.sendTransaction(transactionData);
     } else {
       // Execute via EOA
       const result = await clients.eoaSendTransaction!(
-        {
-          to: norm.to,
-          value: norm.amountWei,
-        },
+        transactionData,
         {
           address: clients.selectedWallet!.address,
         }
@@ -164,7 +367,7 @@ export async function executeNativeTransfer(
 }
 
 /**
- * Execute ERC-20 token transfer using either EOA or Smart Account
+ * Execute ERC-20 token transfer using either EOA or Smart Account (Enhanced with LI.FI)
  * Note: This is prepared for future implementation but not active in MVP
  */
 export async function executeERC20Transfer(
@@ -188,30 +391,48 @@ export async function executeERC20Transfer(
     );
   }
 
-  // Encode the ERC-20 transfer function call
-  const { encodeFunctionData } = await import("viem");
-  const data = encodeFunctionData({
-    abi: [
-      {
-        name: 'transfer',
-        type: 'function',
-        inputs: [
-          { name: 'to', type: 'address' },
-          { name: 'amount', type: 'uint256' }
-        ],
-        outputs: [{ name: '', type: 'bool' }],
-        stateMutability: 'nonpayable'
-      }
-    ],
-    functionName: 'transfer',
-    args: [norm.to, norm.amountWei]
-  });
+  // Step 7.2: Transaction Preparation (LI.FI vs Direct)
+  let transaction: any;
 
-  const transaction = {
-    to: norm.token.address,
-    value: 0n, // ERC-20 transfers don't send native currency
-    data
-  };
+  if (ENABLE_LIFI_EXECUTION) {
+    // New: LI.FI preparation path for ERC-20 transfers
+    const fromAddress = accountMode === "SMART_ACCOUNT"
+      ? clients.smartWalletClient!.getAddress()
+      : clients.selectedWallet!.address;
+
+    const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
+
+    transaction = {
+      to: lifiTxData.to as `0x${string}`,
+      value: BigInt(lifiTxData.value),
+      data: lifiTxData.data as `0x${string}`,
+    };
+  } else {
+    // Current: Direct ERC-20 preparation path
+    const { encodeFunctionData } = await import("viem");
+    const data = encodeFunctionData({
+      abi: [
+        {
+          name: 'transfer',
+          type: 'function',
+          inputs: [
+            { name: 'to', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ],
+          outputs: [{ name: '', type: 'bool' }],
+          stateMutability: 'nonpayable'
+        }
+      ],
+      functionName: 'transfer',
+      args: [norm.to, norm.amountWei]
+    });
+
+    transaction = {
+      to: norm.token.address,
+      value: 0n, // ERC-20 transfers don't send native currency
+      data
+    };
+  }
 
   try {
     let txHash: `0x${string}`;
@@ -361,10 +582,11 @@ export function isSmartAccountDeployed(
 }
 
 /**
- * Format execution error for user display
+ * Format execution error for user display (Enhanced with LI.FI errors)
  */
 export function formatExecutionError(error: ExecutionError): string {
   const errorMessages: Record<string, string> = {
+    // Existing Privy/blockchain errors
     CLIENT_NOT_AVAILABLE: "⚠️ Smart Account not ready. Please refresh and try again.",
     INSUFFICIENT_FUNDS: "💰 Insufficient balance for transaction + gas fees.",
     USER_REJECTED: "❌ Transaction was canceled by user.",
@@ -374,6 +596,18 @@ export function formatExecutionError(error: ExecutionError): string {
     NETWORK_ERROR: "📡 Network connection error. Check your connection.",
     NO_TX_HASH: "❌ Transaction failed to submit properly.",
     EXECUTION_FAILED: "❌ Transaction execution failed.",
+
+    // New LI.FI-specific errors
+    LIFI_PREPARATION_FAILED: "🔗 LI.FI route preparation failed. Please try again.",
+    LIFI_PREPARATION_REQUEST_FAILED: "🌐 LI.FI service unavailable. Please try again.",
+    NO_ROUTES_FOUND: "🚫 No routing available for this transaction.",
+    ROUTE_SELECTION_FAILED: "🔗 Failed to find optimal route.",
+    QUOTE_EXPIRED: "⏰ Route quote expired. Please try again.",
+    CHAIN_CONFIG_MISSING: "⚙️ Chain configuration error. Please contact support.",
+    RATE_LIMIT_EXCEEDED: "⏱️ Too many requests. Please wait a moment.",
+    SDK_ERROR: "🔗 LI.FI SDK error. Please try again.",
+    API_ERROR: "🌐 LI.FI API error. Please try again later.",
+    VALIDATION_ERROR: "❌ Invalid transaction data. Please check parameters.",
   };
 
   return errorMessages[error.code] || `❌ ${error.message}`;

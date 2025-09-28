@@ -1,6 +1,6 @@
-# CLAUDE.md — Project Rules & Operability Guide (ExecFi, Privy Edition)
+# CLAUDE.md — Project Rules & Operability Guide (ExecFi, LI.FI Edition)
 
-> **Purpose.** This file is the _contract_ between our codebase and Claude Code / Claude API. It encodes how Claude should parse, plan, write code, and enforce machine-parsable outputs for our **prompt→transaction DeFi app**, now built on **Privy (embedded EOA)** + **Privy Smart Accounts (ERC-4337)** + **LI.FI**.
+> **Purpose.** This file is the _contract_ between our codebase and Claude Code / Claude API. It encodes how Claude should parse, plan, write code, and enforce machine-parsable outputs for our **prompt→transaction DeFi app**, now built on **Privy (embedded EOA)** + **LI.FI** for routing and execution.
 >
 > **Prime directive.** _Be deterministic._ Prefer strict schemas, typed contracts, and validation gates over clever heuristics.
 > **Always** write detailed changelog to /CHANGELOGS.md.
@@ -11,12 +11,12 @@
 
 - **Intent/Planning mode (AI via OpenRouter)**
   - Input: natural-language terminal prompt.
-  - Output: **strict JSON Intent v1.2** _or_ a single **clarify** object.
-  - Rules: JSON only, no prose, no code fences. Temperature=0.
+  - Output: **strict JSON Intent v1.2**. If ambiguous, respond with a short plain-text nudge requesting a clearer reprompt.
+  - Rules: JSON only on success, no prose, no code fences. Temperature=0.
 
 - **Coding mode (Claude Code in IDE)**
   - Input: `INITIAL.md` → generate PRP → implement against repo.
-  - Stack: TypeScript strict, Viem, React/Next.js, Privy EOA, Privy Smart Accounts.
+  - Stack: TypeScript strict, Viem, React/Next.js, Privy EOA, LI.FI SDK/service bindings.
   - Deliverables: code + tests + docs, aligned with acceptance criteria.
 
 ---
@@ -53,13 +53,7 @@
 }
 ```
 
-- **Clarify**
-
-```json
-{ "ok": false, "clarify": "short question", "missing": ["field"] }
-```
-
-- Rules: no invented data; if ambiguous → clarify; if “max” → `"amount":"MAX"`.
+- Rules: no invented data; if ambiguous → emit plain-text reprompt message; if “max” → `"amount":"MAX"`.
 
 ### 2.2 Normalizer output
 
@@ -74,18 +68,18 @@
 
 ### 2.3 Execution interfaces
 
-- **Native transfer**: `privyClient.sendUserOperation({ to, value })`
-- **LI.FI flow**: `getRoutes` → select → `executeRoute(privyClient, route)`
+- **Native transfer**: `lifi.executeRoute({ signer, route })` (same-chain route for Base).
+- **LI.FI flow** (swaps/bridges): `getRoutes` → select → `executeRoute({ signer, route })`
 
 ---
 
 ## 3) Guardrails & scope
 
-- **Non-custodial**: No server-side keys. Privy holds EOAs, Privy derives SAs client-side.
-- **Smart accounts only**: Canonical address = Privy Smart Account.
+- **Non-custodial**: No server-side keys. Privy holds EOAs (embedded in client session).
+- **EOA execution**: Canonical address = embedded Privy EOA.
 - **Supported chains** (MVP): Base (8453), Ethereum (1), Polygon (137), Arbitrum (42161), Optimism (10), Avalanche (43114). Default = Base.
 - **Gas**: MVP = user-paid. Paymaster integration is out of scope.
-- **Quotes**: Required only for swaps/bridges.
+- **Quotes**: Obtained through LI.FI for every operation (transfers, swaps, bridges).
 - **Safety**: enforce checksum, non-zero addresses, balance+gas headroom, per-tx/day caps, contract allowlists.
 
 ---
@@ -94,8 +88,8 @@
 
 - Determinism > heuristics. Always resolve chain via registry.
 - Keep helpers small and composable.
-- Privy auth + Smart Account SDK wiring are **client-only** (`"use client"`).
-- Version pinning: use **Privy Smart Accounts SDK stable** APIs.
+- Privy auth + signer wiring are **client-only** (`"use client"`).
+- Use stable LI.FI API/SDK versions.
 - Never attempt to export private keys.
 
 ---
@@ -115,18 +109,22 @@
 
 ---
 
-## 6) Privy Smart Account wiring (canonical pattern)
+## 6) Privy EOA + LI.FI wiring (canonical pattern)
 
 ```ts
 "use client";
 
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-const { client } = useSmartWallets();
+import { usePrivy } from "@privy-io/react-auth";
+import { getLifiClient } from "@lifi/sdk";
+
+const { provider } = usePrivy();
+const signer = provider?.getSigner();
+const lifi = getLifiClient({ apiKey: process.env.NEXT_PUBLIC_LIFI_API_KEY });
 ```
 
 **Gotchas:**
 
-- First tx will deploy the smart account.
+- LI.FI routes require correct chain ids and token addresses.
 - User must hold gas tokens in MVP.
 - Must always confirm chain matches app default.
 
@@ -137,6 +135,7 @@ const { client } = useSmartWallets();
 - **Success line**: `✅ Sent 0.002 ETH on Base — hash 0x…`
 - **Error line**: concise + actionable (`Recipient must be a checksummed 0x address`).
 - **Confirm gate**: ask `yes/no` for large/first-time recipients if `CONFIRM_BEFORE_SEND=true`.
+- **Ambiguous prompt**: plain-text nudge, request clearer prompt (no JSON clarify).
 - **Waiting**: show spinner; for LI.FI, stream status updates.
 
 ---
@@ -151,8 +150,8 @@ const { client } = useSmartWallets();
 ## 9) Testing & validation
 
 - **Unit**: intent parsing, normalization, checksum, wei conversion.
-- **Integration**: Base Sepolia, happy path native transfer.
-- **E2E smoke**: terminal prompt → SA executes tx → explorer link shown.
+- **Integration**: Base Sepolia LI.FI transfer (happy + insufficient funds).
+- **E2E smoke**: terminal prompt → LI.FI executes tx → explorer link shown.
 - **Idempotency**: same prompt within 60s must not double-send.
 
 Preferred test stack: Vitest + Testing Library.
@@ -162,10 +161,10 @@ Preferred test stack: Vitest + Testing Library.
 ## 10) Failure taxonomy
 
 - `OFF_POLICY_JSON` – AI emitted invalid JSON → retry once.
-- `MISSING_FIELDS` – emit clarify JSON.
+- `AMBIGUOUS_INTENT` – plain-text nudge requesting clearer prompt.
 - `CHAIN_UNSUPPORTED` – return list of supported chains.
 - `INSUFFICIENT_FUNDS` – tell user to top up.
-- `BUNDLER_REJECTED` / `SIMULATION_FAILED` – short message + log detail.
+- `ROUTE_EXECUTION_FAILED` / `SIMULATION_FAILED` – short message + log detail.
 
 ---
 
@@ -173,7 +172,7 @@ Preferred test stack: Vitest + Testing Library.
 
 - No secret logging.
 - No server-side custody of keys.
-- Maintain allowlists for contracts/tokens.
+- Maintain allowlists for LI.FI-supported contracts/tokens.
 - Session keys (spend caps, TTL) can be added later.
 
 ---
@@ -190,7 +189,7 @@ Preferred test stack: Vitest + Testing Library.
 **Before emitting JSON**
 
 - JSON only
-- Clarify if ambiguous
+- If ambiguous, output plain-text nudge (no JSON)
 - No invented fields
 
 **Before merging code**
@@ -204,13 +203,14 @@ Preferred test stack: Vitest + Testing Library.
 - Recipient checksummed
 - AmountWei > 0, ≤ balance-gas
 - Correct chainId
-- SA deployed if needed
+- Signer ready and connected to correct chain
+- LI.FI route still valid (quote not expired)
 
 ---
 
 **TL;DR**: Claude, be **deterministic**.
 
 - In API mode: emit **Intent JSON** only.
-- In coding mode: follow `/examples`, wire **Privy Smart Accounts**, pass tests, protect users.
+- In coding mode: follow `/examples`, wire **Privy EOA + LI.FI**, pass tests, protect users.
 
 ---
