@@ -6,7 +6,12 @@ import { monitorTransaction, formatMonitoringStatus } from "@/lib/monitor";
  * Enhanced monitoring effect that integrates with LI.FI status tracking
  * Step 3.4: LI.FI Status Tracking Integration (Step 7.6 Enhancement)
  */
-export const monitorFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+export const monitorFx: StepDef["onEnter"] = async (
+  ctx,
+  core,
+  dispatch,
+  signal,
+) => {
   if (!ctx.exec?.hash) {
     dispatch({
       type: "MONITOR.FAIL",
@@ -20,14 +25,18 @@ export const monitorFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal)
   }
 
   try {
-    console.log("🔄 Enhanced monitoring with LI.FI integration:", ctx.exec.hash);
+    console.log(
+      "🔄 Enhanced monitoring with LI.FI integration:",
+      ctx.exec.hash,
+    );
 
     // Add monitoring status to chat
     dispatch({
       type: "CHAT.ADD",
       message: {
         role: "assistant",
-        content: "⏳ Monitoring transaction confirmation with enhanced tracking...",
+        content:
+          "⏳ Monitoring transaction confirmation with enhanced tracking...",
         timestamp: Date.now(),
       },
     });
@@ -38,18 +47,25 @@ export const monitorFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal)
     try {
       // Check if this transaction might benefit from LI.FI tracking
       // (complex routes, cross-chain, or when LI.FI execution was used)
-      const shouldUseLifiTracking = process.env.ENABLE_LIFI_EXECUTION === 'true' ||
-                                   (ctx.norm as any)?.kind === 'swap' ||
-                                   (ctx.norm as any)?.kind === 'bridge' ||
-                                   (ctx.norm as any)?.kind === 'bridge-swap';
+      const shouldUseLifiTracking =
+        process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true" ||
+        (ctx.norm as any)?.kind === "swap" ||
+        (ctx.norm as any)?.kind === "bridge" ||
+        (ctx.norm as any)?.kind === "bridge-swap";
 
       if (shouldUseLifiTracking) {
         console.log("🔄 Attempting LI.FI enhanced tracking...");
-        const lifiStatus = await getLifiTransactionStatus(ctx.exec.hash, ctx.norm);
+        const lifiStatus = await getLifiTransactionStatus(
+          ctx.exec.hash,
+          ctx.norm,
+        );
 
         if (lifiStatus && lifiStatus.success) {
           usedLifiTracking = true;
-          console.log("✅ LI.FI tracking successful:", lifiStatus.status.enhanced);
+          console.log(
+            "✅ LI.FI tracking successful:",
+            lifiStatus.status.enhanced,
+          );
 
           // Update chat with enhanced status
           dispatch({
@@ -79,7 +95,9 @@ export const monitorFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal)
               type: "MONITOR.FAIL",
               error: {
                 code: "TX_FAILED_LIFI",
-                message: lifiStatus.status.enhanced.errorMessage || "Transaction failed (LI.FI tracking)",
+                message:
+                  lifiStatus.status.enhanced.errorMessage ||
+                  "Transaction failed (LI.FI tracking)",
                 detail: lifiStatus,
                 phase: "monitor",
               },
@@ -89,7 +107,10 @@ export const monitorFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal)
         }
       }
     } catch (lifiError) {
-      console.warn("⚠️ LI.FI tracking failed, falling back to standard monitoring:", lifiError);
+      console.warn(
+        "⚠️ LI.FI tracking failed, falling back to standard monitoring:",
+        lifiError,
+      );
     }
 
     // Fallback to standard viem-based monitoring
@@ -157,9 +178,9 @@ export const monitorFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal)
  */
 async function getLifiTransactionStatus(txHash: string, norm: any) {
   try {
-    const response = await fetch('/api/lifi/status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/api/lifi/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         txHash,
         fromChain: norm?.chainId,
@@ -187,14 +208,16 @@ function formatLifiStatusMessage(enhanced: any): string {
   }
 
   if (enhanced.isFailed) {
-    return `❌ Transaction failed: ${enhanced.errorMessage || 'Unknown error'}`;
+    return `❌ Transaction failed: ${enhanced.errorMessage || "Unknown error"}`;
   }
 
   if (enhanced.isPending) {
     const progress = enhanced.progressPercent || 0;
-    const eta = enhanced.estimatedTimeRemaining ? ` (ETA: ${enhanced.estimatedTimeRemaining})` : '';
+    const eta = enhanced.estimatedTimeRemaining
+      ? ` (ETA: ${enhanced.estimatedTimeRemaining})`
+      : "";
     return `⏳ Transaction in progress (${progress}%): ${enhanced.nextAction}${eta}`;
   }
 
-  return `🔄 Transaction status: ${enhanced.nextAction || 'Checking...'}`;
+  return `🔄 Transaction status: ${enhanced.nextAction || "Checking..."}`;
 }
