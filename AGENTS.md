@@ -1,12 +1,12 @@
-# AGENTS.md — Prompt→Transaction Agent System (ExecFi, Privy)
+# AGENTS.md — Prompt→Transaction Agent System (ExecFi, LI.FI)
 
-> **Mission.** Turn natural language into **safe, verifiable on-chain actions** using Privy (embedded EOA) → Privy Smart Accounts (ERC-4337) → LI.FI (routing).
+> **Mission.** Turn natural language into **safe, verifiable on-chain actions** using Privy (embedded EOA) → LI.FI (routing + execution).
 > This document specifies the **agent roster**, **state machine**, **schemas**, **policies**, and **execution wiring**. It is the authoritative reference for the runtime orchestrator.
 
 > **Prime directives**
 >
 > 1. Non-custodial by construction.
-> 2. Smart-accounts-only.
+> 2. EOA-first execution (no smart accounts).
 > 3. JSON contracts over prose.
 > 4. Safety > convenience.
 
@@ -20,8 +20,8 @@ User (Terminal)
     → Normalizer (chains/tokens/amounts/addresses)
       → Policy/Validator (caps, allowlists, balances, invariants)
         → Planner (choose op: transfer | swap | bridge | bridge_swap)
-          → Simulator (gas estimate / quote freshness)
-            → Executor (Privy client / LI.FI)
+          → Simulator (gas & LI.FI quote freshness)
+            → Executor (LI.FI signer client)
               → Monitor (receipts, LI.FI status)
                 → Notifier (terminal lines)
                   → Journal (telemetry, idempotency store)
@@ -38,10 +38,10 @@ User (Terminal)
 │  START    │ ─────────▶ │  INTENT     │ ───────────▶│ NORMALIZE  │ ────────▶│ VALIDATE │ ───────▶│   PLAN     │ ───────▶│ SIMULATE │ ─────▶│ EXECUTE  │ ─────▶│ MONITOR  │
 └───────────┘            │(Claude JSON)│             └────────────┘          └──────────┘          └────────────┘        └──────────┘       └──────────┘
                               │               ▲                 ▲                  ▲                    ▲                     │                │
-                   ok=false   │               │                 │                  │                    │                     │                │
-                           ┌──▼───┐           │                 │                  │                    │                fail │           success/fail
-                           │CLARIFY│──────────┘                 │                  │                    │                     │                │
-                           └──────┘                              │               retry/backoff        re-quote               ▼                ▼
+                   needs_more │               │                 │                  │                    │                     │                │
+                           ┌──▼────┐          │                 │                  │                    │                fail │           success/fail
+                           │RE-PROMPT│────────┘                 │                  │                    │                     │                │
+                           └────────┘                              │               retry/backoff        re-quote               ▼                ▼
                                                               FAIL_POLICY/INPUT  ───────────────────────────▶        ERROR ◀────────────── DONE
 ```
 
@@ -72,11 +72,7 @@ export type IntentSuccess = {
       };
 };
 
-export type IntentClarify = {
-  ok: false;
-  clarify: string;
-  missing: string[];
-};
+// Ambiguous prompts trigger a plain-text reprompt message; no structured clarify schema is emitted.
 ```
 
 ### 2.2 NormalizedIntent (internal)
@@ -147,8 +143,7 @@ Fail → error with actionable message.
 
 ## 5) Planner
 
-- `transfer` + native → native transfer.
-- `transfer` + ERC-20 → erc20 transfer.
+- `transfer` → LI.FI route (same-chain if fromChain=toChain).
 - `swap` / `bridge` / `bridge_swap` → LI.FI route.
 
 Route policy: pick reputable routes, enforce slippage cap, ETA/deadline checks.
@@ -157,41 +152,31 @@ Route policy: pick reputable routes, enforce slippage cap, ETA/deadline checks.
 
 ## 6) Simulator
 
-- **Transfers**: gas estimate, verify balance covers `value+gas`.
+- **Transfers**: confirm LI.FI quote validity, estimate gas from quote, verify balance covers `value+gas`.
 - **LI.FI**: quote freshness; re-quote if expired.
 
 Failures: `SIMULATION_FAILED`, `QUOTE_EXPIRED`.
 
 ---
 
-## 7) Executor (Privy client)
+## 7) Executor (LI.FI client)
 
 ```ts
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-const { client } = useSmartWallets();
-```
+import { getLifiClient } from "@lifi/sdk"; // or lightweight wrapper
 
-**Native transfer**
-
-```ts
-await privyClient.sendUserOperation({ to, value: amountWei });
-```
-
-**LI.FI**
-
-```ts
+const lifi = getLifiClient({ apiKey: process.env.NEXT_PUBLIC_LIFI_API_KEY });
 const routes = await lifi.getRoutes(params);
 const best = pickBestRoute(routes);
-await lifi.executeRoute(privyClient, best);
+await lifi.executeRoute({ signer, route: best });
 ```
 
-Result: tx hash(es) or LI.FI tracking id.
+`signer` is derived from the user’s Privy-provided EOA provider. Result: tx hash(es) or LI.FI tracking id.
 
 ---
 
 ## 8) Monitor & notifier
 
-- Poll receipts for txs via Privy client.
+- Poll receipts for txs via the connected EOA provider.
 - Poll LI.FI status for cross-chain ops.
 - Stream status to terminal (spinner → success/error).
 - Success: `✅ Sent X on Chain — hash 0x…`.
@@ -202,14 +187,14 @@ Result: tx hash(es) or LI.FI tracking id.
 ## 9) Error taxonomy
 
 - `OFF_POLICY_JSON` – invalid AI output.
-- `MISSING_FIELDS` – clarify question.
+- `AMBIGUOUS_INTENT` – prompt user to rephrase.
 - `CHAIN_UNSUPPORTED` – list allowed chains.
 - `ADDRESS_INVALID` – checksum hint.
 - `TOKEN_UNKNOWN` – ask for symbol/address.
 - `INSUFFICIENT_FUNDS` – show required vs available.
 - `QUOTE_EXPIRED` – re-quoting.
 - `SIMULATION_FAILED` – suggest smaller amount.
-- `BUNDLER_REJECTED` – short reason; log detail.
+- `ROUTE_EXECUTION_FAILED` – short reason; log detail.
 
 Always one-liner to user.
 
@@ -233,12 +218,14 @@ DAILY_SPEND_LIMIT_USD = 100
 GAS_HEADROOM_MULT = 1.1
 ```
 
+Multichain configs should mirror LI.FI chain ids to ease future routing work.
+
 ---
 
 ## 12) Security posture
 
 - No secrets in logs.
-- Allowlist contracts for LI.FI.
+- Allowlist LI.FI routers/bridges used in execution.
 - Optional confirm gate for large/new recipients.
 - Future: session keys with TTL + spend caps.
 
@@ -247,8 +234,8 @@ GAS_HEADROOM_MULT = 1.1
 ## 13) Testing plan
 
 **Unit**: JSON parse, schema validation, normalization, validator.
-**Integration**: Base Sepolia transfer (happy + insufficient funds).
-**E2E**: Prompt → execution → explorer link shown.
+**Integration**: Base Sepolia transfer via LI.FI (happy + insufficient funds).
+**E2E**: Prompt → LI.FI route selection → execution → explorer link shown.
 
 ---
 
@@ -256,17 +243,17 @@ GAS_HEADROOM_MULT = 1.1
 
 ```ts
 export async function orchestrate(prompt: string, ctx: Ctx) {
-  const intentRes = await parseIntent(prompt);
-  if (!intentRes.ok) return notifyClarify(intentRes);
+  const intent = await parseIntent(prompt);
+  if (!intent) return notifyReprompt("Need clearer intent.");
 
-  const norm = await normalize(intentRes.intent, ctx);
+  const norm = await normalize(intent, ctx);
   await validate(norm, ctx);
 
   const plan = await planFrom(norm, ctx);
   await simulate(plan, ctx);
 
-  const client = await getPrivyClient(ctx.privyWallet);
-  const receipt = await execute(plan, client, ctx);
+  const signer = await getSigner(ctx.privyProvider);
+  const receipt = await execute(plan, signer, ctx);
 
   return monitorAndNotify(receipt, plan, ctx);
 }
@@ -279,16 +266,17 @@ export async function orchestrate(prompt: string, ctx: Ctx) {
 - Summary before execution.
 - Success → one-line with tx hash.
 - Failure → concise, actionable.
+- Ambiguous prompts → short plain-text nudge, no JSON clarify.
 
 ---
 
 ## 16) Extensibility roadmap
 
-- ERC-20 transfers.
+- ERC-20 transfers via LI.FI quotes/execution.
 - Permit (EIP-2612) approvals.
 - Session keys for micro-ops.
 - Guardians/recovery.
-- Advanced intents (DCA, limit orders).
+- Advanced intents (DCA, limit orders) leveraging LI.FI data services.
 
 ---
 
@@ -300,10 +288,11 @@ export async function orchestrate(prompt: string, ctx: Ctx) {
 /lib/validate.ts         policy checks
 /lib/plan.ts             op mapping, LI.FI route
 /lib/simulate.ts         gas/quote checks
-/lib/execute.ts          Privy client + LI.FI
+/lib/execute.ts          LI.FI execution helpers (EOA signer)
 /lib/monitor.ts          receipts/status
 /lib/registry.ts         chains/tokens
-/hooks/usePrivySA.ts     Privy client wiring
+/services/lifiService.ts LI.FI quoting, token metadata
+/hooks/useEOA.ts         EOA provider/signer wiring
 ```
 
 ---

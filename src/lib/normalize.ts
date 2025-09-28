@@ -4,6 +4,7 @@ import { parseEther, parseUnits, isAddress, getAddress } from "viem";
 import type { IntentSuccess, TransferIntent } from "./ai";
 import { resolveTokenSymbol, type Token } from "./tokens";
 import { resolveChain, isChainSupported, getChainConfig } from "./chains/registry";
+import { LifiApiClient, type TokenSearchResponse } from "./api-client";
 
 export type NormalizedNativeTransfer = {
   kind: "native-transfer";
@@ -63,7 +64,113 @@ function resolveChainForNormalization(chain: string | number): number {
 }
 
 /**
- * Normalize transfer intent to internal format
+ * Enhanced token resolution using LI.FI API
+ * Step 1.4: Token Disambiguation Flow
+ */
+async function resolveLifiToken(
+  symbol: string,
+  chainId?: number
+): Promise<{ needsSelection: boolean; tokens: TokenSearchResponse['tokens']; message?: string }> {
+  try {
+    // Use LI.FI API for comprehensive token search
+    const searchResult = await LifiApiClient.searchTokens({
+      symbol: symbol.toUpperCase(),
+      chains: chainId ? [chainId] : undefined,
+      limit: 50,
+    });
+
+    if (!searchResult.success || searchResult.tokens.length === 0) {
+      return {
+        needsSelection: false,
+        tokens: [],
+        message: `Token '${symbol}' not found on ${chainId ? `chain ${chainId}` : 'any supported chain'}`
+      };
+    }
+
+    // Filter for exact symbol matches (case-insensitive)
+    const exactMatches = searchResult.tokens.filter(
+      token => token.symbol.toLowerCase() === symbol.toLowerCase()
+    );
+
+    if (exactMatches.length === 0) {
+      return {
+        needsSelection: false,
+        tokens: [],
+        message: `No exact matches found for token '${symbol}'`
+      };
+    }
+
+    // If only one match, return it directly
+    if (exactMatches.length === 1) {
+      return {
+        needsSelection: false,
+        tokens: exactMatches,
+      };
+    }
+
+    // Multiple matches found - needs user selection
+    return {
+      needsSelection: true,
+      tokens: exactMatches,
+      message: `Multiple '${symbol}' tokens found across different chains. Please select one:`
+    };
+
+  } catch (error) {
+    console.warn("LI.FI token resolution failed, falling back to local resolution:", error);
+
+    // Fallback to existing token resolution
+    const fallbackResult = resolveTokenSymbol(symbol, chainId || 0);
+    if (fallbackResult.needsSelection) {
+      return {
+        needsSelection: true,
+        tokens: fallbackResult.tokens.map(token => ({
+          address: token.address,
+          symbol: token.symbol,
+          name: token.name,
+          chainId: token.chainId,
+          chainName: `Chain ${token.chainId}`,
+          decimals: token.decimals,
+          logoURI: token.logoURI,
+          verified: token.verified || false,
+          priceUSD: undefined,
+        })),
+        message: fallbackResult.message
+      };
+    } else {
+      return {
+        needsSelection: false,
+        tokens: [{
+          address: fallbackResult.token.address,
+          symbol: fallbackResult.token.symbol,
+          name: fallbackResult.token.name,
+          chainId: fallbackResult.token.chainId,
+          chainName: `Chain ${fallbackResult.token.chainId}`,
+          decimals: fallbackResult.token.decimals,
+          logoURI: fallbackResult.token.logoURI,
+          verified: fallbackResult.token.verified || false,
+          priceUSD: undefined,
+        }],
+      };
+    }
+  }
+}
+
+/**
+ * Enhanced TokenSelectionError with LI.FI token data
+ */
+export class EnhancedTokenSelectionError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public lifiTokens: TokenSearchResponse['tokens'],
+  ) {
+    super(message);
+    this.name = "EnhancedTokenSelectionError";
+  }
+}
+
+/**
+ * Normalize transfer intent to internal format (Enhanced with LI.FI)
  */
 export function normalizeTransferIntent(intent: TransferIntent): NormalizedIntent {
   // Check if we have a selected token with a specific chainId (from token selection flow)

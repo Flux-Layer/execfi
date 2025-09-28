@@ -1,6 +1,6 @@
-# INITIAL.md — MVP Feature Spec: Prompt→Native Transfer on **Base** (Smart-Account Only, Privy)
+# INITIAL.md — MVP Feature Spec: Prompt→Native Transfer on **Base** (EOA + LI.FI)
 
-> This is the single source of truth for the **next shippable increment**. It is scoped to _native ETH transfers on Base_ executed from the terminal via our **Privy Smart Accounts (ERC-4337)** stack. No paymaster in MVP (user pays gas). This file is designed for Claude Code’s `/generate-prp` → `/execute-prp` flow.
+> This is the single source of truth for the **next shippable increment**. It is scoped to _native ETH transfers on Base_ executed from the terminal via the user’s **embedded EOA (Privy login)** routed through **LI.FI**. No paymaster in MVP (user pays gas). This file is designed for Claude Code’s `/generate-prp` → `/execute-prp` flow.
 
 ---
 
@@ -8,24 +8,24 @@
 
 **GRAB** all informations from the docummentations provided in `DOCS_REFERENCES.md` file.
 
-**Goal:** From the terminal, a user types a prompt like `transfer 0.002 ETH on base to 0x…` → app parses intent → validates → executes via the user’s **Privy Smart Account** on **Base mainnet (8453)** → shows explorer link. Works reliably on **Base Sepolia** first, then **Base mainnet** behind an env flag.
-ERC-20 transfers, swaps, bridges, paymaster sponsorship, session keys.
+**Goal:** From the terminal, a user types a prompt like `transfer 0.002 ETH on base to 0x…` → app parses intent → validates → obtains a LI.FI route → executes via the user’s **EOA** on **Base mainnet (8453)** → shows explorer link. Works reliably on **Base Sepolia** first, then **Base mainnet** behind an env flag.
+ERC-20 transfers, swaps, bridges, paymaster sponsorship, session keys remain out of scope for this increment but the architecture must be LI.FI-first for future expansion.
 
 ---
 
 ## 1) Functional requirements
 
 1. **Prompt ingestion**: After login (Privy email+OTP), terminal accepts free-form prompts.
-2. **Intent parse (Claude/OpenRouter)**: LLM returns **JSON-only** in the Intent v1.1/1.2 schema (see CLAUDE.md/AGENTS.md). If missing fields → model returns a **clarify** JSON.
+2. **Intent parse (Claude/OpenRouter)**: LLM returns **JSON-only** in the Intent v1.1/1.2 schema (see CLAUDE.md/AGENTS.md). If the intent is ambiguous we emit a brief plain-text prompt asking the user to rephrase; no structured clarify JSON is returned.
 3. **Sanitization & validation**:
    - Sanitize AI output (`parseAiJson`), validate with Zod schema.
    - Normalize to `{ chainId, amountWei, to }` for native transfer.
    - Validate: supported chain (Base 8453), EIP-55 checksummed recipient, amount > 0, balance ≥ value + gas headroom, daily/per-tx caps (config-driven; allow disable via `.env`).
 
-4. **Execution (AA)**:
-   - Build **Privy Smart Account client** using the user’s embedded EOA (EIP-1193 provider from Privy).
-   - `saClient.sendUserOperation({ to, value })` (no data).
-   - First tx **auto-deploys** the smart account if not yet deployed.
+4. **Execution (LI.FI + EOA)**:
+   - Build an **EOA signer** from the user’s embedded Privy wallet (EIP-1193 provider).
+   - Request a LI.FI route for a same-chain transfer (fromChain=toChain=Base) and verify the quote.
+   - Execute the LI.FI route via `lifi.executeRoute` (or equivalent) using the signer so LI.FI broadcasts the transaction on behalf of the user.
 
 5. **UX**:
    - Show **normalized summary** before executing (optional confirm gate off by default; toggle via env).
@@ -33,7 +33,7 @@ ERC-20 transfers, swaps, bridges, paymaster sponsorship, session keys.
    - On failure: single-line actionable error (see taxonomy).
 
 6. **Idempotency**: Same prompt within 60s must not double-send (derive an idempotency key; in-memory for now).
-7. **Observability**: Log `{ userId, saAddress, promptId, norm, txHash?, status, error? }` (no secrets). Optional Sentry hook.
+7. **Observability**: Log `{ userId, eoaAddress, promptId, norm, txHash?, status, error? }` (no secrets). Optional Sentry hook.
 
 ---
 
@@ -42,7 +42,7 @@ ERC-20 transfers, swaps, bridges, paymaster sponsorship, session keys.
 - **Security**: Non-custodial; no server-side user keys; no logging secrets; contract/chain allowlists.
 - **Determinism**: Strict JSON contracts; TypeScript strict; no silent fallbacks.
 - **Performance**: Parse ≤ 2.5s; tx hash round-trip ≤ 8s (testnets).
-- **Resilience**: Clear errors for off-policy JSON, insufficient funds, bundler rejections; retry LLM once with stricter instruction.
+- **Resilience**: Clear errors for off-policy JSON, ambiguous prompts, insufficient funds, LI.FI route failures; retry LLM once with stricter instruction.
 
 ---
 
@@ -65,11 +65,7 @@ Success (transfer):
 }
 ```
 
-Clarify:
-
-```json
-{ "ok": false, "clarify": "Which chain? (base/mainnet)", "missing": ["chain"] }
-```
+Ambiguous prompts must result in a short plain-text nudge (e.g. `Need amount and recipient.`) instead of a structured clarify object.
 
 ### 3.2 Normalized intent (app internal)
 
@@ -90,8 +86,6 @@ Authenticated state reached → terminal switches to chat mode.
 
 User types prompt.
 
-If ok\:false clarify → render question inline and accept next line.
-
 If ok\:true:
 
 Render summary: You’re sending 0.002 ETH on Base to 0x….
@@ -99,6 +93,8 @@ Render summary: You’re sending 0.002 ETH on Base to 0x….
 (Optional CONFIRM_BEFORE_SEND=true) ask Type YES to confirm.
 
 Execute; show spinner; then success line with explorer URL or error line.
+
+If the model could not disambiguate the prompt, print the plain-text nudge and wait for the user to submit a clearer prompt.
 
 Copy rules: terse, friendly; one-line success/error; no stack traces.
 
@@ -117,14 +113,11 @@ B) Normalization & validation
 - `/src/lib/normalize.ts` — resolve chainId, parse amount, checksum to.
 - `/src/lib/validation.ts` — balance check via Viem (Base), 110% gas buffer, per-tx/day caps.
 
-C) AA wiring (client)
+C) LI.FI wiring (client)
 
-- `/src/hooks/usePrivySA.ts` — Build Privy Smart Account client from embedded EOA. Export { client, saAddress }.
-- Harden usePrivyEOA readiness and ensure single-flight wallet creation.
-
-D) Orchestrator glue
-
-- `/src/lib/execute.ts` — executeNativeTransfer(client, norm): Promise\<string /\* txHash \*/>.
+- `/src/services/lifiService.ts` — quoting helpers (already present).
+- `/src/lib/execute.ts` — executeNativeTransferViaLifi(signer, norm): Promise\<string /\* txHash \*/>.
+- Harden EOA readiness and ensure single-flight signer creation.
 
 E) Idempotency & telemetry
 
@@ -142,7 +135,7 @@ F) Explorer helpers
 ```
 NEXT_PUBLIC_PRIVY_APP_ID=...
 NEXT_PUBLIC_PRIVY_APP_SECRET=...
-##### Optional infra pulled from Privy Dashboard config; override if needed:
+NEXT_PUBLIC_LIFI_API_KEY=... (optional in MVP while using public endpoint)
 NEXT_PUBLIC_RPC_ALCHEMY_KEY=...
 OPENROUTER_API_KEY=...
 APP_CHAIN_DEFAULT=base
@@ -155,14 +148,13 @@ DAILY_SPEND_LIMIT_USD=100
 ## 7) Acceptance criteria
 
 - User logs in (email/OTP). Terminal ready.
-- Prompt transfer 0.001 ETH on base to 0x… executes via Privy Smart Account on Base Sepolia and prints a valid explorer link.
-- Smart Account auto-deployment: if the user’s SA is undeployed, the first transaction deploys it (no extra UX).
-- Handles clarify JSON correctly (e.g., missing chain, missing recipient).
+- Prompt `transfer 0.001 ETH on base to 0x…` executes via LI.FI using the user’s EOA on Base Sepolia and prints a valid explorer link.
+- Handles plain-text ambiguity nudges correctly (e.g., missing chain, missing recipient) without emitting structured clarify JSON.
 - Validation passes: checksummed recipient, amount > 0, sufficient balance + gas headroom.
 - Idempotency works: resubmitting the same prompt within 60s does not double-send.
 - No server-side user key storage or secret logging; only addresses and tx receipts may be logged.
 - Types are strict; lint/tests pass locally and in CI.
-- Bundler success: tx is accepted and included within SLA (≤ 8s on testnet).
+- Route execution success: tx is accepted and included within SLA (≤ 8s on testnet).
 
 **Stretch goals**
 
@@ -182,18 +174,18 @@ DAILY_SPEND_LIMIT_USD=100
 ## 9) Error taxonomy
 
 - `OFF_POLICY_JSON`: “I couldn’t parse that as a transaction. Try: …”
-- `MISSING_FIELDS`: echo clarify question.
+- `AMBIGUOUS_INTENT`: “Need amount and recipient. Please rephrase.”
 - `CHAIN_UNSUPPORTED`: “Only Base supported for now.”
 - `ADDRESS_INVALID`: “Recipient must be a checksummed 0x address.”
 - `INSUFFICIENT_FUNDS`: “Balance too low for amount + gas.”
-- `BUNDLER_REJECTED` / `SIMULATION_FAILED`: “Transaction failed to validate.”
+- `ROUTE_EXECUTION_FAILED` / `SIMULATION_FAILED`: “Transaction failed to validate.”
 
 ---
 
 ## 10) Risks & mitigations
 
 - **LLM off-policy** → enforce schema + retry once.
-- **Bundler variance** → pin to the Privy-configured bundler; surface concise errors.
+- **Route variance** → request fresh LI.FI quote; surface concise errors.
 - **Gas spikes** → add buffer; show readable fee errors.
 - **Duplicates** → idempotency key.
 
@@ -209,7 +201,7 @@ DAILY_SPEND_LIMIT_USD=100
 ## 12) Milestones
 
 - **M1 (Day 1–2)**: AI layer + schemas + terminal branching.
-- **M2 (Day 3–4)**: Privy SA wiring + Base Sepolia integration.
+- **M2 (Day 3–4)**: LI.FI wiring + Base Sepolia integration.
 - **M3 (Day 5)**: Idempotency + error taxonomy polish + docs.
 - **M4**: Enable Base mainnet via env.
 
