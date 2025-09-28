@@ -31,6 +31,8 @@ export async function lifiService(params: {
       toAddress: toAddress ?? fromAddress,
       order,
       slippage: String(slippage),
+      integrator: "execFii",
+      fee: "0.01",
     });
   
     const url = `https://li.quest/v1/quote?${query.toString()}`;
@@ -40,6 +42,7 @@ export async function lifiService(params: {
         method: "GET",
         headers: {
           "Accept": "application/json",
+          "x-lifi-api-key": process.env.NEXT_PUBLIC_LIFI_API_KEY!,
         },
         cache: "no-store",
       });
