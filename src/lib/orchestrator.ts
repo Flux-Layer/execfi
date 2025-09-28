@@ -4,6 +4,7 @@ import {
   parseIntent,
   isIntentSuccess,
   isIntentClarify,
+  isIntentTokenSelection,
   isTransferIntent,
   type Intent,
 } from "./ai";
@@ -83,6 +84,13 @@ export async function orchestrateTransaction(
         success: false,
         clarify: intentResult.clarify,
         missing: intentResult.missing,
+      };
+    }
+
+    if (isIntentTokenSelection(intentResult)) {
+      return {
+        success: false,
+        tokenSelection: intentResult.tokenSelection,
       };
     }
 

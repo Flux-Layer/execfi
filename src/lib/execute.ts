@@ -1,9 +1,10 @@
 // lib/execute.ts - Smart Account execution engine using Privy
 
 import { formatEther } from "viem";
-import type { NormalizedNativeTransfer, NormalizedIntent } from "./normalize";
+import type { NormalizedNativeTransfer, NormalizedERC20Transfer, NormalizedIntent } from "./normalize";
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
+import { getChainConfig } from "./chains/registry";
 
 export class ExecutionError extends Error {
   constructor(
@@ -167,21 +168,132 @@ export async function executeNativeTransfer(
  * Note: This is prepared for future implementation but not active in MVP
  */
 export async function executeERC20Transfer(
-  norm: any, // NormalizedERC20Transfer when implemented
+  norm: NormalizedERC20Transfer,
   accountMode: AccountMode = "EOA",
   clients: {
     smartWalletClient?: any;
     eoaSendTransaction?: (
-      transaction: { to: `0x${string}`; value: bigint },
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
       options?: { address?: string }
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   }
 ): Promise<ExecutionResult> {
-  throw new ExecutionError(
-    "ERC-20 token transfers not yet supported in MVP",
-    "ERC20_NOT_IMPLEMENTED"
-  );
+  // Get chain configuration for explorer URLs
+  const chainConfig = getChainConfig(norm.chainId);
+  if (!chainConfig) {
+    throw new ExecutionError(
+      `Chain configuration not found for chain ${norm.chainId}`,
+      "CHAIN_CONFIG_MISSING"
+    );
+  }
+
+  // Encode the ERC-20 transfer function call
+  const { encodeFunctionData } = await import("viem");
+  const data = encodeFunctionData({
+    abi: [
+      {
+        name: 'transfer',
+        type: 'function',
+        inputs: [
+          { name: 'to', type: 'address' },
+          { name: 'amount', type: 'uint256' }
+        ],
+        outputs: [{ name: '', type: 'bool' }],
+        stateMutability: 'nonpayable'
+      }
+    ],
+    functionName: 'transfer',
+    args: [norm.to, norm.amountWei]
+  });
+
+  const transaction = {
+    to: norm.token.address,
+    value: 0n, // ERC-20 transfers don't send native currency
+    data
+  };
+
+  try {
+    let txHash: `0x${string}`;
+
+    if (accountMode === "SMART_ACCOUNT" && clients.smartWalletClient) {
+      // Execute via Smart Account
+      console.log("🔄 Executing ERC-20 transfer via Smart Account...");
+
+      const userOpHash = await clients.smartWalletClient.sendUserOperation({
+        calls: [transaction]
+      });
+
+      // Wait for the user operation to be processed
+      const receipt = await clients.smartWalletClient.waitForUserOperationReceipt({
+        hash: userOpHash
+      });
+
+      txHash = receipt.receipt.transactionHash as `0x${string}`;
+      console.log("✅ Smart Account ERC-20 transfer executed:", txHash);
+
+    } else if (accountMode === "EOA" && clients.eoaSendTransaction) {
+      // Execute via EOA
+      console.log("🔄 Executing ERC-20 transfer via EOA...");
+
+      const result = await clients.eoaSendTransaction(transaction, {
+        address: clients.selectedWallet?.address
+      });
+
+      txHash = result.hash;
+      console.log("✅ EOA ERC-20 transfer executed:", txHash);
+
+    } else {
+      throw new ExecutionError(
+        `Invalid execution mode: ${accountMode} or missing client`,
+        "INVALID_EXECUTION_MODE"
+      );
+    }
+
+    // Format amounts for display
+    const { formatUnits } = await import("viem");
+    const amountFormatted = formatUnits(norm.amountWei, norm.token.decimals);
+
+    // Build explorer URL
+    const explorerUrl = `${chainConfig.explorerUrl}/tx/${txHash}`;
+
+    return {
+      success: true,
+      txHash,
+      explorerUrl,
+      message: `✅ Sent ${amountFormatted} ${norm.token.symbol} on ${chainConfig.name} — hash ${txHash}`,
+    };
+
+  } catch (error: any) {
+    console.error("ERC-20 execution error:", error);
+
+    // Handle specific error types
+    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+      throw new ExecutionError(
+        "Insufficient token balance for transfer",
+        "INSUFFICIENT_FUNDS"
+      );
+    }
+
+    if (error.message?.includes("user rejected") || error.message?.includes("User rejected")) {
+      throw new ExecutionError(
+        "Transaction was cancelled by user",
+        "USER_REJECTED"
+      );
+    }
+
+    if (error.message?.includes("gas")) {
+      throw new ExecutionError(
+        "Transaction failed due to gas issues",
+        "GAS_ERROR"
+      );
+    }
+
+    throw new ExecutionError(
+      error.message || "ERC-20 transfer failed unexpectedly",
+      error.code || "EXECUTION_FAILED"
+    );
+  }
 }
 
 /**

@@ -219,6 +219,12 @@ function getCommandPrompt(mode: string, flow: any): string {
         return "clarify";
       case "confirm":
         return "confirm";
+      case "normalize":
+      case "validate":
+      case "simulate":
+      case "execute":
+      case "monitor":
+        return "processing";
       default:
         if (flow.tokenSelection) {
           return "select-token";

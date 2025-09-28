@@ -1,6 +1,7 @@
 // Command registry and router for ExecFi CLI
 import type { CommandDef, CommandRegistry } from "./types";
 import * as CoreCommands from "./core";
+import { chainCmd } from "./chain";
 
 // Build the command registry
 export const COMMANDS: CommandDef[] = [
@@ -16,6 +17,7 @@ export const COMMANDS: CommandDef[] = [
   CoreCommands.exitCmd,
   CoreCommands.cancelCmd,
   CoreCommands.resetCmd,
+  chainCmd,
 ];
 
 // Build alias map for fast lookup

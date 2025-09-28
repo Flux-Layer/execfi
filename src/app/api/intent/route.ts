@@ -117,11 +117,16 @@ async function callOpenRouter(prompt: string, systemPrompt: string, apiKey: stri
   const rawContent = data.choices[0].message.content;
 
   try {
+    // Log the raw AI response for debugging
+    console.log("🤖 AI Response:", rawContent);
+
     // Parse and sanitize the JSON
     const parsed = parseAiJson(rawContent);
+    console.log("📝 Parsed JSON:", JSON.stringify(parsed, null, 2));
 
     // Basic shape validation
     if (!validateIntentShape(parsed)) {
+      console.log("❌ Shape validation failed for:", parsed);
       throw new IntentParseError("Invalid response shape", "OFF_POLICY_JSON");
     }
 

@@ -2,11 +2,11 @@
 
 import { z } from 'zod';
 
-// Token schema for native transfers
+// Token schema for native transfers - supports all chain native tokens
 const NativeTokenSchema = z.object({
   type: z.literal('native'),
-  symbol: z.literal('ETH'),
-  decimals: z.literal(18),
+  symbol: z.string(), // ETH, AVAX, MATIC, etc.
+  decimals: z.number(), // Usually 18, but flexible
 });
 
 // Token schema for ERC-20 transfers
@@ -68,16 +68,35 @@ const IntentChatSchema = z.object({
   response: z.string().min(1), // natural conversational response
 });
 
+// Token selection response schema (for ambiguous tokens)
+const IntentTokenSelectionSchema = z.object({
+  ok: z.literal("tokenSelection"),
+  tokenSelection: z.object({
+    message: z.string().min(1),
+    tokens: z.array(z.object({
+      id: z.number(),
+      chainId: z.number(),
+      address: z.string(),
+      name: z.string(),
+      symbol: z.string(),
+      logoURI: z.string().optional(),
+      verified: z.boolean().optional(),
+    })),
+  }),
+});
+
 // Main intent schema (discriminated union)
 export const IntentSchema = z.discriminatedUnion('ok', [
   IntentSuccessSchema,
   IntentClarifySchema,
+  IntentTokenSelectionSchema,
   IntentChatSchema,
 ]);
 
 // Export types
 export type IntentSuccess = z.infer<typeof IntentSuccessSchema>;
 export type IntentClarify = z.infer<typeof IntentClarifySchema>;
+export type IntentTokenSelection = z.infer<typeof IntentTokenSelectionSchema>;
 export type IntentChat = z.infer<typeof IntentChatSchema>;
 export type Intent = z.infer<typeof IntentSchema>;
 export type TransferIntent = z.infer<typeof TransferIntentSchema>;
@@ -93,7 +112,11 @@ export function isIntentSuccess(intent: Intent): intent is IntentSuccess {
 }
 
 export function isIntentClarify(intent: Intent): intent is IntentClarify {
-  return intent.ok === false;
+  return intent.ok === false && 'clarify' in intent;
+}
+
+export function isIntentTokenSelection(intent: Intent): intent is IntentTokenSelection {
+  return intent.ok === "tokenSelection";
 }
 
 export function isIntentChat(intent: Intent): intent is IntentChat {

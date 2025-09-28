@@ -11,109 +11,24 @@ export interface Token {
   verified?: boolean;
 }
 
-/**
- * Base Sepolia token registry
- * This is a small subset for MVP - in production this would be fetched from a token list API
- */
-const BASE_SEPOLIA_TOKENS: Token[] = [
-  {
-    id: 1,
-    chainId: 84532,
-    address: "0x0000000000000000000000000000000000000000", // Native ETH
-    name: "Ethereum",
-    symbol: "ETH",
-    decimals: 18,
-    verified: true,
-  },
-  {
-    id: 2,
-    chainId: 84532,
-    address: "0x4A3A6Dd60A34bB2Aba60D73B4C88315E9CeB6A3D", // Example USDC on Base Sepolia
-    name: "USD Coin",
-    symbol: "USDC",
-    decimals: 6,
-    logoURI: "https://coin-images.coingecko.com/coins/images/6319/small/USD_Coin_icon.png",
-    verified: true,
-  },
-  {
-    id: 3,
-    chainId: 84532,
-    address: "0x853154e2A5604E5C74a2546E2871Ad44932eB92C", // Example WETH on Base Sepolia
-    name: "Wrapped Ethereum",
-    symbol: "WETH",
-    decimals: 18,
-    logoURI: "https://coin-images.coingecko.com/coins/images/2518/small/weth.png",
-    verified: true,
-  },
-  {
-    id: 4,
-    chainId: 84532,
-    address: "0x7b4adf64b0d60ff97d672e473420203d52562a84", // Example DAI on Base Sepolia
-    name: "Dai Stablecoin",
-    symbol: "DAI",
-    decimals: 18,
-    logoURI: "https://coin-images.coingecko.com/coins/images/9956/small/dai-multi-collateral-mcd.png",
-    verified: true,
-  },
-  {
-    id: 5,
-    chainId: 84532,
-    address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", // Example unverified ETH-like token
-    name: "Ethereum Classic",
-    symbol: "ETC",
-    decimals: 18,
-    verified: false,
-  },
-];
+// Token definitions moved to centralized chain registry
+// Import getChainConfig to access token data from registry
+
+import { getChainConfig } from "./chains/registry";
 
 /**
- * Base mainnet token registry (smaller subset for MVP)
+ * Get tokens for a chain from centralized registry
  */
-const BASE_MAINNET_TOKENS: Token[] = [
-  {
-    id: 1,
-    chainId: 8453,
-    address: "0x0000000000000000000000000000000000000000", // Native ETH
-    name: "Ethereum",
-    symbol: "ETH",
-    decimals: 18,
-    verified: true,
-  },
-  {
-    id: 2,
-    chainId: 8453,
-    address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
-    name: "USD Coin",
-    symbol: "USDC",
-    decimals: 6,
-    logoURI: "https://coin-images.coingecko.com/coins/images/6319/small/USD_Coin_icon.png",
-    verified: true,
-  },
-  {
-    id: 3,
-    chainId: 8453,
-    address: "0x4200000000000000000000000000000000000006", // WETH on Base
-    name: "Wrapped Ethereum",
-    symbol: "WETH",
-    decimals: 18,
-    logoURI: "https://coin-images.coingecko.com/coins/images/2518/small/weth.png",
-    verified: true,
-  },
-];
-
-/**
- * All tokens registry by chain
- */
-const TOKEN_REGISTRY: Record<number, Token[]> = {
-  84532: BASE_SEPOLIA_TOKENS, // Base Sepolia
-  8453: BASE_MAINNET_TOKENS,  // Base Mainnet
-};
+function getTokenRegistryForChain(chainId: number): Token[] {
+  const chainConfig = getChainConfig(chainId);
+  return chainConfig?.tokens || [];
+}
 
 /**
  * Search for tokens by symbol with fuzzy matching
  */
 export function searchTokensBySymbol(symbol: string, chainId: number): Token[] {
-  const tokens = TOKEN_REGISTRY[chainId] || [];
+  const tokens = getTokenRegistryForChain(chainId);
   const searchTerm = symbol.toLowerCase();
 
   // Exact match first
@@ -146,7 +61,7 @@ export function searchTokensBySymbol(symbol: string, chainId: number): Token[] {
  * Get token by address
  */
 export function getTokenByAddress(address: string, chainId: number): Token | undefined {
-  const tokens = TOKEN_REGISTRY[chainId] || [];
+  const tokens = getTokenRegistryForChain(chainId);
   return tokens.find(token =>
     token.address.toLowerCase() === address.toLowerCase()
   );
@@ -156,7 +71,7 @@ export function getTokenByAddress(address: string, chainId: number): Token | und
  * Get native token for chain
  */
 export function getNativeToken(chainId: number): Token | undefined {
-  const tokens = TOKEN_REGISTRY[chainId] || [];
+  const tokens = getTokenRegistryForChain(chainId);
   return tokens.find(token =>
     token.address === "0x0000000000000000000000000000000000000000"
   );
@@ -174,7 +89,7 @@ export function isTokenSymbolAmbiguous(symbol: string, chainId: number): boolean
  * Get all tokens for a chain
  */
 export function getTokensForChain(chainId: number): Token[] {
-  return TOKEN_REGISTRY[chainId] || [];
+  return getTokenRegistryForChain(chainId);
 }
 
 /**
@@ -217,7 +132,8 @@ export function resolveTokenSymbol(symbol: string, chainId: number): TokenResolu
   }
 
   // Multiple matches - need user selection
-  const chainName = chainId === 84532 ? "Base Sepolia" : chainId === 8453 ? "Base" : `Chain ${chainId}`;
+  const chainConfig = getChainConfig(chainId);
+  const chainName = chainConfig?.name || `Chain ${chainId}`;
   return {
     needsSelection: true,
     message: `Found ${matches.length} tokens matching "${symbol}" on ${chainName}. Please select:`,

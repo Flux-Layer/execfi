@@ -1,7 +1,31 @@
 // lib/monitor.ts - Transaction monitoring and status tracking
 
-import { createPublicClient, http, type TransactionReceipt, type Hash } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import {
+  createPublicClient,
+  http,
+  type TransactionReceipt,
+  type Hash,
+} from "viem";
+import {
+  base, // base mainnet
+  baseSepolia, // base testnet sepolia
+  mainnet, // eth mainnet
+  sepolia, // eth testnet sepolia
+  polygon, // polygon mainnet
+  polygonAmoy, // polygon testnet amoy
+  arbitrum, // arbitrum mainnet
+  arbitrumSepolia, // arbitrum testnet sepolia
+  optimism, // optimism mainnet
+  optimismSepolia, // optimism testnet sepolia
+  avalanche, // avax mainnet
+  avalancheFuji, // avax testnet fuji
+  bsc, // bsc mainnet
+  bscTestnet, // bsc testnet
+  abstract, // abstract mainnet
+  abstractTestnet, // asbtract testnet
+  lisk, // lisk mainnet
+  liskSepolia, // listk testnet sepolia
+} from "viem/chains";
 
 export class MonitoringError extends Error {
   constructor(
@@ -31,7 +55,7 @@ export interface MonitoringConfig {
  */
 const DEFAULT_CONFIG: MonitoringConfig = {
   maxWaitTime: 60 * 1000, // 60 seconds
-  pollInterval: 2 * 1000, // 2 seconds
+  pollInterval: 5 * 1000, // 2 seconds
   requiredConfirmations: 1, // 1 confirmation for testnet
 };
 
@@ -39,13 +63,61 @@ const DEFAULT_CONFIG: MonitoringConfig = {
  * Chain configuration for monitoring
  */
 const CHAIN_CONFIG = {
+  // Base Mainnet
   8453: {
     chain: base,
     rpcUrl: `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
   },
+  // Base Sepolia
   84532: {
     chain: baseSepolia,
     rpcUrl: `https://base-sepolia.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
+  },
+  // Ethereum Mainnet
+  1: {
+    chain: mainnet,
+    rpcUrl: `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
+  },
+  // Ethereum Sepolia
+  11155111: {
+    chain: sepolia,
+    rpcUrl: `https://eth-sepolia.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
+  },
+  // Polygon
+  137: {
+    chain: polygon,
+    rpcUrl: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
+  },
+  // Arbitrum One
+  42161: {
+    chain: arbitrum,
+    rpcUrl: `https://arb-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
+  },
+  // Optimism
+  10: {
+    chain: optimism,
+    rpcUrl: `https://opt-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_KEY}`,
+  },
+  // Avalanche
+  43114: {
+    chain: avalanche,
+    rpcUrl: `https://avalanche.publicnode.com`,
+  },
+  56: {
+    chain: bsc,
+    rpcUrl: bsc?.rpcUrls?.default?.http?.[0],
+  },
+  97: {
+    chain: bscTestnet,
+    rpcUrl: bscTestnet?.rpcUrls?.default?.http?.[0],
+  },
+  2741: {
+    chain: abstract,
+    rpcUrl: abstract?.rpcUrls?.default?.http?.[0],
+  },
+  11124: {
+    chain: abstractTestnet,
+    rpcUrl: abstractTestnet?.rpcUrls?.default?.http?.[0],
   },
 };
 
@@ -57,7 +129,7 @@ function getPublicClient(chainId: number) {
   if (!config) {
     throw new MonitoringError(
       `Unsupported chainId for monitoring: ${chainId}`,
-      "CHAIN_UNSUPPORTED"
+      "CHAIN_UNSUPPORTED",
     );
   }
 
@@ -76,12 +148,18 @@ async function getTransactionReceipt(
 ): Promise<TransactionReceipt | null> {
   const publicClient = getPublicClient(chainId);
 
+  console.log({ publicClient });
+
   try {
     const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
-    return receipt;
+    console.log({ receipt });
+    return receipt as any;
   } catch (error: any) {
     // If transaction not found, return null (still pending)
-    if (error?.message?.includes("not found") || error?.cause?.code === -32000) {
+    if (
+      error?.message?.includes("not found") ||
+      error?.cause?.code === -32000
+    ) {
       return null;
     }
     throw error;
@@ -131,7 +209,7 @@ export async function checkTransactionStatus(
   } catch (error: any) {
     throw new MonitoringError(
       `Failed to check transaction status: ${error?.message || "Unknown error"}`,
-      "STATUS_CHECK_FAILED"
+      "STATUS_CHECK_FAILED",
     );
   }
 }
@@ -181,21 +259,26 @@ export async function monitorTransaction(
           const confirmations = status.confirmations || 0;
 
           if (confirmations >= finalConfig.requiredConfirmations) {
-            console.log(`✅ Transaction ${txHash} confirmed with ${confirmations} confirmations`);
+            console.log(
+              `✅ Transaction ${txHash} confirmed with ${confirmations} confirmations`,
+            );
             resolve(status);
           } else {
-            console.log(`⏳ Transaction ${txHash} confirmed but waiting for more confirmations (${confirmations}/${finalConfig.requiredConfirmations})`);
+            console.log(
+              `⏳ Transaction ${txHash} confirmed but waiting for more confirmations (${confirmations}/${finalConfig.requiredConfirmations})`,
+            );
             setTimeout(checkStatus, finalConfig.pollInterval);
           }
           return;
         }
-
       } catch (error: any) {
         console.error("❌ Transaction monitoring error:", error);
-        reject(new MonitoringError(
-          `Transaction monitoring failed: ${error?.message || "Unknown error"}`,
-          "MONITORING_FAILED"
-        ));
+        reject(
+          new MonitoringError(
+            `Transaction monitoring failed: ${error?.message || "Unknown error"}`,
+            "MONITORING_FAILED",
+          ),
+        );
       }
     };
 
@@ -233,7 +316,7 @@ export async function getTransactionConfirmation(
   } catch (error: any) {
     throw new MonitoringError(
       `Failed to get transaction confirmation: ${error?.message || "Unknown error"}`,
-      "CONFIRMATION_CHECK_FAILED"
+      "CONFIRMATION_CHECK_FAILED",
     );
   }
 }
@@ -255,21 +338,21 @@ export async function waitForConfirmations(
   if (result.status === "failed") {
     throw new MonitoringError(
       `Transaction failed: ${result.error || "Unknown error"}`,
-      "TRANSACTION_FAILED"
+      "TRANSACTION_FAILED",
     );
   }
 
   if (result.status === "pending") {
     throw new MonitoringError(
       `Transaction timeout: Still pending after ${timeout}ms`,
-      "TRANSACTION_TIMEOUT"
+      "TRANSACTION_TIMEOUT",
     );
   }
 
   if (!result.receipt) {
     throw new MonitoringError(
       "Transaction confirmed but no receipt available",
-      "NO_RECEIPT"
+      "NO_RECEIPT",
     );
   }
 
@@ -286,7 +369,7 @@ export function formatMonitoringStatus(status: TransactionStatus): string {
 
     case "confirmed":
       const confirmations = status.confirmations || 0;
-      return `✅ Transaction confirmed with ${confirmations} confirmation${confirmations === 1 ? '' : 's'}`;
+      return `✅ Transaction confirmed with ${confirmations} confirmation${confirmations === 1 ? "" : "s"}`;
 
     case "failed":
       return `❌ Transaction failed: ${status.error || "Unknown error"}`;
@@ -300,11 +383,35 @@ export function formatMonitoringStatus(status: TransactionStatus): string {
  * Get estimated confirmation time for chain
  */
 export function getEstimatedConfirmationTime(chainId: number): number {
-  // Base networks have ~2 second block times
-  if (chainId === 8453 || chainId === 84532) {
-    return 2000; // 2 seconds
-  }
+  switch (chainId) {
+    // Base networks have ~2 second block times
+    case 8453: // Base
+    case 84532: // Base Sepolia
+      return 2000; // 2 seconds
 
-  // Default to Ethereum timing
-  return 12000; // 12 seconds
+    // Ethereum networks have ~12 second block times
+    case 1: // Ethereum Mainnet
+    case 11155111: // Ethereum Sepolia
+      return 12000; // 12 seconds
+
+    // Polygon has ~2 second block times
+    case 137: // Polygon
+      return 2000; // 2 seconds
+
+    // Arbitrum has ~0.25 second block times
+    case 42161: // Arbitrum One
+      return 250; // 0.25 seconds
+
+    // Optimism has ~2 second block times
+    case 10: // Optimism
+      return 2000; // 2 seconds
+
+    // Avalanche has ~2 second block times
+    case 43114: // Avalanche
+      return 2000; // 2 seconds
+
+    // Default to Ethereum timing
+    default:
+      return 12000; // 12 seconds
+  }
 }

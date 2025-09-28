@@ -169,7 +169,8 @@ export type AppEvent =
   | { type: "AUTH.LOGOUT" }
   | { type: "COMMAND.EXECUTE"; command: string; args: any }
   | { type: "BALANCE.FETCH"; chainId?: number; chainName?: string }
-  | { type: "TERMINAL.CLEAR" };
+  | { type: "TERMINAL.CLEAR" }
+  | { type: "CHAIN.UPDATE"; chainId: number };
 
 // Helper types for effect definitions
 export type Dispatch = (e: AppEvent) => void;

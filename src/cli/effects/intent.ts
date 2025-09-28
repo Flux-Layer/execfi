@@ -1,9 +1,20 @@
 // Intent parsing effects using existing orchestrator logic
 import type { StepDef, Dispatch } from "../state/types";
-import { parseIntent, isIntentSuccess, isIntentClarify, isIntentChat } from "@/lib/ai";
+import {
+  parseIntent,
+  isIntentSuccess,
+  isIntentClarify,
+  isIntentChat,
+  isIntentTokenSelection,
+} from "@/lib/ai";
 import { routeCommand, isCommand, suggestCommands } from "../commands/registry";
 
-export const parseIntentFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+export const parseIntentFx: StepDef["onEnter"] = async (
+  ctx,
+  core,
+  dispatch,
+  signal,
+) => {
   if (!ctx.raw) {
     dispatch({
       type: "INTENT.CLARIFY",
@@ -85,9 +96,10 @@ export const parseIntentFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
     } else {
       // Unknown command - suggest alternatives
       const suggestions = suggestCommands(input);
-      const suggestionText = suggestions.length > 0
-        ? ` Did you mean: ${suggestions.join(", ")}?`
-        : " Use /help to see available commands.";
+      const suggestionText =
+        suggestions.length > 0
+          ? ` Did you mean: ${suggestions.join(", ")}?`
+          : " Use /help to see available commands.";
 
       dispatch({
         type: "OVERLAY.PUSH",
@@ -108,6 +120,8 @@ export const parseIntentFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
     console.log("🔄 Parsing intent:", ctx.raw);
 
     const intentResult = await parseIntent(ctx.raw);
+
+    console.log({ intentResult });
 
     if (signal.aborted) return;
 
@@ -138,6 +152,15 @@ export const parseIntentFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
       return;
     }
 
+    if (isIntentTokenSelection(intentResult)) {
+      console.log("🎯 Token selection needed:", intentResult.tokenSelection);
+      dispatch({
+        type: "INTENT.TOKEN_SELECTION",
+        tokenSelection: intentResult.tokenSelection,
+      });
+      return;
+    }
+
     if (isIntentSuccess(intentResult)) {
       console.log("✅ Intent parsed successfully:", intentResult.intent);
       dispatch({
@@ -150,7 +173,8 @@ export const parseIntentFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
     // Fallback for unexpected response format
     dispatch({
       type: "INTENT.CLARIFY",
-      prompt: "Could not understand your request. Please try again with more specific details.",
+      prompt:
+        "Could not understand your request. Please try again with more specific details.",
       missing: ["action"],
     });
   } catch (error: any) {
