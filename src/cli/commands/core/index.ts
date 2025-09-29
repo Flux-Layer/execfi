@@ -29,7 +29,7 @@ export const helpCmd: CommandDef = {
       // Show general help - simplified for now
       const helpText = `📚 Available Commands
 
-CORE COMMANDS:
+CORE COMMANDS (Phase 1):
   /help (/?) - Show commands and usage
   /whoami - Show current user, chain, and account info
   /balance (/bal) - Show native token balance
@@ -44,13 +44,42 @@ CORE COMMANDS:
   /cancel - Cancel current flow or operation
   /reset (/restart) - Emergency reset
 
+ESSENTIAL COMMANDS (Phase 2):
+  /balances (/bals) - Show all token balances across networks
+  /tx <hash> - Show transaction details and status
+  /txs [limit] - Show recent transaction history
+  /pending - Show pending transactions
+
+ADVANCED FEATURES (Phase 3):
+  /session - Manage session signers and policies
+  /policy - Configure transaction policies
+  /limits - Set spending limits
+  /approve (/allow) - Approve token allowances for contracts
+  /allowances - View current token allowances
+  /revoke - Revoke token allowances
+  /addressbook (/contacts) - Show saved contacts and addresses
+  /contact - Add new contacts
+  /state - Show current application state (debug)
+  /logs - View application logs and events
+  /trace - Trace transaction execution
+  /config - View and modify configuration
+
+DEFI INTEGRATION (Phase 4):
+  /swap (/sw) - Execute token swaps using LI.FI
+  /bridge (/br) - Execute cross-chain token transfers
+  /quote (/q, /price) - Get quotes for swaps and bridges
+  /ens (/name) - Resolve ENS names to addresses
+  /sign (/sig) - Sign messages with your wallet
+  /verify (/ver) - Verify message signatures
+
 CHAIN MANAGEMENT:
   /chain list - Show all supported chains
   /chain switch <name> - Switch to a different chain
   /chain current - Show current chain status
   /chain info <name> - Show detailed chain information
 
-💡 Tip: You can also use natural language like "send 0.1 ETH to vitalik.eth"`;
+💡 Tip: You can also use natural language like "send 0.1 ETH to vitalik.eth"
+🚀 25+ commands available! Try /swap ETH USDC 0.1 or /ens vitalik.eth`;
 
       dispatch({
         type: "CHAT.ADD",
@@ -62,8 +91,7 @@ CHAIN MANAGEMENT:
       });
     }
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - no need to dispatch FLOW.COMPLETE for CLI commands
   },
 };
 
@@ -98,8 +126,7 @@ export const whoamiCmd: CommandDef = {
       },
     });
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - no need to dispatch FLOW.COMPLETE for CLI commands
   },
 };
 
@@ -145,7 +172,6 @@ export const balanceCmd: CommandDef = {
           timestamp: Date.now(),
         },
       });
-      dispatch({ type: "FLOW.COMPLETE" });
       return;
     }
 
@@ -183,7 +209,7 @@ Chain: ${chainName} (${targetChain})
           },
         });
 
-        dispatch({ type: "FLOW.COMPLETE" });
+        // Command completed successfully
       })
       .catch((error) => {
         console.error("Price fetch error:", error);
@@ -213,7 +239,7 @@ Chain: ${chainName} (${targetChain})
           },
         });
 
-        dispatch({ type: "FLOW.COMPLETE" });
+        // Command completed with fallback data
       });
   },
 };
@@ -231,8 +257,7 @@ export const clearCmd: CommandDef = {
       type: "TERMINAL.CLEAR",
     });
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - terminal cleared
   },
 };
 
@@ -287,8 +312,7 @@ Quick Actions:
       },
     });
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - account info displayed
   },
 };
 

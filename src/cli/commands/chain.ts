@@ -148,7 +148,7 @@ export const chainCmd: CommandDef = {
     try {
       switch (action) {
         case "list": {
-          const includeTestnets = args.testnets || args.all;
+          const includeTestnets = args.testnets || args.all || true; // Show testnets by default
           const chains = getSupportedChains();
           const listText = formatChainList(chains, includeTestnets);
 
@@ -321,7 +321,6 @@ export const chainCmd: CommandDef = {
       });
     }
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - no need to dispatch FLOW.COMPLETE for CLI commands
   },
 };

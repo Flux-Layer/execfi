@@ -51,10 +51,11 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       const text = event.text.trim();
       if (!text) return state;
 
-      // NOTE: Old slash command system disabled - all commands now handled by intent.ts
-      // This ensures the new unified command system takes precedence
-      // const slashEvent = parseSlashCommand(text);
-      // if (slashEvent) { ... }
+      // Check for slash commands first
+      const slashEvent = parseSlashCommand(text);
+      if (slashEvent) {
+        return reducer(state, slashEvent);
+      }
 
       // Regular input - start a flow if in IDLE or VIEW mode
       if (state.mode === "IDLE" || state.mode === "VIEW") {
@@ -616,19 +617,21 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       }
 
       // Handle FLOW mode cancellation
+      const shouldShowMessage = !event.silent;
+
       return {
         ...state,
         mode: "IDLE",
         flow: undefined,
         viewStack: [], // Clear view stack when cancelling flow
-        chatHistory: [
+        chatHistory: shouldShowMessage ? [
           ...state.chatHistory,
           {
             role: "assistant",
             content: state.flow ? "Flow cancelled." : "Returned to main terminal.",
             timestamp: Date.now(),
           },
-        ],
+        ] : state.chatHistory,
       };
 
     case "FLOW.RETRY":
@@ -656,6 +659,21 @@ export function reducer(state: AppState, event: AppEvent): AppState {
     case "FLOW.COMPLETE":
       if (state.flow) {
         const flowName = state.flow.name || "transaction";
+
+        // Don't show completion message if this was triggered by a CLI command
+        const isCommandExecution = state.lastCommand &&
+          Date.now() - state.lastCommand.timestamp < 1000; // Within 1 second of command
+
+        if (isCommandExecution) {
+          // Silent completion for commands
+          return {
+            ...state,
+            mode: "IDLE",
+            flow: undefined,
+            viewStack: [], // Clear view stack when completing flow
+          };
+        }
+
         return {
           ...state,
           mode: "IDLE",
@@ -821,15 +839,20 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         ],
       };
 
-    case "COMMAND.EXECUTE":
+    case "COMMAND.EXECUTE": {
+      // Commands should not create flows - they execute immediately
       return {
         ...state,
+        mode: "IDLE", // Keep in IDLE mode
+        inputText: "",
+        flow: undefined, // Clear any existing flow
         lastCommand: {
           name: event.command,
           timestamp: Date.now(),
-          result: event.args,
+          result: event,
         },
       };
+    }
 
     case "BALANCE.FETCH":
       // This triggers a balance fetch effect - state change handled by effect result

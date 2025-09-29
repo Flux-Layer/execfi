@@ -2,9 +2,17 @@
 import type { CommandDef, CommandRegistry } from "./types";
 import * as CoreCommands from "./core";
 import { chainCmd } from "./chain";
+import { balancesCmd } from "./balance";
+import { txCmd, txsCmd, pendingCmd } from "./transaction";
+import { sessionCmd, policyCmd, limitsCmd } from "./session";
+import { approveCmd, allowancesCmd, revokeCmd } from "./token";
+import { addressbookCmd, contactAddCmd } from "./contact";
+import { stateCmd, logsCmd, traceCmd, configCmd } from "./developer";
+import { swapCmd, bridgeCmd, quoteCmd, ensCmd, signCmd, verifyCmd } from "./phase4";
 
 // Build the command registry
 export const COMMANDS: CommandDef[] = [
+  // Core commands (Phase 1)
   CoreCommands.helpCmd,
   CoreCommands.whoamiCmd,
   CoreCommands.balanceCmd,
@@ -18,6 +26,34 @@ export const COMMANDS: CommandDef[] = [
   CoreCommands.cancelCmd,
   CoreCommands.resetCmd,
   chainCmd,
+
+  // Essential commands (Phase 2)
+  balancesCmd,
+  txCmd,
+  txsCmd,
+  pendingCmd,
+
+  // Advanced features (Phase 3)
+  sessionCmd,
+  policyCmd,
+  limitsCmd,
+  approveCmd,
+  allowancesCmd,
+  revokeCmd,
+  addressbookCmd,
+  contactAddCmd,
+  stateCmd,
+  logsCmd,
+  traceCmd,
+  configCmd,
+
+  // DeFi Integration (Phase 4)
+  swapCmd,
+  bridgeCmd,
+  quoteCmd,
+  ensCmd,
+  signCmd,
+  verifyCmd,
 ];
 
 // Build alias map for fast lookup

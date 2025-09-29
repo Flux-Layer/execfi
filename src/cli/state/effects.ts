@@ -27,6 +27,63 @@ export function createEffectRunner(
 
   // Subscribe to state changes and run effects
   const unsubscribe = store.subscribe((prev, next) => {
+    // Handle command execution
+    if (next.lastCommand &&
+        next.lastCommand.timestamp !== prev.lastCommand?.timestamp &&
+        next.lastCommand.result?.type === "COMMAND.EXECUTE") {
+
+      const commandEvent = next.lastCommand.result;
+      const { commandDef, args } = commandEvent;
+
+      // Parse the command arguments
+      const parseResult = commandDef.parse(args);
+      if (!parseResult.ok) {
+        store.dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "user",
+            content: args,
+            timestamp: Date.now(),
+          },
+        });
+        store.dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: `❌ ${parseResult.error}`,
+            timestamp: Date.now(),
+          },
+        });
+        return;
+      }
+
+      // Add user message
+      store.dispatch({
+        type: "CHAT.ADD",
+        message: {
+          role: "user",
+          content: args,
+          timestamp: Date.now(),
+        },
+      });
+
+      // Execute the command
+      try {
+        commandDef.run(parseResult.args, next.core, store.dispatch);
+      } catch (error) {
+        console.error("Command execution error:", error);
+        store.dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: `❌ Command failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            timestamp: Date.now(),
+          },
+        });
+      }
+      return;
+    }
+
     if (!stepChanged(prev, next)) return;
 
     // Cancel previous effects

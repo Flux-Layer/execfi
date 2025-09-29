@@ -22,9 +22,9 @@ const HSMChatHistory = ({ history }: HSMChatHistoryProps) => {
               {typeof message.content === "string" ? message.content : JSON.stringify(message.content)}
             </p>
           ) : typeof message.content === "string" ? (
-            <p className="text-slate-300 ml-4">
+            <div className="text-slate-300 ml-4 whitespace-pre-wrap">
               {message.content}
-            </p>
+            </div>
           ) : message.content?.type === "intent-summary" ? (
             <div className="space-y-1">
               <p className="text-emerald-300 font-semibold">Parsed Intent:</p>
