@@ -10,7 +10,8 @@ evm_version = 'paris'
 allow_paths = ['../../lib']
 
 remappings = [
-  '@openzeppelin/contracts/=../../lib/openzeppelin-contracts/contracts/',
+  # Prefer the OZ version vendored under OZ-Upgradeable to satisfy draft-* imports
+  '@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/',
   '@openzeppelin/contracts-upgradeable/=../../lib/openzeppelin-contracts-upgradeable/contracts/',
   'forge-std/=../../lib/forge-std/src/',
 ]
