@@ -60,40 +60,42 @@ export function ChainSelectionProvider({
   const [lastSwitchError, setLastSwitchError] = useState<string | null>(null);
 
   const { selectedWallet } = useEOA();
-  const [isChainInitialized, setIsChainInitialized] = useState<boolean>(false);
+
+  useEffect(() => {
+    console.log({ selectedWallet });
+  }, [selectedWallet]);
+
+  // synchronize selected chain with privy selected chain
+  useEffect(() => {
+    selectedWallet?.switchChain?.(selectedChainId);
+  }, [selectedChainId]);
 
   // Load saved chain preference from localStorage
   useEffect(() => {
-    if (!isChainInitialized)
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const chainId = parseInt(saved, 10);
-          if (!isNaN(chainId) && isChainSupported(chainId)) {
-            setSelectedChainId(chainId);
-            if (selectedWallet) {
-              selectedWallet?.switchChain(chainId);
-              setIsChainInitialized(true);
-            }
-            console.log(
-              `🔗 Loaded saved chain: ${getChainConfig(chainId)?.name} (${chainId})`,
-            );
-          } else {
-            // Clean up invalid saved value
-            localStorage.removeItem(STORAGE_KEY);
-            console.log(`🔗 Defaulting to Base (${DEFAULT_CHAIN_ID})`);
-          }
-        } else {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const chainId = parseInt(saved, 10);
+        if (!isNaN(chainId) && isChainSupported(chainId)) {
+          setSelectedChainId(chainId);
           console.log(
-            `🔗 No saved chain, defaulting to Base (${DEFAULT_CHAIN_ID})`,
+            `🔗 Loaded saved chain: ${getChainConfig(chainId)?.name} (${chainId})`,
           );
+        } else {
+          // Clean up invalid saved value
+          localStorage.removeItem(STORAGE_KEY);
+          console.log(`🔗 Defaulting to Base (${DEFAULT_CHAIN_ID})`);
         }
-      } catch (error) {
-        console.warn("Failed to load chain preference:", error);
-        setSelectedChainId(DEFAULT_CHAIN_ID);
-        if (selectedWallet) selectedWallet?.switchChain(DEFAULT_CHAIN_ID);
+      } else {
+        console.log(
+          `🔗 No saved chain, defaulting to Base (${DEFAULT_CHAIN_ID})`,
+        );
       }
-  }, [selectedWallet, isChainInitialized]);
+    } catch (error) {
+      console.warn("Failed to load chain preference:", error);
+      setSelectedChainId(DEFAULT_CHAIN_ID);
+    }
+  }, [selectedWallet]);
 
   // Save chain preference to localStorage
   useEffect(() => {
@@ -149,7 +151,6 @@ export function ChainSelectionProvider({
 
         // Update selected chain
         setSelectedChainId(chainId);
-        if (selectedWallet) selectedWallet?.switchChain(chainId);
 
         console.log(`✅ Chain switched to ${newChain.name} (${chainId})`);
         resolve(true);
@@ -210,7 +211,6 @@ export function ChainSelectionProvider({
 
         // Update selected chain
         setSelectedChainId(chainId);
-        if (selectedWallet) selectedWallet?.switchChain(chainId);
 
         console.log(`✅ Chain switched to ${newChain.name} (${chainId})`);
         return true;
