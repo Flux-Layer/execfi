@@ -136,9 +136,10 @@ export const parseIntentFx: StepDef["onEnter"] = async (
           timestamp: Date.now(),
         },
       });
-      // Return to idle mode instead of continuing flow
+      // Return to idle mode silently for chat responses
       dispatch({
         type: "FLOW.CANCEL", // This will show proper completion message
+        silent: true, // Flag to suppress the cancellation message
       });
       return;
     }

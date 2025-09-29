@@ -62,8 +62,7 @@ CHAIN MANAGEMENT:
       });
     }
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - no need to dispatch FLOW.COMPLETE for CLI commands
   },
 };
 
@@ -98,8 +97,7 @@ export const whoamiCmd: CommandDef = {
       },
     });
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - no need to dispatch FLOW.COMPLETE for CLI commands
   },
 };
 
@@ -145,7 +143,6 @@ export const balanceCmd: CommandDef = {
           timestamp: Date.now(),
         },
       });
-      dispatch({ type: "FLOW.COMPLETE" });
       return;
     }
 
@@ -183,7 +180,7 @@ Chain: ${chainName} (${targetChain})
           },
         });
 
-        dispatch({ type: "FLOW.COMPLETE" });
+        // Command completed successfully
       })
       .catch((error) => {
         console.error("Price fetch error:", error);
@@ -213,7 +210,7 @@ Chain: ${chainName} (${targetChain})
           },
         });
 
-        dispatch({ type: "FLOW.COMPLETE" });
+        // Command completed with fallback data
       });
   },
 };
@@ -231,8 +228,7 @@ export const clearCmd: CommandDef = {
       type: "TERMINAL.CLEAR",
     });
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - terminal cleared
   },
 };
 
@@ -287,8 +283,7 @@ Quick Actions:
       },
     });
 
-    // Complete the flow and return to main terminal
-    dispatch({ type: "FLOW.COMPLETE" });
+    // Command completed - account info displayed
   },
 };
 

@@ -149,7 +149,7 @@ export type AppEvent =
   | { type: "EXEC.FAIL"; error: AppError }
   | { type: "MONITOR.OK" }
   | { type: "MONITOR.FAIL"; error: AppError }
-  | { type: "FLOW.CANCEL" }
+  | { type: "FLOW.CANCEL"; silent?: boolean }
   | { type: "FLOW.BACK" }
   | { type: "FLOW.RETRY" }
   | { type: "FLOW.COMPLETE" }
@@ -167,7 +167,7 @@ export type AppEvent =
   | { type: "AUTH.SUCCESS" }
   | { type: "AUTH.CANCEL" }
   | { type: "AUTH.LOGOUT" }
-  | { type: "COMMAND.EXECUTE"; command: string; args: any }
+  | { type: "COMMAND.EXECUTE"; command: string; commandDef: any; args: any }
   | { type: "BALANCE.FETCH"; chainId?: number; chainName?: string }
   | { type: "TERMINAL.CLEAR" }
   | { type: "CHAIN.UPDATE"; chainId: number };

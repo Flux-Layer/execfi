@@ -36,33 +36,24 @@ export function inferFlowName(text: string): FlowName {
 export function parseSlashCommand(text: string): AppEvent | null {
   if (!text.startsWith("/")) return null;
 
+  // Import the command registry
+  const { routeCommand } = require("../commands/registry");
+
+  // Try to route to a registered command first
+  const commandDef = routeCommand(text);
+  if (commandDef) {
+    return {
+      type: "COMMAND.EXECUTE",
+      command: commandDef.name,
+      commandDef,
+      args: text,
+    };
+  }
+
+  // Fallback to legacy hardcoded commands for system navigation
   const [cmd, ...args] = text.slice(1).split(" ");
 
   switch (cmd.toLowerCase()) {
-    case "help":
-      return { type: "NAV.VIEW.PUSH", page: { kind: "help" } };
-
-    case "login":
-    case "signin":
-    case "auth":
-      return { type: "AUTH.START" };
-
-    case "logout":
-    case "signout":
-      return { type: "AUTH.LOGOUT" };
-
-    case "settings":
-      return { type: "NAV.VIEW.PUSH", page: { kind: "settings" } };
-
-    case "balances":
-      return { type: "NAV.VIEW.PUSH", page: { kind: "balances" } };
-
-    case "tx":
-      if (args[0]) {
-        return { type: "NAV.VIEW.PUSH", page: { kind: "tx-detail", txHash: args[0] } };
-      }
-      break;
-
     case "cancel":
       // In AUTH mode, cancel means exit auth flow
       // In FLOW mode, cancel means cancel flow
@@ -79,28 +70,16 @@ export function parseSlashCommand(text: string): AppEvent | null {
     case "close":
       return { type: "NAV.VIEW.POP" };
 
-    case "home":
-    case "main":
-      // Clear all views and return to IDLE
-      return { type: "FLOW.CANCEL" };
-
     case "reset":
     case "restart":
       // Emergency reset - clear everything and return to IDLE
       return { type: "APP.RESET" };
 
-    case "chain":
-      // TODO: Implement chain switching
-      // For now, just show a toast
-      return {
-        type: "OVERLAY.PUSH",
-        overlay: {
-          kind: "toast",
-          level: "info",
-          text: `Chain switching not yet implemented`,
-          ttlMs: 3000,
-        },
-      };
+    case "tx":
+      if (args[0]) {
+        return { type: "NAV.VIEW.PUSH", page: { kind: "tx-detail", txHash: args[0] } };
+      }
+      break;
   }
 
   return null;
