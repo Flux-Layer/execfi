@@ -41,6 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 # ai agent
+AGENTS.md
 CLAUDE.md
 .claude/*
 .playwright-mcp/*
+plans-and-progress/*
