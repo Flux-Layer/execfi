@@ -14,6 +14,22 @@ contract DeployDeterministic is Script {
   // If you have a different factory (e.g., Universal Deployer 0x4e59..),
   // change the interface/usage accordingly or pass address via env.
 
+  function _hasCode(address a) internal view returns (bool) {
+    return a.code.length > 0;
+  }
+
+  function _computeCreate2(
+    address factory,
+    bytes32 salt,
+    bytes memory initCode
+  ) internal pure returns (address predicted) {
+    bytes32 initCodeHash = keccak256(initCode);
+    bytes32 hash = keccak256(
+      abi.encodePacked(bytes1(0xff), factory, salt, initCodeHash)
+    );
+    predicted = address(uint160(uint256(hash)));
+  }
+
   function run() external {
     address factory = vm.envAddress("CREATE2_FACTORY");
 
@@ -35,21 +51,43 @@ contract DeployDeterministic is Script {
     require(factory != address(0), "CREATE2_FACTORY required");
     require(feeRecipient != address(0), "FEE_RECIPIENT required");
 
+    require(factory != address(0), "CREATE2_FACTORY required");
+    require(_hasCode(factory), "CREATE2 factory not deployed on target chain");
     IEIP2470Factory f = IEIP2470Factory(factory);
 
     vm.startBroadcast();
 
-    // 1) Deploy implementation deterministically
+    // 1) Deploy (or reuse) implementation deterministically
     bytes memory implCode = type(FeeEntryPoint).creationCode;
-    address implementation = f.deploy(implCode, keccak256(abi.encodePacked(salt, bytes32("impl"))));
+    bytes32 implSalt = keccak256(abi.encodePacked(salt, bytes32("impl")));
+    address predictedImpl = _computeCreate2(factory, implSalt, implCode);
+    console.log("Predicted Implementation:", predictedImpl);
+    address implementation;
+    if (_hasCode(predictedImpl)) {
+      console.log("Implementation already deployed, reusing existing address");
+      implementation = predictedImpl;
+    } else {
+      implementation = f.deploy(implCode, implSalt);
+      require(implementation != address(0), "Implementation deploy returned zero address");
+    }
     console.log("Implementation:", implementation);
 
     // 2) Prepare init data
     bytes memory initData = abi.encodeCall(FeeEntryPoint.initialize, (feeRecipient, uint16(feeBps), fwd));
 
-    // 3) Deploy proxy deterministically with (implementation, initData)
+    // 3) Deploy (or reuse) proxy deterministically with (implementation, initData)
     bytes memory proxyCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(implementation, initData));
-    address proxy = f.deploy(proxyCode, keccak256(abi.encodePacked(salt, bytes32("proxy"))));
+    bytes32 proxySalt = keccak256(abi.encodePacked(salt, bytes32("proxy")));
+    address predictedProxy = _computeCreate2(factory, proxySalt, proxyCode);
+    console.log("Predicted Proxy:", predictedProxy);
+    address proxy;
+    if (_hasCode(predictedProxy)) {
+      console.log("Proxy already deployed, reusing existing address");
+      proxy = predictedProxy;
+    } else {
+      proxy = f.deploy(proxyCode, proxySalt);
+      require(proxy != address(0), "Proxy deploy returned zero address");
+    }
     console.log("Proxy:", proxy);
 
     vm.stopBroadcast();
