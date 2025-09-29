@@ -1,7 +1,15 @@
 // Balance and portfolio commands for ExecFi CLI (Phase 2)
 import type { CommandDef } from "./types";
 import { parseFlags } from "./parser";
-import { getChainDisplayName } from "@/lib/chains/registry";
+// Removed unused import: getChainDisplayName
+import {
+  fetchPortfolioSnapshot,
+  fetchPortfolioSummary,
+  type PortfolioToken,
+  type PortfolioSummary,
+  type AggregatedToken
+} from "@/services/portfolioService";
+import { resolveChainIds, formatChainLabel, getSupportedMainnetChainIds } from "@/lib/utils/chain";
 
 /**
  * Multi-token balance command - shows top tokens by USD value
@@ -11,7 +19,7 @@ export const balancesCmd: CommandDef = {
   aliases: ["/bals", "/portfolio"],
   category: "core",
   summary: "Show multi-token portfolio with USD values",
-  usage: "/balances [--chain <id|name>] [--limit <n>] [--sort <field>]",
+  usage: "/balances [--chain <id|name>] [--limit <n>] [--sort <field>] [--summary|--detailed] [--insights]",
   flags: [
     {
       name: "chain",
@@ -40,14 +48,40 @@ export const balancesCmd: CommandDef = {
       default: 0.01,
       description: "Hide tokens below this USD value",
     },
+    {
+      name: "summary",
+      alias: "S",
+      type: "boolean",
+      default: true,
+      description: "Show unified portfolio summary (default)",
+    },
+    {
+      name: "detailed",
+      alias: "D",
+      type: "boolean",
+      description: "Show per-chain token breakdown",
+    },
+    {
+      name: "insights",
+      alias: "I",
+      type: "boolean",
+      description: "Include portfolio insights and recommendations",
+    },
+    {
+      name: "aggregate",
+      alias: "A",
+      type: "boolean",
+      default: true,
+      description: "Group same tokens across chains (default)",
+    },
   ],
   examples: [
     "/balances",
-    "/balances --chain base",
-    "/balances --limit 5",
-    "/balances --sort symbol",
-    "/bals -c ethereum -l 3",
-    "/portfolio --min-usd 1.00",
+    "/balances --summary --insights",
+    "/balances --detailed --chain base",
+    "/balances --limit 5 --sort symbol",
+    "/bals -c ethereum -l 3 -I",
+    "/portfolio --min-usd 1.00 --aggregate",
   ],
   parse: (line) => {
     try {
@@ -58,13 +92,31 @@ export const balancesCmd: CommandDef = {
     }
   },
   run: async (args, ctx, dispatch) => {
-    const targetChain = args.chain || ctx.chainId || 8453;
-    const chainName = getChainDisplayName(targetChain);
     const limit = args.limit || 10;
     const sortBy = args.sort || "usd";
     const minUsd = args["min-usd"] || 0.01;
 
-    // Get the user's address
+    // Determine display mode (default to summary unless detailed explicitly requested)
+    const showDetailed = args.detailed === true;
+    const showInsights = args.insights === true;
+    const useAggregation = args.aggregate !== false; // Default true
+
+    // Resolve chain IDs from --chain flag or use all supported chains for summary mode
+    const defaultChainId = ctx.chainId || 8453;
+    let resolvedChainIds: number[];
+
+    if (args.chain) {
+      // User specified chains explicitly
+      resolvedChainIds = resolveChainIds(args.chain, defaultChainId);
+    } else if (showDetailed || !useAggregation) {
+      // Detailed mode uses current chain only
+      resolvedChainIds = [defaultChainId];
+    } else {
+      // Summary mode uses all supported mainnet chains for portfolio aggregation
+      resolvedChainIds = getSupportedMainnetChainIds();
+    }
+
+    // Get the user's address (EOA mode prioritized per CLAUDE.md)
     const address =
       ctx.accountMode === "SMART_ACCOUNT"
         ? ctx.saAddress
@@ -82,64 +134,131 @@ export const balancesCmd: CommandDef = {
       return;
     }
 
+    // Build chain display names
+    const chainDisplayNames = resolvedChainIds.map(id => formatChainLabel(id));
+    const chainSummary = chainDisplayNames.length === 1
+      ? chainDisplayNames[0]
+      : `${chainDisplayNames.length} chains (${chainDisplayNames.slice(0, 2).join(', ')}${chainDisplayNames.length > 2 ? ', ...' : ''})`;
+
     // Show loading message
     dispatch({
       type: "CHAT.ADD",
       message: {
         role: "assistant",
-        content: `🔄 Fetching portfolio for ${address.slice(0, 6)}...${address.slice(-4)} on ${chainName}...`,
+        content: `🔄 Fetching portfolio for ${address.slice(0, 6)}...${address.slice(-4)} on ${chainSummary}...`,
         timestamp: Date.now(),
       },
     });
 
     try {
-      // Fetch multi-token balances (mock data for now - would integrate with actual APIs)
-      const mockTokenBalances = await fetchTokenBalances(address, targetChain);
+      if (showDetailed || !useAggregation) {
+        // Use original detailed view
+        const { tokens } = await fetchPortfolioSnapshot({
+          address: address as `0x${string}`,
+          chainIds: resolvedChainIds
+        });
 
-      // Filter and sort tokens
-      const filteredTokens = mockTokenBalances
-        .filter(token => token.usdValue >= minUsd)
-        .sort((a, b) => {
-          switch (sortBy) {
-            case "symbol":
-              return a.symbol.localeCompare(b.symbol);
-            case "balance":
-              return b.balance - a.balance;
-            case "usd":
-            default:
-              return b.usdValue - a.usdValue;
-          }
-        })
-        .slice(0, limit);
+        // Filter and sort tokens
+        const filteredTokens = tokens
+          .filter(token => {
+            if (token.priceUsd !== undefined) {
+              return token.usdValue >= minUsd;
+            }
+            return parseFloat(token.formattedAmount) > 0;
+          })
+          .sort((a, b) => {
+            switch (sortBy) {
+              case "symbol":
+                return a.symbol.localeCompare(b.symbol);
+              case "balance":
+                return parseFloat(b.formattedAmount) - parseFloat(a.formattedAmount);
+              case "usd":
+              default:
+                return b.usdValue - a.usdValue;
+            }
+          })
+          .slice(0, limit);
 
-      // Calculate total portfolio value
-      const totalUsdValue = filteredTokens.reduce((sum, token) => sum + token.usdValue, 0);
+        const totalUsdValue = filteredTokens
+          .filter(token => token.priceUsd !== undefined)
+          .reduce((sum, token) => sum + token.usdValue, 0);
 
-      // Format portfolio display
-      const portfolioText = formatPortfolioDisplay(
-        filteredTokens,
-        totalUsdValue,
-        address,
-        chainName,
-        targetChain
-      );
+        const portfolioText = formatDetailedPortfolioDisplay(
+          filteredTokens,
+          totalUsdValue,
+          address as `0x${string}`,
+          resolvedChainIds,
+          chainDisplayNames
+        );
 
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: portfolioText,
-          timestamp: Date.now(),
-        },
-      });
+        dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: portfolioText,
+            timestamp: Date.now(),
+          },
+        });
+      } else {
+        // Use new summary view with aggregation
+        const portfolioSummary = await fetchPortfolioSummary({
+          address: address as `0x${string}`,
+          chainIds: resolvedChainIds
+        });
+
+        // Apply filters to aggregated tokens
+        const filteredHoldings = portfolioSummary.topHoldings
+          .filter(token => {
+            if (token.priceUsd !== undefined) {
+              return token.totalUsdValue >= minUsd;
+            }
+            return parseFloat(token.totalBalance) > 0;
+          })
+          .sort((a, b) => {
+            switch (sortBy) {
+              case "symbol":
+                return a.symbol.localeCompare(b.symbol);
+              case "balance":
+                return parseFloat(b.totalBalance) - parseFloat(a.totalBalance);
+              case "usd":
+              default:
+                return b.totalUsdValue - a.totalUsdValue;
+            }
+          })
+          .slice(0, limit);
+
+        const portfolioText = formatPortfolioSummaryDisplay(
+          portfolioSummary,
+          filteredHoldings,
+          showInsights
+        );
+
+        dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: portfolioText,
+            timestamp: Date.now(),
+          },
+        });
+      }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+      let errorContent = `❌ Failed to fetch portfolio: ${errorMessage}`;
+
+      if (errorMessage.includes('LiFi') && errorMessage.includes('RPC')) {
+        errorContent += `\n\n💡 **Troubleshooting:**\n• Check your internet connection\n• Verify RPC endpoints are accessible\n• Consider setting NEXT_PUBLIC_LIFI_API_KEY environment variable`;
+      } else if (errorMessage.includes('LiFi')) {
+        errorContent += `\n\n💡 **Note:** LiFi API issue detected. Try again or check your network connection.`;
+      }
+
       dispatch({
         type: "CHAT.ADD",
         message: {
           role: "assistant",
-          content: `❌ Failed to fetch portfolio: ${errorMessage}`,
+          content: errorContent,
           timestamp: Date.now(),
         },
       });
@@ -148,81 +267,27 @@ export const balancesCmd: CommandDef = {
 };
 
 /**
- * Token balance interface
+ * Detailed portfolio display formatter (per-token, per-chain)
  */
-interface TokenBalance {
-  symbol: string;
-  name: string;
-  balance: number;
-  usdValue: number;
-  address?: string;
-  decimals: number;
-  logoUri?: string;
-}
-
-/**
- * Fetch token balances for an address (mock implementation)
- * In production, this would call actual balance APIs like Alchemy, Moralis, etc.
- */
-async function fetchTokenBalances(_address: string, _chainId: number): Promise<TokenBalance[]> {
-  // Mock data based on common Base tokens
-  const mockBalances: TokenBalance[] = [
-    {
-      symbol: "ETH",
-      name: "Ethereum",
-      balance: 0.000038,
-      usdValue: 0.0988, // 0.000038 * $2600
-      decimals: 18,
-    },
-    {
-      symbol: "USDC",
-      name: "USD Coin",
-      balance: 0,
-      usdValue: 0,
-      address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      decimals: 6,
-    },
-    {
-      symbol: "DAI",
-      name: "Dai Stablecoin",
-      balance: 0,
-      usdValue: 0,
-      address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
-      decimals: 18,
-    },
-    {
-      symbol: "WETH",
-      name: "Wrapped Ethereum",
-      balance: 0,
-      usdValue: 0,
-      address: "0x4200000000000000000000000000000000000006",
-      decimals: 18,
-    },
-  ];
-
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  return mockBalances;
-}
-
-/**
- * Format portfolio display
- */
-function formatPortfolioDisplay(
-  tokens: TokenBalance[],
+function formatDetailedPortfolioDisplay(
+  tokens: PortfolioToken[],
   totalUsdValue: number,
-  address: string,
-  chainName: string,
-  chainId: number
+  address: `0x${string}`,
+  chainIds: number[],
+  chainNames: string[]
 ): string {
+  const now = new Date();
+  const chainSummary = chainIds.length === 1
+    ? `**Chain:** ${chainNames[0]} (${chainIds[0]})`
+    : `**Chains:** ${chainNames.length} chains (${chainIds.join(', ')})`;
+
   const header = `💰 Portfolio Summary
 
 **Account:** ${address.slice(0, 6)}...${address.slice(-4)}
-**Chain:** ${chainName} (${chainId})
+${chainSummary}
 **Total Value:** $${totalUsdValue.toFixed(4)}
 **Tokens:** ${tokens.length} token(s)
-**Updated:** ${new Date().toLocaleTimeString()}
+**Updated:** ${now.toLocaleTimeString()}
 
 `;
 
@@ -231,34 +296,161 @@ function formatPortfolioDisplay(
 
 💡 **Tips:**
 • Use --min-usd to adjust minimum value filter
-• Try --chain to check other networks
-• Use /balance for native token only`;
+• Try --chain to check other networks (e.g., --chain ethereum,polygon)
+• Use /balance for native token only
+• Ensure your wallet has tokens on the selected chain(s)`;
   }
 
   const tokenRows = tokens.map((token, index) => {
     const percentage = totalUsdValue > 0 ? (token.usdValue / totalUsdValue * 100).toFixed(1) : "0.0";
-    const balanceDisplay = token.balance.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
+
+    // Format balance with appropriate precision
+    const balanceDisplay = parseFloat(token.formattedAmount).toLocaleString(undefined, {
+      minimumFractionDigits: 0,
       maximumFractionDigits: 8,
     });
 
-    return `${index + 1}. **${token.symbol}** (${token.name})
+    // Show chain label if multi-chain
+    const chainLabel = chainIds.length > 1 ? ` (${token.chainName})` : '';
+
+    // Handle price availability
+    const priceInfo = token.priceUsd !== undefined
+      ? `USD Value: $${token.usdValue.toFixed(4)} (${percentage}%)`
+      : `USD Value: (price unavailable)`;
+
+    return `${index + 1}. **${token.symbol}**${chainLabel} (${token.name})
    Balance: ${balanceDisplay} ${token.symbol}
-   USD Value: $${token.usdValue.toFixed(4)} (${percentage}%)`;
+   ${priceInfo}`;
   }).join("\n\n");
+
+  const hasUnpricedTokens = tokens.some(token => token.priceUsd === undefined);
+  const priceNote = hasUnpricedTokens
+    ? `⚠️  Some tokens show "(price unavailable)" - total may be incomplete\n`
+    : '';
 
   const footer = `
 
 💡 **Quick Actions:**
 • Use \`/send <amount> <token> to <address>\` to transfer tokens
-• Use \`/balance --chain <name>\` to check specific chain
-• Use \`/balances --sort symbol\` to sort alphabetically
+• Use \`/balances\` for multi-chain portfolio summary (default view)
+• Use \`/balances --insights\` for portfolio analysis and recommendations
+• Use \`/balances --sort symbol\` or \`--min-usd 10\` for filtering
 
-⚠️  **Note:** This is a basic implementation. Production version would:
-• Fetch real-time balance data from blockchain
-• Include current market prices
-• Support more tokens and chains
-• Show transaction history and yield farming positions`;
+${priceNote}✅ **Live Data:** Real-time balances with ${chainIds.length === 1 ? '20s' : '30s'} cache`;
 
   return header + tokenRows + footer;
 }
+
+/**
+ * Portfolio summary display formatter with aggregation and insights
+ */
+function formatPortfolioSummaryDisplay(
+  summary: PortfolioSummary,
+  filteredHoldings: AggregatedToken[],
+  showInsights: boolean
+): string {
+  const now = new Date();
+
+  // Build chain summary
+  const chainSummary = summary.chainDistribution.length === 1
+    ? `**Chain:** ${summary.chainDistribution[0].chainName} (${summary.chainDistribution[0].chainId})`
+    : `**Chains:** ${summary.activeChains} chains (${summary.chainDistribution.slice(0, 2).map(c => c.chainName).join(', ')}${summary.activeChains > 2 ? ', ...' : ''})`;
+
+  const header = `💰 Portfolio Summary
+
+**Account:** ${summary.address.slice(0, 6)}...${summary.address.slice(-4)}
+${chainSummary}
+**Total Value:** $${summary.totalUsdValue.toFixed(4)}
+**Unique Tokens:** ${summary.uniqueTokens} types
+**Total Positions:** ${summary.totalPositions} positions
+**Updated:** ${now.toLocaleTimeString()}
+
+`;
+
+  if (filteredHoldings.length === 0) {
+    return header + `🚫 No tokens found with sufficient balance
+
+💡 **Tips:**
+• Use --min-usd to adjust minimum value filter
+• Try --chain to check other networks (e.g., --chain ethereum,polygon)
+• Use --detailed for per-chain breakdown
+• Ensure your wallet has tokens on the selected chain(s)`;
+  }
+
+  // Top Holdings Section
+  const holdingsHeader = `🏆 TOP HOLDINGS\n`;
+  const holdingRows = filteredHoldings.map((holding, index) => {
+    const percentage = holding.portfolioPercentage.toFixed(1);
+
+    // Format total balance with appropriate precision
+    const balanceDisplay = parseFloat(holding.totalBalance).toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 8,
+    });
+
+    // Build positions breakdown
+    const positionBreakdown = holding.positions.length > 1
+      ? holding.positions
+          .sort((a, b) => b.usdValue - a.usdValue)
+          .map(pos => {
+            const posBalance = parseFloat(pos.balance).toLocaleString(undefined, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 8,
+            });
+            const posUsdValue = pos.usdValue > 0 ? ` ($${pos.usdValue.toFixed(2)})` : '';
+            return `     • ${pos.chainName}: ${posBalance} ${holding.symbol}${posUsdValue}`;
+          })
+          .join('\n')
+      : '';
+
+    // Handle price availability
+    const priceInfo = holding.priceUsd !== undefined
+      ? `**${holding.symbol}** - $${holding.totalUsdValue.toFixed(2)} (${percentage}%)`
+      : `**${holding.symbol}** - (price unavailable)`;
+
+    const mainRow = `${index + 1}. ${priceInfo}`;
+
+    return positionBreakdown
+      ? `${mainRow}\n${positionBreakdown}`
+      : `${mainRow}\n     • Total: ${balanceDisplay} ${holding.symbol}`;
+  }).join('\n\n');
+
+  // Chain Distribution Section
+  const chainHeader = `\n📊 CHAIN DISTRIBUTION\n`;
+  const chainRows = summary.chainDistribution.map(chain => {
+    const percentage = chain.percentage.toFixed(1);
+    return `  • ${chain.chainName}: $${chain.usdValue.toFixed(2)} (${percentage}%) - ${chain.tokenCount} token${chain.tokenCount !== 1 ? 's' : ''}`;
+  }).join('\n');
+
+  // Insights Section
+  let insightsSection = '';
+  if (showInsights && summary.insights.length > 0) {
+    insightsSection = `\n⚠️ PORTFOLIO INSIGHTS\n`;
+    insightsSection += summary.insights.map(insight => {
+      const icon = insight.severity === 'warning' ? '⚠️' : insight.severity === 'critical' ? '🚨' : '💡';
+      const actionText = insight.actionable ? `\n  → ${insight.actionable}` : '';
+      return `${icon} ${insight.title}: ${insight.description}${actionText}`;
+    }).join('\n');
+  }
+
+  // Quick Actions Section
+  const quickActions = `\n💡 **QUICK ACTIONS:**\n`;
+  const actionItems = [
+    '• Use `/send <amount> <token> to <address>` to transfer tokens',
+    '• Use `/balances --detailed` for per-token breakdown',
+    '• Use `/balances --insights` for portfolio analysis and recommendations',
+    '• Use `/balances --chain ethereum` to focus on specific chains',
+    '• Use `/bals --sort symbol` or `/portfolio --min-usd 10` for filtering',
+  ].join('\n');
+
+  // Data freshness note
+  const hasUnpricedTokens = filteredHoldings.some(token => token.priceUsd === undefined);
+  const priceNote = hasUnpricedTokens
+    ? `⚠️  Some tokens show "(price unavailable)" - total may be incomplete\n`
+    : '';
+
+  const footer = `\n${priceNote}✅ **Live Data:** Aggregated portfolio with 20s cache`;
+
+  return header + holdingsHeader + holdingRows + chainHeader + chainRows + insightsSection + quickActions + actionItems + footer;
+}
+
