@@ -58,6 +58,7 @@ export const parseIntentFx: StepDef["onEnter"] = async (
           dispatch({
             type: "COMMAND.EXECUTE",
             command: command.name,
+            commandDef: command,
             args: parseResult.args,
           });
 

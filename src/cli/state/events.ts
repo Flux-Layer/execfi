@@ -1,5 +1,6 @@
 // Event utilities and helpers for HSM
 import type { AppEvent, FlowName } from "./types";
+import { routeCommand } from "../commands/registry";
 
 /**
  * Infer flow type from input text
@@ -36,8 +37,7 @@ export function inferFlowName(text: string): FlowName {
 export function parseSlashCommand(text: string): AppEvent | null {
   if (!text.startsWith("/")) return null;
 
-  // Import the command registry
-  const { routeCommand } = require("../commands/registry");
+  // Use the imported command registry
 
   // Try to route to a registered command first
   const commandDef = routeCommand(text);

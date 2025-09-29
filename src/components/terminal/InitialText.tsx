@@ -28,17 +28,17 @@ const InitialText = () => {
 
       <div className="mt-3 space-y-1">
         <p className="text-purple-300 font-semibold">💬 Ask Questions:</p>
-        <p className="text-slate-300 ml-2">• General: <span className="text-yellow-300">"What is DeFi?"</span></p>
-        <p className="text-slate-300 ml-2">• Learning: <span className="text-yellow-300">"How do blockchains work?"</span></p>
-        <p className="text-slate-300 ml-2">• Help: <span className="text-yellow-300">"Explain gas fees"</span></p>
+        <p className="text-slate-300 ml-2">• General: <span className="text-yellow-300">&ldquo;What is DeFi?&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Learning: <span className="text-yellow-300">&ldquo;How do blockchains work?&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Help: <span className="text-yellow-300">&ldquo;Explain gas fees&rdquo;</span></p>
       </div>
 
       <div className="mt-3 space-y-1">
         <p className="text-orange-300 font-semibold">🔗 Transaction Examples (Login Required):</p>
-        <p className="text-slate-300 ml-2">• Send native: <span className="text-yellow-300">"Send 0.001 ETH to vitalik.eth"</span></p>
-        <p className="text-slate-300 ml-2">• Send tokens: <span className="text-yellow-300">"Send 100 USDC to 0x123..."</span></p>
-        <p className="text-slate-300 ml-2">• Cross-chain: <span className="text-yellow-300">"Send 0.1 ETH to 0x456... on polygon"</span></p>
-        <p className="text-slate-300 ml-2">• Specific amount: <span className="text-yellow-300">"Transfer 50 DAI to alice.eth on ethereum"</span></p>
+        <p className="text-slate-300 ml-2">• Send native: <span className="text-yellow-300">&ldquo;Send 0.001 ETH to vitalik.eth&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Send tokens: <span className="text-yellow-300">&ldquo;Send 100 USDC to 0x123...&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Cross-chain: <span className="text-yellow-300">&ldquo;Send 0.1 ETH to 0x456... on polygon&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Specific amount: <span className="text-yellow-300">&ldquo;Transfer 50 DAI to alice.eth on ethereum&rdquo;</span></p>
       </div>
 
       <div className="mt-4 p-2 bg-blue-800/20 border-l-2 border-blue-400 rounded">
@@ -73,17 +73,17 @@ const InitialText = () => {
 
       <div className="mt-3 space-y-1">
         <p className="text-purple-300 font-semibold">💬 Ask Questions:</p>
-        <p className="text-slate-300 ml-2">• General: <span className="text-yellow-300">"What is DeFi?"</span></p>
-        <p className="text-slate-300 ml-2">• Learning: <span className="text-yellow-300">"How do I swap tokens?"</span></p>
-        <p className="text-slate-300 ml-2">• Help: <span className="text-yellow-300">"Explain gas fees"</span></p>
+        <p className="text-slate-300 ml-2">• General: <span className="text-yellow-300">&ldquo;What is DeFi?&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Learning: <span className="text-yellow-300">&ldquo;How do I swap tokens?&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Help: <span className="text-yellow-300">&ldquo;Explain gas fees&rdquo;</span></p>
       </div>
 
       <div className="mt-3 space-y-1">
         <p className="text-orange-300 font-semibold">🔗 Transaction Examples:</p>
-        <p className="text-slate-300 ml-2">• Send native: <span className="text-yellow-300">"Send 0.001 ETH to vitalik.eth"</span></p>
-        <p className="text-slate-300 ml-2">• Send tokens: <span className="text-yellow-300">"Send 100 USDC to 0x123..."</span></p>
-        <p className="text-slate-300 ml-2">• Cross-chain: <span className="text-yellow-300">"Send 0.1 ETH to 0x456... on polygon"</span></p>
-        <p className="text-slate-300 ml-2">• Specific amount: <span className="text-yellow-300">"Transfer 50 DAI to alice.eth on ethereum"</span></p>
+        <p className="text-slate-300 ml-2">• Send native: <span className="text-yellow-300">&ldquo;Send 0.001 ETH to vitalik.eth&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Send tokens: <span className="text-yellow-300">&ldquo;Send 100 USDC to 0x123...&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Cross-chain: <span className="text-yellow-300">&ldquo;Send 0.1 ETH to 0x456... on polygon&rdquo;</span></p>
+        <p className="text-slate-300 ml-2">• Specific amount: <span className="text-yellow-300">&ldquo;Transfer 50 DAI to alice.eth on ethereum&rdquo;</span></p>
       </div>
 
       <div className="mt-3 space-y-1">
