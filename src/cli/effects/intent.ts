@@ -167,9 +167,16 @@ export const parseIntentFx: StepDef["onEnter"] = async (
       // Import and use our enhanced token resolver
       try {
         const { resolveTokensMultiProvider } = await import("@/lib/normalize");
+        const { resolveChain } = await import("@/lib/chains/registry");
 
-        console.log("🚀 Calling enhanced token resolver for symbol:", ambiguousSymbol);
-        const enhancedResult = await resolveTokensMultiProvider(ambiguousSymbol);
+        // 🔧 FIX: Extract and resolve chain information
+        const intentChain = (intentResult as any).intent?.chain;
+        const targetChainId = intentChain
+          ? (typeof intentChain === 'number' ? intentChain : resolveChain(intentChain).id)
+          : core.chainId;
+
+        console.log("🚀 Calling enhanced token resolver for symbol:", ambiguousSymbol, "on chain:", targetChainId);
+        const enhancedResult = await resolveTokensMultiProvider(ambiguousSymbol, targetChainId);
 
         console.log("✅ Enhanced resolver returned", enhancedResult.tokens.length, "tokens");
 
