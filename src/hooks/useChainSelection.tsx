@@ -296,34 +296,3 @@ export function useChainSwitch() {
     useChainSelection();
   return { switchChain, switchChainByName, isLoading, lastSwitchError };
 }
-
-/**
- * Terminal command helper - get chain status info
- */
-export function getChainStatusInfo(): string {
-  const chains = getSupportedChains();
-  const mainnetChains = chains.filter((c) => !c.isTestnet);
-  const testnetChains = chains.filter((c) => c.isTestnet);
-
-  const formatChainList = (chainList: ChainConfig[]) =>
-    chainList
-      .map(
-        (c) =>
-          `  ${c.name} (${c.id})${c.id === DEFAULT_CHAIN_ID ? " [default]" : ""}`,
-      )
-      .join("\n");
-
-  return [
-    "🔗 Supported Chains:",
-    "",
-    "Mainnets:",
-    formatChainList(mainnetChains),
-    "",
-    "Testnets:",
-    formatChainList(testnetChains),
-    "",
-    `Currently selected: ${getChainConfig(DEFAULT_CHAIN_ID)?.name} (${DEFAULT_CHAIN_ID})`,
-    "",
-    "Use 'chain switch <name>' to change chains",
-  ].join("\n");
-}
