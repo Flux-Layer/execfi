@@ -1,6 +1,6 @@
 // lib/execute.ts - Smart Account execution engine using Privy + LI.FI
 
-import { formatEther, formatUnits } from "viem";
+import { formatEther, formatUnits, encodeFunctionData } from "viem";
 import type {
   NormalizedNativeTransfer,
   NormalizedERC20Transfer,
@@ -9,10 +9,13 @@ import type {
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 import { getChainConfig } from "./chains/registry";
+import { FEE_ENTRYPOINT_ADDRESSES, FEE_ENTRYPOINT_ABI } from "./contracts/entrypoint";
 
 // Feature flag for LI.FI execution path
 const ENABLE_LIFI_EXECUTION =
   process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
+const ENABLE_ENTRYPOINT =
+  process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
 
 // Types for LI.FI API integration
 interface LifiTransactionData {
@@ -282,6 +285,20 @@ export async function executeNativeTransfer(
     } else {
       // Current: Direct preparation path
       transactionData = await prepareDirectTransaction(norm);
+
+      // If EntryPoint is enabled and deployed for this chain, wrap native transfer via EntryPoint
+      const entrypoint = FEE_ENTRYPOINT_ADDRESSES[norm.chainId];
+      if (ENABLE_ENTRYPOINT && entrypoint) {
+        transactionData = {
+          to: entrypoint as `0x${string}`,
+          value: norm.amountWei,
+          data: encodeFunctionData({
+            abi: FEE_ENTRYPOINT_ABI,
+            functionName: "transferETH",
+            args: [norm.to],
+          }),
+        };
+      }
     }
 
     // Step 7.3: Transaction Execution (Unchanged - preserves existing Privy signing)
@@ -421,7 +438,6 @@ export async function executeERC20Transfer(
     };
   } else {
     // Current: Direct ERC-20 preparation path
-    const { encodeFunctionData } = await import("viem");
     const data = encodeFunctionData({
       abi: [
         {
@@ -444,6 +460,20 @@ export async function executeERC20Transfer(
       value: 0n, // ERC-20 transfers don't send native currency
       data,
     };
+
+    // If EntryPoint is enabled and deployed for this chain, route via EntryPoint
+    const entrypoint = FEE_ENTRYPOINT_ADDRESSES[norm.chainId];
+    if (ENABLE_ENTRYPOINT && entrypoint) {
+      transaction = {
+        to: entrypoint as `0x${string}`,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: FEE_ENTRYPOINT_ABI,
+          functionName: "transferERC20",
+          args: [norm.token.address, norm.to, norm.amountWei],
+        }),
+      };
+    }
   }
 
   try {
@@ -548,6 +578,8 @@ export async function executeIntent(
     selectedWallet?: any;
   },
 ): Promise<ExecutionResult> {
+
+  console.log({clientnih: clients})
   if (norm.kind === "native-transfer") {
     return executeNativeTransfer(norm, accountMode, clients);
   } else if (norm.kind === "erc20-transfer") {

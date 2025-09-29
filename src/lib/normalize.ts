@@ -301,12 +301,15 @@ export class EnhancedTokenSelectionError extends Error {
 /**
  * Normalize transfer intent to internal format (Enhanced with Multi-Provider)
  */
-export async function normalizeTransferIntent(intent: TransferIntent): Promise<NormalizedIntent> {
+export async function normalizeTransferIntent(
+  intent: TransferIntent,
+  opts?: { preferredChainId?: number }
+): Promise<NormalizedIntent> {
   // Check if we have a selected token with a specific chainId (from token selection flow)
   const selectedToken = (intent as any)._selectedToken;
 
   // Use the token's chainId if available, otherwise resolve from intent.chain
-  const chainId = selectedToken?.chainId || resolveChainForNormalization(intent.chain);
+  const chainId = selectedToken?.chainId ?? opts?.preferredChainId ?? resolveChainForNormalization(intent.chain);
 
   // Validate chain is supported
   if (!isChainSupported(chainId)) {
@@ -519,11 +522,14 @@ export async function normalizeTransferIntent(intent: TransferIntent): Promise<N
 /**
  * Main normalization function - handles all intent types (Enhanced with Multi-Provider)
  */
-export async function normalizeIntent(intentSuccess: IntentSuccess): Promise<NormalizedIntent> {
+export async function normalizeIntent(
+  intentSuccess: IntentSuccess,
+  opts?: { preferredChainId?: number }
+): Promise<NormalizedIntent> {
   const { intent } = intentSuccess;
 
   if (intent.action === "transfer") {
-    return await normalizeTransferIntent(intent);
+    return await normalizeTransferIntent(intent, opts);
   }
 
   // Future: handle swap, bridge, bridge_swap

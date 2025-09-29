@@ -18,7 +18,10 @@ export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signa
   try {
     console.log("🔄 Normalizing intent:", ctx.intent);
 
-    const norm = await normalizeIntent({ ok: true, intent: ctx.intent });
+    const norm = await normalizeIntent(
+      { ok: true, intent: ctx.intent },
+      { preferredChainId: core.chainId }
+    );
 
     if (signal.aborted) return;
 
