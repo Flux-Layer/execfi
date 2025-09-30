@@ -1,7 +1,14 @@
 // Transaction management commands for ExecFi CLI (Phase 2)
 import type { CommandDef } from "./types";
 import { parseFlags } from "./parser";
-import { getChainDisplayName } from "@/lib/chains/registry";
+import { getChainDisplayName, getChainConfig } from "@/lib/chains/registry";
+import {
+  fetchTransactionDetails as fetchRealTransactionDetails,
+  fetchTransactionHistory as fetchRealTransactionHistory,
+  formatTransactionDetailsForDisplay
+} from "@/lib/transactions";
+import type { TransactionDetails as RealTransactionDetails } from "@/lib/transactions";
+import { formatEther } from "viem";
 
 /**
  * Transaction details command - show detailed information for a specific tx
@@ -59,8 +66,8 @@ export const txCmd: CommandDef = {
     });
 
     try {
-      // Fetch transaction details (mock implementation)
-      const txDetails = await fetchTransactionDetails(txHash, targetChain);
+      // Fetch real transaction details from blockchain
+      const txDetails = await fetchRealTransactionDetails(txHash as `0x${string}`, targetChain);
 
       const detailsText = formatTransactionDetails(txDetails, chainName, targetChain);
 
@@ -167,8 +174,8 @@ export const txsCmd: CommandDef = {
     });
 
     try {
-      // Fetch transaction history (mock implementation)
-      const transactions = await fetchTransactionHistory(address, targetChain, limit, typeFilter);
+      // Fetch real transaction history from blockchain
+      const transactions = await fetchRealTransactionHistory(address as `0x${string}`, targetChain, limit, typeFilter);
 
       const historyText = formatTransactionHistory(
         transactions,
@@ -300,14 +307,14 @@ export const pendingCmd: CommandDef = {
 interface TransactionDetails {
   hash: string;
   status: "success" | "failed" | "pending";
-  blockNumber?: number;
+  blockNumber?: number | bigint;
   timestamp?: number;
   from: string;
-  to: string;
-  value: string;
-  gasUsed?: string;
-  gasPrice?: string;
-  fee?: string;
+  to: string | null;
+  value: string | bigint;
+  gasUsed?: string | bigint;
+  gasPrice?: string | bigint;
+  fee?: string | bigint;
   type: "send" | "receive" | "swap" | "contract";
   method?: string;
 }
@@ -323,66 +330,40 @@ interface PendingOperation {
 }
 
 /**
- * Mock transaction details fetcher
- */
-async function fetchTransactionDetails(hash: string, _chainId: number): Promise<TransactionDetails> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800));
-
-  // Mock transaction data
-  return {
-    hash,
-    status: "success",
-    blockNumber: 12345678,
-    timestamp: Date.now() - 3600000, // 1 hour ago
-    from: "0x850BCbdf06D0798B41414E65ceaf192AD763F88d",
-    to: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-    value: "0.001",
-    gasUsed: "21000",
-    gasPrice: "0.000000020",
-    fee: "0.00042",
-    type: "send",
-    method: "transfer",
-  };
-}
-
-/**
- * Mock transaction history fetcher
- */
-async function fetchTransactionHistory(
-  _address: string,
-  _chainId: number,
-  _limit: number,
-  _typeFilter: string
-): Promise<TransactionDetails[]> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1200));
-
-  // Mock transaction history
-  const mockTxs: TransactionDetails[] = [];
-
-  // Generate mock transactions (empty for now)
-  return mockTxs;
-}
-
-/**
  * Mock pending operations fetcher
+ * TODO: Implement real pending operations tracking
  */
 async function fetchPendingOperations(_address: string, _chainId?: number): Promise<PendingOperation[]> {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500));
 
   // Mock pending operations (empty for clean wallet)
+  // In the future, this could track pending transactions from the state machine
   return [];
 }
 
 /**
  * Format transaction details for display
  */
-function formatTransactionDetails(tx: TransactionDetails, chainName: string, chainId: number): string {
+function formatTransactionDetails(tx: RealTransactionDetails, chainName: string, chainId: number): string {
   const statusIcon = tx.status === "success" ? "✅" : tx.status === "failed" ? "❌" : "⏳";
   const timeAgo = tx.timestamp ? formatTimeAgo(tx.timestamp) : "Unknown";
-  const explorerUrl = getExplorerUrl(tx.hash, chainId);
+
+  // Get chain-specific explorer URL
+  const chainConfig = getChainConfig(chainId);
+  const explorerUrl = chainConfig
+    ? `${chainConfig.explorerUrl}/tx/${tx.hash}`
+    : `https://basescan.org/tx/${tx.hash}`;
+
+  // Get native currency symbol for this chain
+  const nativeCurrencySymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+
+  // Format values using the helper function
+  const formatted = formatTransactionDetailsForDisplay(tx, nativeCurrencySymbol);
+
+  // Format addresses
+  const fromAddress = tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` : "N/A";
+  const toAddress = tx.to ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : "Contract Creation";
 
   return `🔗 Transaction Details
 
@@ -392,17 +373,17 @@ function formatTransactionDetails(tx: TransactionDetails, chainName: string, cha
 **Time:** ${timeAgo}
 
 **Transaction Info:**
-• From: ${tx.from.slice(0, 6)}...${tx.from.slice(-4)}
-• To: ${tx.to.slice(0, 6)}...${tx.to.slice(-4)}
-• Value: ${tx.value} ETH
+• From: ${fromAddress}
+• To: ${toAddress}
+• Value: ${formatted.value}
 • Type: ${tx.type}
 ${tx.method ? `• Method: ${tx.method}` : ""}
 
 **Gas & Fees:**
-${tx.gasUsed ? `• Gas Used: ${tx.gasUsed}` : ""}
-${tx.gasPrice ? `• Gas Price: ${tx.gasPrice} ETH` : ""}
-${tx.fee ? `• Total Fee: ${tx.fee} ETH` : ""}
-${tx.blockNumber ? `• Block: #${tx.blockNumber.toLocaleString()}` : ""}
+${tx.gasUsed ? `• Gas Used: ${tx.gasUsed.toString()}` : ""}
+${tx.effectiveGasPrice ? `• Gas Price: ${formatted.effectiveGasPrice}` : ""}
+${tx.fee ? `• Total Fee: ${formatted.fee}` : ""}
+${tx.blockNumber ? `• Block: #${tx.blockNumber.toString()}` : ""}
 
 **Explorer:** ${explorerUrl}
 
@@ -415,7 +396,7 @@ ${tx.blockNumber ? `• Block: #${tx.blockNumber.toLocaleString()}` : ""}
  * Format transaction history for display
  */
 function formatTransactionHistory(
-  transactions: TransactionDetails[],
+  transactions: RealTransactionDetails[],
   address: string,
   chainName: string,
   chainId: number,
@@ -444,14 +425,20 @@ This could mean:
 • \`/balance\` to verify your current balance`;
   }
 
+  // Get native currency symbol
+  const chainConfig = getChainConfig(chainId);
+  const nativeCurrencySymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+
   const txRows = transactions.map((tx, index) => {
     const statusIcon = tx.status === "success" ? "✅" : tx.status === "failed" ? "❌" : "⏳";
     const timeAgo = tx.timestamp ? formatTimeAgo(tx.timestamp) : "Unknown";
     const direction = tx.from.toLowerCase() === address.toLowerCase() ? "→" : "←";
+    const toAddress = tx.to ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : "Contract Creation";
+    const valueFormatted = `${formatEther(tx.value)} ${nativeCurrencySymbol}`;
 
-    return `${index + 1}. ${statusIcon} ${direction} ${tx.value} ETH
+    return `${index + 1}. ${statusIcon} ${direction} ${valueFormatted}
    Hash: ${tx.hash.slice(0, 10)}...${tx.hash.slice(-8)}
-   ${tx.from.toLowerCase() === address.toLowerCase() ? `To: ${tx.to.slice(0, 6)}...${tx.to.slice(-4)}` : `From: ${tx.from.slice(0, 6)}...${tx.from.slice(-4)}`}
+   ${tx.from.toLowerCase() === address.toLowerCase() ? `To: ${toAddress}` : `From: ${tx.from.slice(0, 6)}...${tx.from.slice(-4)}`}
    Time: ${timeAgo}`;
   }).join("\n\n");
 
