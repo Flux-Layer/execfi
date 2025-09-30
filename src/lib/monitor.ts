@@ -119,6 +119,16 @@ const CHAIN_CONFIG = {
       chain: abstractTestnet,
       rpcUrl: abstractTestnet?.rpcUrls?.default?.http?.[0],
    },
+   // Lisk Mainnet
+   1135: {
+      chain: lisk,
+      rpcUrl: lisk?.rpcUrls?.default?.http?.[0],
+   },
+   // Lisk Sepolia
+   4202: {
+      chain: liskSepolia,
+      rpcUrl: liskSepolia?.rpcUrls?.default?.http?.[0],
+   },
 };
 
 /**
@@ -158,6 +168,8 @@ async function getTransactionReceipt(
       // If transaction not found, return null (still pending)
       if (
          error?.message?.includes("not found") ||
+         error?.message?.includes("could not be found") ||
+         error?.message?.includes("not be processed on a block yet") ||
          error?.cause?.code === -32000
       ) {
          return null;
@@ -192,7 +204,9 @@ export async function checkTransactionStatus(
       if (receipt.status === "success") {
          // Calculate confirmations
          const currentBlock = await getCurrentBlockNumber(chainId);
-         const confirmations = Number(currentBlock - receipt.blockNumber) + 1;
+         const blockDiff = Number(currentBlock - receipt.blockNumber);
+         // Ensure at least 1 confirmation when transaction is included in a block
+         const confirmations = Math.max(blockDiff + 1, 1);
 
          return {
             status: "confirmed",
@@ -283,8 +297,10 @@ export async function monitorTransaction(
          }
       };
 
-      // Start monitoring
-      checkStatus();
+      // Start monitoring with a small initial delay to allow transaction propagation
+      // This prevents immediate "transaction not found" errors
+      const initialDelay = 2000; // 2 seconds
+      setTimeout(checkStatus, initialDelay);
    });
 }
 
