@@ -81,14 +81,14 @@ export const simulateGasFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
   }
 };
 
-// Skip effect for flows that don't need planning
+// Skip effect for flows that don't need simulation
 export const skipFx: StepDef["onEnter"] = (ctx, core, dispatch, signal) => {
   if (signal.aborted) return;
 
-  console.log("⏭️ Skipping step");
+  console.log("⏭️ Skipping simulation step");
   setTimeout(() => {
     if (!signal.aborted) {
-      dispatch({ type: "PLAN.OK", plan: { skipped: true } });
+      dispatch({ type: "SIM.OK", sim: { skipped: true } });
     }
   }, 0);
 };

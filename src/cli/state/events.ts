@@ -9,22 +9,22 @@ import { routeCommand } from "../commands/registry";
 export function inferFlowName(text: string): FlowName {
   const lower = text.toLowerCase();
 
-  // Transfer indicators
-  if (lower.includes("send") || lower.includes("transfer") || lower.match(/\d+\s*(eth|ether)/)) {
-    return "transfer";
-  }
-
-  // Swap indicators
-  if (lower.includes("swap") || lower.includes("exchange")) {
-    return "swap";
-  }
-
-  // Bridge indicators
+  // Bridge indicators - check first for bridge-swap combo
   if (lower.includes("bridge") || lower.includes("cross-chain")) {
     if (lower.includes("swap")) {
       return "bridge-swap";
     }
     return "bridge";
+  }
+
+  // Swap indicators - check before transfer since swaps can also have amount patterns
+  if (lower.includes("swap") || lower.includes("exchange")) {
+    return "swap";
+  }
+
+  // Transfer indicators
+  if (lower.includes("send") || lower.includes("transfer") || lower.match(/\d+\s*(eth|ether)/)) {
+    return "transfer";
   }
 
   // Default to transfer for simple commands

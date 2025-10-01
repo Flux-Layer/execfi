@@ -4,6 +4,14 @@ import { executeIntent, getSmartAccountAddress } from "@/lib/execute";
 import { validateNoDuplicate, updateTransactionStatus } from "@/lib/idempotency";
 
 export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  console.log("🔍 Execute effect - Full context:", {
+    hasNorm: !!ctx.norm,
+    normKind: ctx.norm?.kind,
+    hasPlan: !!ctx.plan,
+    planKeys: ctx.plan ? Object.keys(ctx.plan) : [],
+    hasRoute: !!ctx.plan?.route,
+  });
+
   if (!ctx.norm) {
     dispatch({
       type: "EXEC.FAIL",
@@ -83,6 +91,8 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
     }
 
     // Execute the transaction with the appropriate mode and clients
+    // Pass route from plan context if available (for swap/bridge operations)
+    const route = ctx.plan?.route;
     const executionResult = await executeIntent(
       ctx.norm,
       accountMode,
@@ -90,7 +100,8 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
         smartWalletClient: core.smartWalletClient,
         eoaSendTransaction: core.eoaSendTransaction,
         selectedWallet: core.selectedWallet,
-      }
+      },
+      route
     );
 
     if (signal.aborted) return;

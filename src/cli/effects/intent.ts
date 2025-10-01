@@ -157,10 +157,43 @@ export const parseIntentFx: StepDef["onEnter"] = async (
     if (isIntentTokenSelection(intentResult)) {
       console.log("🎯 Token selection needed, using enhanced resolver");
 
-      // Extract the symbol from the original raw input instead of using AI's hardcoded tokens
-      // Look for token pattern in the raw input (e.g., "send 0.000001 arb to...")
-      const tokenMatch = ctx.raw.match(/(?:send|transfer)\s+[\d.]+\s+(\w+)/i);
-      const ambiguousSymbol = tokenMatch ? tokenMatch[1] : 'UNKNOWN';
+      // Extract the symbol from the original raw input based on command type
+      let ambiguousSymbol = 'UNKNOWN';
+      let targetChainId = core.chainId;
+
+      // Try swap patterns first: "swap X eth to usdc on base"
+      const swapMatch = ctx.raw.match(/swap\s+[\d.]+\s+(\w+)(?:\s+to\s+(\w+))?(?:\s+on\s+(\w+))?/i);
+      if (swapMatch) {
+        // For swaps, we need to determine if it's the fromToken or toToken that's ambiguous
+        // Check both tokens - try fromToken first, then toToken
+        const fromToken = swapMatch[1];
+        const toToken = swapMatch[2];
+        const chain = swapMatch[3];
+
+        ambiguousSymbol = fromToken; // Default to fromToken
+
+        // If chain is specified, resolve it
+        if (chain) {
+          try {
+            const { resolveChain } = await import("@/lib/chains/registry");
+            targetChainId = resolveChain(chain).id;
+          } catch (e) {
+            console.warn("Failed to resolve chain:", chain);
+          }
+        }
+      } else {
+        // Try transfer/send patterns: "send X token to address"
+        const transferMatch = ctx.raw.match(/(?:send|transfer)\s+[\d.]+\s+(\w+)/i);
+        if (transferMatch) {
+          ambiguousSymbol = transferMatch[1];
+        } else {
+          // Try bridge patterns: "bridge X token from chain1 to chain2"
+          const bridgeMatch = ctx.raw.match(/bridge\s+[\d.]+\s+(\w+)/i);
+          if (bridgeMatch) {
+            ambiguousSymbol = bridgeMatch[1];
+          }
+        }
+      }
 
       console.log("🔍 Detected ambiguous token symbol:", ambiguousSymbol);
 
@@ -169,11 +202,14 @@ export const parseIntentFx: StepDef["onEnter"] = async (
         const { resolveTokensMultiProvider } = await import("@/lib/normalize");
         const { resolveChain } = await import("@/lib/chains/registry");
 
-        // 🔧 FIX: Extract and resolve chain information
-        const intentChain = (intentResult as any).intent?.chain;
-        const targetChainId = intentChain
-          ? (typeof intentChain === 'number' ? intentChain : resolveChain(intentChain).id)
-          : core.chainId;
+        // 🔧 FIX: Extract and resolve chain information from intent if available
+        const intentChain = (intentResult as any).intent?.chain ||
+                           (intentResult as any).intent?.fromChain;
+        if (intentChain) {
+          targetChainId = typeof intentChain === 'number'
+            ? intentChain
+            : resolveChain(intentChain).id;
+        }
 
         console.log("🚀 Calling enhanced token resolver for symbol:", ambiguousSymbol, "on chain:", targetChainId);
         const enhancedResult = await resolveTokensMultiProvider(ambiguousSymbol, targetChainId);

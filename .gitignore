@@ -45,4 +45,5 @@ AGENTS.md
 CLAUDE.md
 .claude/*
 .playwright-mcp/*
+.codex/*
 plans-and-progress/*

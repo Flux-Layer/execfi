@@ -161,7 +161,11 @@ export async function orchestrateTransaction(
 
     // Return success immediately with monitoring in background
     // The UI can show the transaction hash immediately while monitoring continues
-    monitorTransaction(norm.chainId, executionResult.txHash as any).then(status => {
+    const chainId = norm.kind === 'native-transfer' || norm.kind === 'erc20-transfer'
+      ? norm.chainId
+      : norm.fromChainId;
+
+    monitorTransaction(chainId, executionResult.txHash as any).then(status => {
       console.log("📊 Final transaction status:", formatMonitoringStatus(status));
     }).catch(error => {
       console.warn("⚠️ Transaction monitoring failed:", error.message);

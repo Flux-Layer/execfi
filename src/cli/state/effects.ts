@@ -2,13 +2,14 @@
 import type { AppState, AppEvent, Dispatch, StepDef, FlowDef } from "./types";
 
 /**
- * Check if step has changed between states
+ * Check if step has changed between states OR if intent has been updated
  */
 export function stepChanged(prev: AppState, next: AppState): boolean {
   return (
     prev.mode !== next.mode ||
     prev.flow?.step !== next.flow?.step ||
-    prev.flow?.name !== next.flow?.name
+    prev.flow?.name !== next.flow?.name ||
+    prev.flow?.intent !== next.flow?.intent // Check if intent object reference changed
   );
 }
 

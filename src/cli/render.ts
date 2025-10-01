@@ -95,8 +95,19 @@ function renderFlow(flow: NonNullable<AppState["flow"]>): string[] {
     case "confirm":
       lines.push("⏳ Awaiting confirmation...");
       if (flow.norm) {
-        lines.push(`Amount: ${formatAmount(flow.norm.amountWei)} ETH`);
-        lines.push(`To: ${flow.norm.to}`);
+        if (flow.norm.kind === "native-transfer" || flow.norm.kind === "erc20-transfer") {
+          lines.push(`Amount: ${formatAmount(flow.norm.amountWei)} ETH`);
+          lines.push(`To: ${flow.norm.to}`);
+        } else if (flow.norm.kind === "swap") {
+          lines.push(`Swap: ${flow.norm.fromToken.symbol} → ${flow.norm.toToken.symbol}`);
+          lines.push(`Chain: ${flow.norm.fromChainId}`);
+        } else if (flow.norm.kind === "bridge") {
+          lines.push(`Bridge: ${flow.norm.token.symbol}`);
+          lines.push(`${flow.norm.fromChainId} → ${flow.norm.toChainId}`);
+        } else if (flow.norm.kind === "bridge-swap") {
+          lines.push(`Bridge-Swap: ${flow.norm.fromToken.symbol} → ${flow.norm.toToken.symbol}`);
+          lines.push(`${flow.norm.fromChainId} → ${flow.norm.toChainId}`);
+        }
       }
       break;
 

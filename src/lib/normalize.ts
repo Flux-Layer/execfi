@@ -26,7 +26,67 @@ export type NormalizedERC20Transfer = {
   amountWei: bigint;
 };
 
-export type NormalizedIntent = NormalizedNativeTransfer | NormalizedERC20Transfer;
+export type NormalizedSwap = {
+  kind: "swap";
+  fromChainId: number;
+  toChainId: number; // Same as fromChainId for swaps
+  fromToken: {
+    address: `0x${string}`;
+    symbol: string;
+    decimals: number;
+  };
+  toToken: {
+    address: `0x${string}`;
+    symbol: string;
+    decimals: number;
+  };
+  fromAmount: bigint;
+  recipient: `0x${string}`; // Defaults to sender
+  toAmountMin?: bigint; // Will be set during planning
+  route?: any; // LI.FI route cache
+};
+
+export type NormalizedBridge = {
+  kind: "bridge";
+  fromChainId: number;
+  toChainId: number;
+  token: {
+    address: `0x${string}`;
+    symbol: string;
+    decimals: number;
+  };
+  amount: bigint;
+  recipient: `0x${string}`; // Defaults to sender's address on destination chain
+  toAmountMin?: bigint; // Will be set during planning
+  route?: any; // LI.FI route cache
+};
+
+export type NormalizedBridgeSwap = {
+  kind: "bridge-swap";
+  fromChainId: number;
+  toChainId: number;
+  fromToken: {
+    address: `0x${string}`;
+    symbol: string;
+    decimals: number;
+  };
+  toToken: {
+    address: `0x${string}`;
+    symbol: string;
+    decimals: number;
+  };
+  fromAmount: bigint;
+  recipient: `0x${string}`; // Defaults to sender's address on destination chain
+  toAmountMin?: bigint; // Will be set during planning
+  route?: any; // LI.FI route cache
+};
+
+export type NormalizedIntent =
+  | NormalizedNativeTransfer
+  | NormalizedERC20Transfer
+  | NormalizedSwap
+  | NormalizedBridge
+  | NormalizedBridgeSwap;
 
 export class NormalizationError extends Error {
   constructor(
@@ -520,11 +580,365 @@ export async function normalizeTransferIntent(
 }
 
 /**
+ * Normalize swap intent (same-chain token exchange)
+ */
+async function normalizeSwapIntent(
+  intent: any,
+  opts?: { preferredChainId?: number; senderAddress?: `0x${string}` }
+): Promise<NormalizedSwap> {
+  // Import type guards
+  const { isSwapIntent } = await import("./ai/schema");
+  if (!isSwapIntent(intent)) {
+    throw new NormalizationError("Invalid swap intent", "INVALID_INTENT");
+  }
+
+  // Resolve chains
+  const fromChainId = resolveChainForNormalization(intent.fromChain);
+  const toChainId = intent.toChain ? resolveChainForNormalization(intent.toChain) : fromChainId;
+
+  // For swaps, both chains must be the same
+  if (fromChainId !== toChainId) {
+    throw new NormalizationError(
+      "Swap requires same chain. For cross-chain swaps, use bridge-swap.",
+      "CHAIN_MISMATCH"
+    );
+  }
+
+  // Check if we have pre-selected tokens from token selection flow
+  const selectedFromToken = (intent as any)._selectedFromToken;
+  const selectedToToken = (intent as any)._selectedToToken;
+
+  console.log("🔍 Checking for pre-selected tokens:", {
+    hasSelectedFromToken: !!selectedFromToken,
+    hasSelectedToToken: !!selectedToToken,
+    selectedFromToken,
+    selectedToToken,
+    fullIntent: intent
+  });
+
+  let fromToken: any;
+  let toToken: any;
+
+  // Resolve fromToken
+  if (selectedFromToken) {
+    // Use the pre-selected token for fromToken
+    fromToken = {
+      chainId: selectedFromToken.chainId,
+      address: selectedFromToken.address,
+      name: selectedFromToken.name,
+      symbol: selectedFromToken.symbol,
+      decimals: 18, // Will be resolved from token data
+      logoURI: selectedFromToken.logoURI,
+      verified: selectedFromToken.verified,
+    };
+  } else {
+    const fromTokenResult = await resolveTokensMultiProvider(intent.fromToken, fromChainId);
+    if (fromTokenResult.needsSelection) {
+      const compatibleTokens = fromTokenResult.tokens.map((token, index) => ({
+        id: index + 1,
+        chainId: token.chainId,
+        address: token.address as `0x${string}`,
+        name: token.name,
+        symbol: token.symbol,
+        decimals: token.decimals,
+        logoURI: token.logoURI,
+        verified: token.verified || false,
+      }));
+      throw new TokenSelectionError(
+        fromTokenResult.message || `Multiple '${intent.fromToken}' tokens found. Please select one:`,
+        "TOKEN_SELECTION_REQUIRED",
+        compatibleTokens
+      );
+    }
+
+    if (fromTokenResult.tokens.length === 0) {
+      throw new NormalizationError(
+        `Token '${intent.fromToken}' not found on chain ${fromChainId}`,
+        "TOKEN_NOT_FOUND"
+      );
+    }
+
+    fromToken = fromTokenResult.tokens[0];
+  }
+
+  // Resolve toToken
+  if (selectedToToken) {
+    // Use the pre-selected token for toToken
+    toToken = {
+      chainId: selectedToToken.chainId,
+      address: selectedToToken.address,
+      name: selectedToToken.name,
+      symbol: selectedToToken.symbol,
+      decimals: 18, // Will be resolved from token data
+      logoURI: selectedToToken.logoURI,
+      verified: selectedToToken.verified,
+    };
+  } else {
+    const toTokenResult = await resolveTokensMultiProvider(intent.toToken, toChainId);
+    if (toTokenResult.needsSelection) {
+      const compatibleTokens = toTokenResult.tokens.map((token, index) => ({
+        id: index + 1,
+        chainId: token.chainId,
+        address: token.address as `0x${string}`,
+        name: token.name,
+        symbol: token.symbol,
+        decimals: token.decimals,
+        logoURI: token.logoURI,
+        verified: token.verified || false,
+      }));
+      throw new TokenSelectionError(
+        toTokenResult.message || `Multiple '${intent.toToken}' tokens found. Please select one:`,
+        "TOKEN_SELECTION_REQUIRED",
+        compatibleTokens
+      );
+    }
+
+    if (toTokenResult.tokens.length === 0) {
+      throw new NormalizationError(
+        `Token '${intent.toToken}' not found on chain ${toChainId}`,
+        "TOKEN_NOT_FOUND"
+      );
+    }
+
+    toToken = toTokenResult.tokens[0];
+  }
+
+  // Parse amount
+  const fromAmount = parseUnits(intent.amount, fromToken.decimals);
+
+  // Resolve recipient (defaults to sender)
+  const recipient = intent.recipient
+    ? (isAddress(intent.recipient) ? getAddress(intent.recipient) : opts?.senderAddress)
+    : opts?.senderAddress;
+
+  if (!recipient) {
+    throw new NormalizationError(
+      "Recipient address is required for swap",
+      "RECIPIENT_REQUIRED"
+    );
+  }
+
+  return {
+    kind: "swap",
+    fromChainId,
+    toChainId,
+    fromToken: {
+      address: fromToken.address as `0x${string}`,
+      symbol: fromToken.symbol,
+      decimals: fromToken.decimals,
+    },
+    toToken: {
+      address: toToken.address as `0x${string}`,
+      symbol: toToken.symbol,
+      decimals: toToken.decimals,
+    },
+    fromAmount,
+    recipient,
+  };
+}
+
+/**
+ * Normalize bridge intent (same token cross-chain transfer)
+ */
+async function normalizeBridgeIntent(
+  intent: any,
+  opts?: { preferredChainId?: number; senderAddress?: `0x${string}` }
+): Promise<NormalizedBridge> {
+  const { isBridgeIntent } = await import("./ai/schema");
+  if (!isBridgeIntent(intent)) {
+    throw new NormalizationError("Invalid bridge intent", "INVALID_INTENT");
+  }
+
+  // Resolve chains
+  const fromChainId = resolveChainForNormalization(intent.fromChain);
+  const toChainId = resolveChainForNormalization(intent.toChain);
+
+  // For bridges, chains must be different
+  if (fromChainId === toChainId) {
+    throw new NormalizationError(
+      "Bridge requires different chains. For same-chain transfers, use transfer or swap.",
+      "CHAIN_MISMATCH"
+    );
+  }
+
+  // Resolve token on source chain
+  const tokenResult = await resolveTokensMultiProvider(intent.token, fromChainId);
+  if (tokenResult.needsSelection) {
+    const compatibleTokens = tokenResult.tokens.map((token, index) => ({
+      id: index + 1,
+      chainId: token.chainId,
+      address: token.address as `0x${string}`,
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+      logoURI: token.logoURI,
+      verified: token.verified || false,
+    }));
+    throw new TokenSelectionError(
+      tokenResult.message || `Multiple '${intent.token}' tokens found. Please select one:`,
+      "TOKEN_SELECTION_REQUIRED",
+      compatibleTokens
+    );
+  }
+
+  if (tokenResult.tokens.length === 0) {
+    throw new NormalizationError(
+      `Token '${intent.token}' not found on chain ${fromChainId}`,
+      "TOKEN_NOT_FOUND"
+    );
+  }
+
+  const token = tokenResult.tokens[0];
+
+  // Parse amount
+  const amount = parseUnits(intent.amount, token.decimals);
+
+  // Resolve recipient (defaults to sender's address on destination chain)
+  const recipient = intent.recipient
+    ? (isAddress(intent.recipient) ? getAddress(intent.recipient) : opts?.senderAddress)
+    : opts?.senderAddress;
+
+  if (!recipient) {
+    throw new NormalizationError(
+      "Recipient address is required for bridge",
+      "RECIPIENT_REQUIRED"
+    );
+  }
+
+  return {
+    kind: "bridge",
+    fromChainId,
+    toChainId,
+    token: {
+      address: token.address as `0x${string}`,
+      symbol: token.symbol,
+      decimals: token.decimals,
+    },
+    amount,
+    recipient,
+  };
+}
+
+/**
+ * Normalize bridge-swap intent (cross-chain token exchange)
+ */
+async function normalizeBridgeSwapIntent(
+  intent: any,
+  opts?: { preferredChainId?: number; senderAddress?: `0x${string}` }
+): Promise<NormalizedBridgeSwap> {
+  const { isBridgeSwapIntent } = await import("./ai/schema");
+  if (!isBridgeSwapIntent(intent)) {
+    throw new NormalizationError("Invalid bridge-swap intent", "INVALID_INTENT");
+  }
+
+  // Resolve chains
+  const fromChainId = resolveChainForNormalization(intent.fromChain);
+  const toChainId = resolveChainForNormalization(intent.toChain);
+
+  // For bridge-swaps, chains must be different
+  if (fromChainId === toChainId) {
+    throw new NormalizationError(
+      "Bridge-swap requires different chains. For same-chain swaps, use swap.",
+      "CHAIN_MISMATCH"
+    );
+  }
+
+  // Resolve tokens
+  const fromTokenResult = await resolveTokensMultiProvider(intent.fromToken, fromChainId);
+  if (fromTokenResult.needsSelection) {
+    const compatibleTokens = fromTokenResult.tokens.map((token, index) => ({
+      id: index + 1,
+      chainId: token.chainId,
+      address: token.address as `0x${string}`,
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+      logoURI: token.logoURI,
+      verified: token.verified || false,
+    }));
+    throw new TokenSelectionError(
+      fromTokenResult.message || `Multiple '${intent.fromToken}' tokens found. Please select one:`,
+      "TOKEN_SELECTION_REQUIRED",
+      compatibleTokens
+    );
+  }
+
+  if (fromTokenResult.tokens.length === 0) {
+    throw new NormalizationError(
+      `Token '${intent.fromToken}' not found on chain ${fromChainId}`,
+      "TOKEN_NOT_FOUND"
+    );
+  }
+
+  const toTokenResult = await resolveTokensMultiProvider(intent.toToken, toChainId);
+  if (toTokenResult.needsSelection) {
+    const compatibleTokens = toTokenResult.tokens.map((token, index) => ({
+      id: index + 1,
+      chainId: token.chainId,
+      address: token.address as `0x${string}`,
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+      logoURI: token.logoURI,
+      verified: token.verified || false,
+    }));
+    throw new TokenSelectionError(
+      toTokenResult.message || `Multiple '${intent.toToken}' tokens found. Please select one:`,
+      "TOKEN_SELECTION_REQUIRED",
+      compatibleTokens
+    );
+  }
+
+  if (toTokenResult.tokens.length === 0) {
+    throw new NormalizationError(
+      `Token '${intent.toToken}' not found on chain ${toChainId}`,
+      "TOKEN_NOT_FOUND"
+    );
+  }
+
+  const fromToken = fromTokenResult.tokens[0];
+  const toToken = toTokenResult.tokens[0];
+
+  // Parse amount
+  const fromAmount = parseUnits(intent.amount, fromToken.decimals);
+
+  // Resolve recipient (defaults to sender's address on destination chain)
+  const recipient = intent.recipient
+    ? (isAddress(intent.recipient) ? getAddress(intent.recipient) : opts?.senderAddress)
+    : opts?.senderAddress;
+
+  if (!recipient) {
+    throw new NormalizationError(
+      "Recipient address is required for bridge-swap",
+      "RECIPIENT_REQUIRED"
+    );
+  }
+
+  return {
+    kind: "bridge-swap",
+    fromChainId,
+    toChainId,
+    fromToken: {
+      address: fromToken.address as `0x${string}`,
+      symbol: fromToken.symbol,
+      decimals: fromToken.decimals,
+    },
+    toToken: {
+      address: toToken.address as `0x${string}`,
+      symbol: toToken.symbol,
+      decimals: toToken.decimals,
+    },
+    fromAmount,
+    recipient,
+  };
+}
+
+/**
  * Main normalization function - handles all intent types (Enhanced with Multi-Provider)
  */
 export async function normalizeIntent(
   intentSuccess: IntentSuccess,
-  opts?: { preferredChainId?: number }
+  opts?: { preferredChainId?: number; senderAddress?: `0x${string}` }
 ): Promise<NormalizedIntent> {
   const { intent } = intentSuccess;
 
@@ -532,9 +946,20 @@ export async function normalizeIntent(
     return await normalizeTransferIntent(intent, opts);
   }
 
-  // Future: handle swap, bridge, bridge_swap
+  if (intent.action === "swap") {
+    return await normalizeSwapIntent(intent, opts);
+  }
+
+  if (intent.action === "bridge") {
+    return await normalizeBridgeIntent(intent, opts);
+  }
+
+  if (intent.action === "bridge_swap") {
+    return await normalizeBridgeSwapIntent(intent, opts);
+  }
+
   throw new NormalizationError(
-    `Action ${(intent as any).action} not supported in MVP. Only 'transfer' is supported.`,
+    `Action ${(intent as any).action} not supported.`,
     "ACTION_UNSUPPORTED"
   );
 }
