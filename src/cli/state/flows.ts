@@ -10,6 +10,7 @@ import { clarifyToastFx } from "../effects/confirm";
 import { executePrivyFx } from "../effects/execute";
 import { monitorFx } from "../effects/monitor";
 import { successFx, failureFx } from "../effects/feedback";
+import { planSwapFx, planBridgeFx, planBridgeSwapFx } from "../effects/plan";
 
 /**
  * Transfer flow definition
@@ -55,7 +56,7 @@ export const transferFlow: FlowDef = {
 };
 
 /**
- * Swap flow definition (placeholder for future implementation)
+ * Swap flow definition - same-chain token exchange
  */
 export const swapFlow: FlowDef = {
   parse: {
@@ -71,16 +72,16 @@ export const swapFlow: FlowDef = {
     onEnter: validateFx,
   },
   plan: {
-    onEnter: skipFx, // TODO: Implement swap planning with LI.FI
+    onEnter: planSwapFx,
   },
   simulate: {
-    onEnter: simulateGasFx,
+    onEnter: skipFx, // Swaps use LI.FI quote, skip simulation
   },
   confirm: {
     // Terminal-based confirmation - no overlay needed
   },
   execute: {
-    onEnter: executePrivyFx, // TODO: Implement swap execution
+    onEnter: executePrivyFx,
   },
   monitor: {
     onEnter: monitorFx,
@@ -94,7 +95,7 @@ export const swapFlow: FlowDef = {
 };
 
 /**
- * Bridge flow definition (placeholder for future implementation)
+ * Bridge flow definition - same token cross-chain transfer
  */
 export const bridgeFlow: FlowDef = {
   parse: {
@@ -110,16 +111,16 @@ export const bridgeFlow: FlowDef = {
     onEnter: validateFx,
   },
   plan: {
-    onEnter: skipFx, // TODO: Implement bridge planning with LI.FI
+    onEnter: planBridgeFx,
   },
   simulate: {
-    onEnter: simulateGasFx,
+    onEnter: skipFx, // Bridges use LI.FI quote, skip simulation
   },
   confirm: {
     // Terminal-based confirmation - no overlay needed
   },
   execute: {
-    onEnter: executePrivyFx, // TODO: Implement bridge execution
+    onEnter: executePrivyFx,
   },
   monitor: {
     onEnter: monitorFx,
@@ -133,7 +134,7 @@ export const bridgeFlow: FlowDef = {
 };
 
 /**
- * Bridge-swap flow definition (placeholder for future implementation)
+ * Bridge-swap flow definition - cross-chain token exchange
  */
 export const bridgeSwapFlow: FlowDef = {
   parse: {
@@ -149,16 +150,16 @@ export const bridgeSwapFlow: FlowDef = {
     onEnter: validateFx,
   },
   plan: {
-    onEnter: skipFx, // TODO: Implement complex bridge-swap planning
+    onEnter: planBridgeSwapFx,
   },
   simulate: {
-    onEnter: simulateGasFx,
+    onEnter: skipFx, // Bridge-swaps use LI.FI quote, skip simulation
   },
   confirm: {
     // Terminal-based confirmation - no overlay needed
   },
   execute: {
-    onEnter: executePrivyFx, // TODO: Implement bridge-swap execution
+    onEnter: executePrivyFx,
   },
   monitor: {
     onEnter: monitorFx,

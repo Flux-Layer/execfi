@@ -12,11 +12,29 @@ export const confirmOverlayFx: StepDef["onEnter"] = (ctx, core, dispatch, signal
     return;
   }
 
-  const amount = formatEther(ctx.norm.amountWei);
-  const to = ctx.norm.to;
+  // Build confirmation message based on intent type
+  let message: string;
   const chainName = getChainName(core.chainId);
 
-  const message = `Send ${amount} ETH to ${shortenAddress(to)} on ${chainName}?`;
+  if (ctx.norm.kind === "native-transfer") {
+    const amount = formatEther(ctx.norm.amountWei);
+    message = `Send ${amount} ETH to ${shortenAddress(ctx.norm.to)} on ${chainName}?`;
+  } else if (ctx.norm.kind === "erc20-transfer") {
+    const amount = formatEther(ctx.norm.amountWei);
+    message = `Send ${amount} ${ctx.norm.token.symbol} to ${shortenAddress(ctx.norm.to)} on ${chainName}?`;
+  } else if (ctx.norm.kind === "swap") {
+    message = `Swap ${ctx.norm.fromToken.symbol} to ${ctx.norm.toToken.symbol} on ${chainName}?`;
+  } else if (ctx.norm.kind === "bridge") {
+    const fromChainName = getChainName(ctx.norm.fromChainId);
+    const toChainName = getChainName(ctx.norm.toChainId);
+    message = `Bridge ${ctx.norm.token.symbol} from ${fromChainName} to ${toChainName}?`;
+  } else if (ctx.norm.kind === "bridge-swap") {
+    const fromChainName = getChainName(ctx.norm.fromChainId);
+    const toChainName = getChainName(ctx.norm.toChainId);
+    message = `Bridge & swap ${ctx.norm.fromToken.symbol} on ${fromChainName} to ${ctx.norm.toToken.symbol} on ${toChainName}?`;
+  } else {
+    message = "Confirm transaction?";
+  }
 
   console.log("🔄 Requesting confirmation:", message);
 

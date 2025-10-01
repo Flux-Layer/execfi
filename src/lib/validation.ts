@@ -1,7 +1,14 @@
 // lib/validation.ts - Intent validation and policy enforcement
 
 import { createPublicClient, http, formatEther, formatUnits, erc20Abi, getContract } from "viem";
-import type { NormalizedNativeTransfer, NormalizedERC20Transfer, NormalizedIntent } from "./normalize";
+import type {
+  NormalizedNativeTransfer,
+  NormalizedERC20Transfer,
+  NormalizedSwap,
+  NormalizedBridge,
+  NormalizedBridgeSwap,
+  NormalizedIntent
+} from "./normalize";
 import { getChainConfig, isChainSupported } from "./chains/registry";
 
 export class ValidationError extends Error {
@@ -418,6 +425,207 @@ export async function simulateERC20Transfer(
 }
 
 /**
+ * Validate swap intent - checks token balances on source chain
+ */
+export async function validateSwap(
+  norm: NormalizedSwap,
+  fromAddress: `0x${string}`
+): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
+  // Get public client for the chain
+  const publicClient = getPublicClient(norm.fromChainId);
+
+  try {
+    // Check source token balance
+    let balance: bigint;
+
+    // For native tokens (ETH), use getBalance
+    if (norm.fromToken.address === '0x0000000000000000000000000000000000000000') {
+      balance = await publicClient.getBalance({ address: fromAddress });
+    } else {
+      // For ERC-20 tokens, use balanceOf
+      const tokenContract = getContract({
+        address: norm.fromToken.address,
+        abi: erc20Abi,
+        client: publicClient,
+      });
+      balance = await tokenContract.read.balanceOf([fromAddress]);
+    }
+
+    if (balance < norm.fromAmount) {
+      const balanceFormatted = formatUnits(balance, norm.fromToken.decimals);
+      const amountFormatted = formatUnits(norm.fromAmount, norm.fromToken.decimals);
+
+      throw new ValidationError(
+        `Insufficient ${norm.fromToken.symbol} balance. You have ${balanceFormatted} but trying to swap ${amountFormatted}`,
+        "INSUFFICIENT_TOKEN_BALANCE"
+      );
+    }
+
+    // Check native token balance for gas
+    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+    const chainConfig = getChainConfig(norm.fromChainId);
+
+    // Estimate gas (rough estimate for approval + swap)
+    const estimatedGas = 300000n; // Conservative estimate for DEX swaps
+    const gasPrice = await publicClient.getGasPrice();
+    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(POLICY.GAS_HEADROOM_MULT * 100)) / 100n;
+
+    if (nativeBalance < gasCost) {
+      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+      throw new ValidationError(
+        `Insufficient ${nativeSymbol} for gas fees. Need ~${formatEther(gasCost)} ${nativeSymbol}`,
+        "INSUFFICIENT_GAS_FUNDS"
+      );
+    }
+
+    return { gasEstimate: estimatedGas, gasCost };
+
+  } catch (error: any) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new ValidationError(
+      `Swap validation failed: ${error.message || "Unknown error"}`,
+      "SWAP_VALIDATION_FAILED"
+    );
+  }
+}
+
+/**
+ * Validate bridge intent - checks token balance on source chain
+ */
+export async function validateBridge(
+  norm: NormalizedBridge,
+  fromAddress: `0x${string}`
+): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
+  // Get public client for source chain
+  const publicClient = getPublicClient(norm.fromChainId);
+
+  try {
+    // Check source token balance
+    let balance: bigint;
+
+    // For native tokens (ETH), use getBalance
+    if (norm.token.address === '0x0000000000000000000000000000000000000000') {
+      balance = await publicClient.getBalance({ address: fromAddress });
+    } else {
+      // For ERC-20 tokens, use balanceOf
+      const tokenContract = getContract({
+        address: norm.token.address,
+        abi: erc20Abi,
+        client: publicClient,
+      });
+      balance = await tokenContract.read.balanceOf([fromAddress]);
+    }
+
+    if (balance < norm.amount) {
+      const balanceFormatted = formatUnits(balance, norm.token.decimals);
+      const amountFormatted = formatUnits(norm.amount, norm.token.decimals);
+
+      throw new ValidationError(
+        `Insufficient ${norm.token.symbol} balance. You have ${balanceFormatted} but trying to bridge ${amountFormatted}`,
+        "INSUFFICIENT_TOKEN_BALANCE"
+      );
+    }
+
+    // Check native token balance for gas
+    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+    const chainConfig = getChainConfig(norm.fromChainId);
+
+    // Estimate gas (rough estimate for approval + bridge)
+    const estimatedGas = 250000n; // Conservative estimate for bridges
+    const gasPrice = await publicClient.getGasPrice();
+    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(POLICY.GAS_HEADROOM_MULT * 100)) / 100n;
+
+    if (nativeBalance < gasCost) {
+      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+      throw new ValidationError(
+        `Insufficient ${nativeSymbol} for gas fees. Need ~${formatEther(gasCost)} ${nativeSymbol}`,
+        "INSUFFICIENT_GAS_FUNDS"
+      );
+    }
+
+    return { gasEstimate: estimatedGas, gasCost };
+
+  } catch (error: any) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new ValidationError(
+      `Bridge validation failed: ${error.message || "Unknown error"}`,
+      "BRIDGE_VALIDATION_FAILED"
+    );
+  }
+}
+
+/**
+ * Validate bridge-swap intent - checks token balance on source chain
+ */
+export async function validateBridgeSwap(
+  norm: NormalizedBridgeSwap,
+  fromAddress: `0x${string}`
+): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
+  // Get public client for source chain
+  const publicClient = getPublicClient(norm.fromChainId);
+
+  try {
+    // Check source token balance
+    let balance: bigint;
+
+    // For native tokens (ETH), use getBalance
+    if (norm.fromToken.address === '0x0000000000000000000000000000000000000000') {
+      balance = await publicClient.getBalance({ address: fromAddress });
+    } else {
+      // For ERC-20 tokens, use balanceOf
+      const tokenContract = getContract({
+        address: norm.fromToken.address,
+        abi: erc20Abi,
+        client: publicClient,
+      });
+      balance = await tokenContract.read.balanceOf([fromAddress]);
+    }
+
+    if (balance < norm.fromAmount) {
+      const balanceFormatted = formatUnits(balance, norm.fromToken.decimals);
+      const amountFormatted = formatUnits(norm.fromAmount, norm.fromToken.decimals);
+
+      throw new ValidationError(
+        `Insufficient ${norm.fromToken.symbol} balance. You have ${balanceFormatted} but trying to bridge-swap ${amountFormatted}`,
+        "INSUFFICIENT_TOKEN_BALANCE"
+      );
+    }
+
+    // Check native token balance for gas
+    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+    const chainConfig = getChainConfig(norm.fromChainId);
+
+    // Estimate gas (rough estimate for approval + bridge + swap)
+    const estimatedGas = 400000n; // Conservative estimate for complex bridge-swaps
+    const gasPrice = await publicClient.getGasPrice();
+    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(POLICY.GAS_HEADROOM_MULT * 100)) / 100n;
+
+    if (nativeBalance < gasCost) {
+      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+      throw new ValidationError(
+        `Insufficient ${nativeSymbol} for gas fees. Need ~${formatEther(gasCost)} ${nativeSymbol}`,
+        "INSUFFICIENT_GAS_FUNDS"
+      );
+    }
+
+    return { gasEstimate: estimatedGas, gasCost };
+
+  } catch (error: any) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new ValidationError(
+      `Bridge-swap validation failed: ${error.message || "Unknown error"}`,
+      "BRIDGE_SWAP_VALIDATION_FAILED"
+    );
+  }
+}
+
+/**
  * Validation router for different intent types
  */
 export async function validateIntent(
@@ -428,6 +636,12 @@ export async function validateIntent(
     return validateNativeTransfer(norm, fromAddress);
   } else if (norm.kind === "erc20-transfer") {
     return validateERC20Transfer(norm, fromAddress);
+  } else if (norm.kind === "swap") {
+    return validateSwap(norm, fromAddress);
+  } else if (norm.kind === "bridge") {
+    return validateBridge(norm, fromAddress);
+  } else if (norm.kind === "bridge-swap") {
+    return validateBridgeSwap(norm, fromAddress);
   } else {
     throw new ValidationError(
       `Unknown transfer type: ${(norm as any).kind}`,
@@ -447,6 +661,10 @@ export async function simulateIntent(
     return simulateTransfer(norm, fromAddress);
   } else if (norm.kind === "erc20-transfer") {
     return simulateERC20Transfer(norm, fromAddress);
+  } else if (norm.kind === "swap" || norm.kind === "bridge" || norm.kind === "bridge-swap") {
+    // Skip simulation for LI.FI-based operations (they have their own validation)
+    console.log(`⏭️ Skipping simulation for ${norm.kind} (uses LI.FI validation)`);
+    return;
   } else {
     throw new ValidationError(
       `Unknown transfer type for simulation: ${(norm as any).kind}`,

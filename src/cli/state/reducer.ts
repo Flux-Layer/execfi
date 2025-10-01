@@ -262,7 +262,7 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       return state;
 
     case "INTENT.TOKEN_SELECTION":
-      if (state.mode === "FLOW" && state.flow?.step === "parse") {
+      if (state.mode === "FLOW" && (state.flow?.step === "parse" || state.flow?.step === "normalize")) {
         return {
           ...state,
           flow: {
@@ -293,15 +293,73 @@ export function reducer(state: AppState, event: AppEvent): AppState {
     case "TOKEN.SELECT":
       if (state.mode === "FLOW" && state.flow?.tokenSelection) {
         const selectedToken = state.flow.tokenSelection.tokens[event.index];
-
-        // Reconstruct intent with selected token by parsing the original raw input
-        // Extract components from the original raw prompt
         const raw = state.flow.raw || "";
-        const recipientMatch = raw.match(/to\s+(0x[a-fA-F0-9]{40}|[\w\d.-]+\.eth)/i);
-        const amountMatch = raw.match(/send\s+([\d.]+)/i);
 
-        if (!recipientMatch || !amountMatch) {
-          // Fallback error if we can't parse the original intent
+        // Detect intent type from raw input
+        let reconstructedIntent: any;
+
+        if (raw.match(/\bswap\b/i)) {
+          // Swap intent - parse "swap X eth to usdc on base"
+          const amountMatch = raw.match(/swap\s+([\d.]+)/i);
+          const fromTokenMatch = raw.match(/swap\s+[\d.]+\s+(\w+)/i);
+          const toTokenMatch = raw.match(/to\s+(\w+)/i);
+          const chainMatch = raw.match(/on\s+(\w+)/i);
+
+          if (!amountMatch || !fromTokenMatch) {
+            return {
+              ...state,
+              flow: {
+                ...state.flow,
+                step: "failure",
+                error: {
+                  code: "INTENT_RECONSTRUCTION_FAILED",
+                  message: "Failed to reconstruct swap intent with selected token",
+                  phase: "normalize",
+                },
+              },
+            };
+          }
+
+          // Determine which token was ambiguous and use the selected token
+          const fromTokenSymbol = fromTokenMatch[1];
+          const toTokenSymbol = toTokenMatch ? toTokenMatch[1] : undefined;
+
+          // Check if we already have selected tokens from previous selections
+          const previousIntent = state.flow.intent as any;
+          const previousFromToken = previousIntent?._selectedFromToken;
+          const previousToToken = previousIntent?._selectedToToken;
+
+          // If the selected token matches fromToken symbol, use it as fromToken
+          // Otherwise, use it as toToken
+          const isFromToken = fromTokenSymbol.toLowerCase() === selectedToken.symbol.toLowerCase();
+
+          // Build the token selection data
+          let selectedFromToken: any;
+          let selectedToToken: any;
+
+          if (isFromToken) {
+            // User selected the fromToken
+            selectedFromToken = selectedToken;
+            selectedToToken = previousToToken; // Keep previous toToken if any
+          } else {
+            // User selected the toToken
+            selectedFromToken = previousFromToken; // Keep previous fromToken if any
+            selectedToToken = selectedToken;
+          }
+
+          reconstructedIntent = {
+            action: "swap" as const,
+            fromChain: chainMatch ? chainMatch[1] : selectedToken.chainId,
+            toChain: chainMatch ? chainMatch[1] : selectedToken.chainId,
+            fromToken: isFromToken ? selectedToken.symbol : fromTokenSymbol,
+            toToken: isFromToken ? (toTokenSymbol || selectedToken.symbol) : selectedToken.symbol,
+            amount: amountMatch[1],
+            _selectedFromToken: selectedFromToken, // Store from token
+            _selectedToToken: selectedToToken, // Store to token
+          };
+        } else if (raw.match(/\bbridge\b/i) && raw.match(/\bswap\b/i)) {
+          // Bridge-swap intent
+          // TODO: Implement bridge-swap reconstruction
           return {
             ...state,
             flow: {
@@ -309,42 +367,80 @@ export function reducer(state: AppState, event: AppEvent): AppState {
               step: "failure",
               error: {
                 code: "INTENT_RECONSTRUCTION_FAILED",
-                message: "Failed to reconstruct intent with selected token",
+                message: "Bridge-swap token reconstruction not yet implemented",
                 phase: "normalize",
               },
             },
           };
+        } else if (raw.match(/\bbridge\b/i)) {
+          // Bridge intent
+          // TODO: Implement bridge reconstruction
+          return {
+            ...state,
+            flow: {
+              ...state.flow,
+              step: "failure",
+              error: {
+                code: "INTENT_RECONSTRUCTION_FAILED",
+                message: "Bridge token reconstruction not yet implemented",
+                phase: "normalize",
+              },
+            },
+          };
+        } else {
+          // Transfer intent - parse "send X token to address"
+          const recipientMatch = raw.match(/to\s+(0x[a-fA-F0-9]{40}|[\w\d.-]+\.eth)/i);
+          const amountMatch = raw.match(/send\s+([\d.]+)/i);
+
+          if (!recipientMatch || !amountMatch) {
+            return {
+              ...state,
+              flow: {
+                ...state.flow,
+                step: "failure",
+                error: {
+                  code: "INTENT_RECONSTRUCTION_FAILED",
+                  message: "Failed to reconstruct transfer intent with selected token",
+                  phase: "normalize",
+                },
+              },
+            };
+          }
+
+          const isNativeToken = selectedToken.address === "0x0000000000000000000000000000000000000000";
+          reconstructedIntent = {
+            action: "transfer" as const,
+            chain: selectedToken.chainId,
+            token: isNativeToken ? {
+              type: "native" as const,
+              symbol: selectedToken.symbol,
+              decimals: 18,
+            } : {
+              type: "erc20" as const,
+              symbol: selectedToken.symbol,
+              address: selectedToken.address,
+              decimals: 18, // Default, will be resolved during normalization
+            },
+            amount: amountMatch[1],
+            recipient: recipientMatch[1],
+            _selectedToken: selectedToken,
+          };
         }
 
-        // Create reconstructed intent with selected token
-        const isNativeToken = selectedToken.address === "0x0000000000000000000000000000000000000000";
-        const reconstructedIntent = {
-          action: "transfer" as const,
-          chain: selectedToken.chainId,
-          token: isNativeToken ? {
-            type: "native" as const,
-            symbol: selectedToken.symbol,
-            decimals: 18,
-          } : {
-            type: "erc20" as const,
-            symbol: selectedToken.symbol,
-            address: selectedToken.address,
-            decimals: 18, // Default, will be resolved during normalization
-          },
-          amount: amountMatch[1],
-          recipient: recipientMatch[1],
-          // Store the exact selected token data for normalization bypass
-          _selectedToken: selectedToken,
-        };
+        console.log("🔄 TOKEN.SELECT - Reconstructed intent:", reconstructedIntent);
+        console.log("🔄 TOKEN.SELECT - Has _selectedFromToken:", !!(reconstructedIntent as any)._selectedFromToken);
+        console.log("🔄 TOKEN.SELECT - Has _selectedToToken:", !!(reconstructedIntent as any)._selectedToToken);
 
+        // Return new state with updated intent and force step to "normalize"
+        // Note: Even if step was already "normalize", updating the intent should be enough
         return {
           ...state,
           flow: {
             ...state.flow,
             selectedTokenIndex: event.index,
             tokenSelection: undefined, // Clear selection state
-            intent: reconstructedIntent, // Set the reconstructed intent
-            step: "normalize", // Continue to normalize
+            intent: reconstructedIntent, // Set the reconstructed intent with both tokens
+            step: "normalize", // Set to normalize (will re-run if intent changed)
           },
           chatHistory: [
             ...state.chatHistory,
@@ -386,7 +482,13 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       return state;
 
     case "VALIDATE.OK":
+      console.log("🔍 VALIDATE.OK received - State check:", {
+        mode: state.mode,
+        flowStep: state.flow?.step,
+        flowName: state.flow?.name,
+      });
       if (state.mode === "FLOW" && state.flow?.step === "validate") {
+        console.log("✅ VALIDATE.OK conditions met, transitioning to plan step");
         return {
           ...state,
           flow: {
@@ -396,6 +498,7 @@ export function reducer(state: AppState, event: AppEvent): AppState {
           },
         };
       }
+      console.log("❌ VALIDATE.OK conditions NOT met, no transition");
       return state;
 
     case "VALIDATE.FAIL":
@@ -457,7 +560,13 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       return state;
 
     case "SIM.OK":
+      console.log("🔍 SIM.OK received - State check:", {
+        mode: state.mode,
+        flowStep: state.flow?.step,
+        hasFlow: !!state.flow,
+      });
       if (state.mode === "FLOW" && state.flow?.step === "simulate") {
+        console.log("✅ SIM.OK conditions met, transitioning...");
         // Check if original prompt contains auto-confirmation keywords
         const autoConfirmKeywords = [
           "auto", "automatically", "skip confirmation", "force", "proceed",
@@ -522,6 +631,11 @@ export function reducer(state: AppState, event: AppEvent): AppState {
 
     case "CONFIRM.YES":
       if (state.mode === "FLOW" && state.flow?.step === "confirm") {
+        console.log("🔍 CONFIRM.YES - Flow context before transition:", {
+          hasPlan: !!state.flow.plan,
+          planKeys: state.flow.plan ? Object.keys(state.flow.plan) : [],
+          hasRoute: !!state.flow.plan?.route,
+        });
         return {
           ...state,
           flow: {

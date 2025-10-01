@@ -5,6 +5,7 @@ import {
   getRoutes as lifiGetRoutes,
   getQuote as lifiGetQuote,
   getTokens as lifiGetTokens,
+  getStepTransaction as lifiGetStepTransaction,
   type Route,
   type Token,
 } from "@lifi/sdk";
@@ -426,6 +427,53 @@ export async function getRoutes(params: {
       "SDK_ERROR",
       undefined,
       error,
+    );
+  }
+}
+
+/**
+ * Get transaction request for a specific route step
+ */
+export async function getStepTransaction(params: {
+  route: Route;
+  stepIndex?: number;
+  userAddress: string;
+}): Promise<any> {
+  try {
+    const stepIndex = params.stepIndex ?? 0;
+    const step = params.route.steps[stepIndex];
+
+    if (!step) {
+      throw new LifiError("Step not found in route", "STEP_NOT_FOUND", 400);
+    }
+
+    // Call LI.FI SDK's getStepTransaction
+    const updatedStep = await lifiGetStepTransaction(step);
+
+    if (!updatedStep.transactionRequest) {
+      throw new LifiError(
+        "Step transaction request not populated by LI.FI",
+        "NO_TRANSACTION_REQUEST",
+        500
+      );
+    }
+
+    console.log("✅ LI.FI SDK getStepTransaction returned:", {
+      to: updatedStep.transactionRequest.to,
+      value: updatedStep.transactionRequest.value,
+      hasData: !!updatedStep.transactionRequest.data,
+    });
+
+    return updatedStep.transactionRequest;
+  } catch (error) {
+    console.error("❌ LI.FI getStepTransaction failed:", error);
+    if (error instanceof LifiError) {
+      throw error;
+    }
+    throw new LifiError(
+      `Failed to get step transaction: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "STEP_TRANSACTION_ERROR",
+      500
     );
   }
 }

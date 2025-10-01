@@ -59,15 +59,40 @@ export function generateIdempotencyKey(
   const timeBucket = Math.floor(Date.now() / timeBucketMs);
 
   // Create hash input from transaction details
-  const hashInput = JSON.stringify({
+  const hashData: any = {
     userId,
     kind: norm.kind,
-    chainId: norm.chainId,
-    to: norm.to.toLowerCase(),
-    amountWei: norm.amountWei.toString(),
-    token: norm.kind === "erc20-transfer" ? norm.token.address.toLowerCase() : "native",
     timeBucket,
-  });
+  };
+
+  // Add type-specific fields
+  if (norm.kind === "native-transfer" || norm.kind === "erc20-transfer") {
+    hashData.chainId = norm.chainId;
+    hashData.to = norm.to.toLowerCase();
+    hashData.amountWei = norm.amountWei.toString();
+    hashData.token = norm.kind === "erc20-transfer" ? norm.token.address.toLowerCase() : "native";
+  } else if (norm.kind === "swap") {
+    hashData.chainId = norm.fromChainId;
+    hashData.fromToken = norm.fromToken.address.toLowerCase();
+    hashData.toToken = norm.toToken.address.toLowerCase();
+    hashData.fromAmount = norm.fromAmount.toString();
+    hashData.recipient = norm.recipient.toLowerCase();
+  } else if (norm.kind === "bridge") {
+    hashData.fromChainId = norm.fromChainId;
+    hashData.toChainId = norm.toChainId;
+    hashData.token = norm.token.address.toLowerCase();
+    hashData.amount = norm.amount.toString();
+    hashData.recipient = norm.recipient.toLowerCase();
+  } else if (norm.kind === "bridge-swap") {
+    hashData.fromChainId = norm.fromChainId;
+    hashData.toChainId = norm.toChainId;
+    hashData.fromToken = norm.fromToken.address.toLowerCase();
+    hashData.toToken = norm.toToken.address.toLowerCase();
+    hashData.fromAmount = norm.fromAmount.toString();
+    hashData.recipient = norm.recipient.toLowerCase();
+  }
+
+  const hashInput = JSON.stringify(hashData);
 
   // Generate deterministic hash
   return createHash("sha256").update(hashInput).digest("hex").slice(0, 16);

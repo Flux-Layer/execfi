@@ -18,9 +18,17 @@ export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signa
   try {
     console.log("🔄 Normalizing intent:", ctx.intent);
 
+    // Get sender address for swap/bridge operations
+    const senderAddress = core.accountMode === "SMART_ACCOUNT"
+      ? core.saAddress
+      : core.selectedWallet?.address;
+
     const norm = await normalizeIntent(
       { ok: true, intent: ctx.intent },
-      { preferredChainId: core.chainId }
+      {
+        preferredChainId: core.chainId,
+        senderAddress: senderAddress as `0x${string}` | undefined
+      }
     );
 
     if (signal.aborted) return;

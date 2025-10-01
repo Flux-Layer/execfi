@@ -33,20 +33,46 @@ const TransferIntentSchema = z.object({
   useSession: z.boolean().optional(), // whether to use session key for automated signing
 });
 
-// Future: Swap/Bridge intent schemas (not implemented in MVP)
+// Swap intent schema - same chain token exchange
 const SwapIntentSchema = z.object({
-  action: z.enum(['swap', 'bridge', 'bridge_swap']),
+  action: z.literal('swap'),
   fromChain: z.union([z.string(), z.number()]),
-  toChain: z.union([z.string(), z.number()]).optional(),
+  toChain: z.union([z.string(), z.number()]).optional(), // Defaults to fromChain
   fromToken: z.string(),
   toToken: z.string(),
   amount: z.string(),
+  recipient: z.string().optional(), // Defaults to sender
+  slippage: z.number().optional(), // Optional slippage tolerance
+});
+
+// Bridge intent schema - same token cross-chain transfer
+const BridgeIntentSchema = z.object({
+  action: z.literal('bridge'),
+  fromChain: z.union([z.string(), z.number()]),
+  toChain: z.union([z.string(), z.number()]),
+  token: z.string(), // Same token on both chains
+  amount: z.string(),
+  recipient: z.string().optional(), // Defaults to sender's address on destination chain
+});
+
+// Bridge-swap intent schema - cross-chain token exchange
+const BridgeSwapIntentSchema = z.object({
+  action: z.literal('bridge_swap'),
+  fromChain: z.union([z.string(), z.number()]),
+  toChain: z.union([z.string(), z.number()]),
+  fromToken: z.string(),
+  toToken: z.string(),
+  amount: z.string(),
+  recipient: z.string().optional(), // Defaults to sender's address on destination chain
+  slippage: z.number().optional(), // Optional slippage tolerance
 });
 
 // Union of all intent types
 const IntentUnionSchema = z.union([
   TransferIntentSchema,
   SwapIntentSchema,
+  BridgeIntentSchema,
+  BridgeSwapIntentSchema,
 ]);
 
 // Success response schema
@@ -100,6 +126,9 @@ export type IntentTokenSelection = z.infer<typeof IntentTokenSelectionSchema>;
 export type IntentChat = z.infer<typeof IntentChatSchema>;
 export type Intent = z.infer<typeof IntentSchema>;
 export type TransferIntent = z.infer<typeof TransferIntentSchema>;
+export type SwapIntent = z.infer<typeof SwapIntentSchema>;
+export type BridgeIntent = z.infer<typeof BridgeIntentSchema>;
+export type BridgeSwapIntent = z.infer<typeof BridgeSwapIntentSchema>;
 
 // Validation helper
 export function validateIntent(data: unknown): Intent {
@@ -125,4 +154,16 @@ export function isIntentChat(intent: Intent): intent is IntentChat {
 
 export function isTransferIntent(intent: IntentSuccess['intent']): intent is TransferIntent {
   return intent.action === 'transfer';
+}
+
+export function isSwapIntent(intent: IntentSuccess['intent']): intent is SwapIntent {
+  return intent.action === 'swap';
+}
+
+export function isBridgeIntent(intent: IntentSuccess['intent']): intent is BridgeIntent {
+  return intent.action === 'bridge';
+}
+
+export function isBridgeSwapIntent(intent: IntentSuccess['intent']): intent is BridgeSwapIntent {
+  return intent.action === 'bridge_swap';
 }

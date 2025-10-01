@@ -4,6 +4,9 @@ import { formatEther, formatUnits, encodeFunctionData } from "viem";
 import type {
   NormalizedNativeTransfer,
   NormalizedERC20Transfer,
+  NormalizedSwap,
+  NormalizedBridge,
+  NormalizedBridgeSwap,
   NormalizedIntent,
 } from "./normalize";
 import type { AccountMode } from "@/cli/state/types";
@@ -54,10 +57,12 @@ async function prepareLifiTransaction(
   norm: NormalizedIntent,
   fromAddress: string,
 ): Promise<LifiTransactionData> {
-  const chainConfig = getChainConfig(norm.chainId);
+  // Get chainId based on intent type
+  const chainId = "chainId" in norm ? norm.chainId : norm.fromChainId;
+  const chainConfig = getChainConfig(chainId);
   if (!chainConfig) {
     throw new ExecutionError(
-      `Chain configuration not found for chain ${norm.chainId}`,
+      `Chain configuration not found for chain ${chainId}`,
       "CHAIN_CONFIG_MISSING",
     );
   }
@@ -564,6 +569,261 @@ export async function executeERC20Transfer(
 }
 
 /**
+ * Execute swap operation using LI.FI
+ */
+export async function executeSwap(
+  norm: NormalizedSwap,
+  accountMode: AccountMode = "EOA",
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
+      options?: { address?: string },
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  },
+  route?: any
+): Promise<ExecutionResult> {
+  if (!route) {
+    throw new ExecutionError(
+      "No route data available for swap execution",
+      "ROUTE_MISSING"
+    );
+  }
+
+  try {
+    console.log("🔄 Executing swap via LI.FI...", {
+      fromToken: norm.fromToken.symbol,
+      toToken: norm.toToken.symbol,
+      chain: norm.fromChainId,
+    });
+
+    // Extract transaction data from route (already prepared during planning phase)
+    const firstStep = route.steps?.[0];
+    if (!firstStep?.transactionRequest) {
+      throw new ExecutionError(
+        "Route missing transaction request data",
+        "INVALID_ROUTE_DATA"
+      );
+    }
+
+    const txRequest = firstStep.transactionRequest;
+    console.log("✅ Extracted transaction data from route:", {
+      to: txRequest.to,
+      value: txRequest.value,
+      hasData: !!txRequest.data,
+    });
+
+    // Execute transaction
+    let txHash: string;
+
+    if (accountMode === "SMART_ACCOUNT") {
+      txHash = await clients.smartWalletClient!.sendTransaction({
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || 0),
+        data: txRequest.data as `0x${string}`,
+      });
+    } else {
+      const txResult = await clients.eoaSendTransaction!({
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || 0),
+        data: txRequest.data as `0x${string}`,
+      }, {
+        address: clients.selectedWallet!.address,
+      });
+      txHash = txResult.hash;
+    }
+
+    const chainConfig = getChainConfig(norm.fromChainId);
+    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    return {
+      success: true,
+      txHash,
+      message: `✅ Swap initiated on ${chainConfig?.name}`,
+      explorerUrl,
+    };
+  } catch (error: any) {
+    console.error("Swap execution error:", error);
+    throw new ExecutionError(
+      `Swap execution failed: ${error.message}`,
+      "SWAP_EXECUTION_FAILED"
+    );
+  }
+}
+
+/**
+ * Execute bridge operation using LI.FI
+ */
+export async function executeBridge(
+  norm: NormalizedBridge,
+  accountMode: AccountMode = "EOA",
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
+      options?: { address?: string },
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  },
+  route?: any
+): Promise<ExecutionResult> {
+  if (!route) {
+    throw new ExecutionError(
+      "No route data available for bridge execution",
+      "ROUTE_MISSING"
+    );
+  }
+
+  try {
+    console.log("🔄 Executing bridge via LI.FI...", {
+      token: norm.token.symbol,
+      fromChain: norm.fromChainId,
+      toChain: norm.toChainId,
+    });
+
+    // Extract transaction data from route (already prepared during planning phase)
+    const firstStep = route.steps?.[0];
+    if (!firstStep?.transactionRequest) {
+      throw new ExecutionError(
+        "Route missing transaction request data",
+        "INVALID_ROUTE_DATA"
+      );
+    }
+
+    const txRequest = firstStep.transactionRequest;
+    console.log("✅ Extracted transaction data from route:", {
+      to: txRequest.to,
+      value: txRequest.value,
+      hasData: !!txRequest.data,
+    });
+
+    // Execute transaction
+    let txHash: string;
+
+    if (accountMode === "SMART_ACCOUNT") {
+      txHash = await clients.smartWalletClient!.sendTransaction({
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || 0),
+        data: txRequest.data as `0x${string}`,
+      });
+    } else {
+      const txResult = await clients.eoaSendTransaction!({
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || 0),
+        data: txRequest.data as `0x${string}`,
+      }, {
+        address: clients.selectedWallet!.address,
+      });
+      txHash = txResult.hash;
+    }
+
+    const fromChainConfig = getChainConfig(norm.fromChainId);
+    const toChainConfig = getChainConfig(norm.toChainId);
+    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    return {
+      success: true,
+      txHash,
+      message: `✅ Bridge initiated: ${fromChainConfig?.name} → ${toChainConfig?.name}`,
+      explorerUrl,
+    };
+  } catch (error: any) {
+    console.error("Bridge execution error:", error);
+    throw new ExecutionError(
+      `Bridge execution failed: ${error.message}`,
+      "BRIDGE_EXECUTION_FAILED"
+    );
+  }
+}
+
+/**
+ * Execute bridge-swap operation using LI.FI
+ */
+export async function executeBridgeSwap(
+  norm: NormalizedBridgeSwap,
+  accountMode: AccountMode = "EOA",
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
+      options?: { address?: string },
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  },
+  route?: any
+): Promise<ExecutionResult> {
+  if (!route) {
+    throw new ExecutionError(
+      "No route data available for bridge-swap execution",
+      "ROUTE_MISSING"
+    );
+  }
+
+  try {
+    console.log("🔄 Executing bridge-swap via LI.FI...", {
+      fromToken: norm.fromToken.symbol,
+      toToken: norm.toToken.symbol,
+      fromChain: norm.fromChainId,
+      toChain: norm.toChainId,
+    });
+
+    // Extract transaction data from route (already prepared during planning phase)
+    const firstStep = route.steps?.[0];
+    if (!firstStep?.transactionRequest) {
+      throw new ExecutionError(
+        "Route missing transaction request data",
+        "INVALID_ROUTE_DATA"
+      );
+    }
+
+    const txRequest = firstStep.transactionRequest;
+    console.log("✅ Extracted transaction data from route:", {
+      to: txRequest.to,
+      value: txRequest.value,
+      hasData: !!txRequest.data,
+    });
+
+    // Execute transaction
+    let txHash: string;
+
+    if (accountMode === "SMART_ACCOUNT") {
+      txHash = await clients.smartWalletClient!.sendTransaction({
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || 0),
+        data: txRequest.data as `0x${string}`,
+      });
+    } else {
+      const txResult = await clients.eoaSendTransaction!({
+        to: txRequest.to as `0x${string}`,
+        value: BigInt(txRequest.value || 0),
+        data: txRequest.data as `0x${string}`,
+      }, {
+        address: clients.selectedWallet!.address,
+      });
+      txHash = txResult.hash;
+    }
+
+    const fromChainConfig = getChainConfig(norm.fromChainId);
+    const toChainConfig = getChainConfig(norm.toChainId);
+    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    return {
+      success: true,
+      txHash,
+      message: `✅ Bridge-swap initiated: ${fromChainConfig?.name} ${norm.fromToken.symbol} → ${toChainConfig?.name} ${norm.toToken.symbol}`,
+      explorerUrl,
+    };
+  } catch (error: any) {
+    console.error("Bridge-swap execution error:", error);
+    throw new ExecutionError(
+      `Bridge-swap execution failed: ${error.message}`,
+      "BRIDGE_SWAP_EXECUTION_FAILED"
+    );
+  }
+}
+
+/**
  * Main execution router - handles all intent types
  */
 export async function executeIntent(
@@ -572,18 +832,24 @@ export async function executeIntent(
   clients: {
     smartWalletClient?: any;
     eoaSendTransaction?: (
-      transaction: { to: `0x${string}`; value: bigint },
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
       options?: { address?: string },
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
+  route?: any
 ): Promise<ExecutionResult> {
-
   console.log({clientnih: clients})
   if (norm.kind === "native-transfer") {
     return executeNativeTransfer(norm, accountMode, clients);
   } else if (norm.kind === "erc20-transfer") {
     return executeERC20Transfer(norm, accountMode, clients);
+  } else if (norm.kind === "swap") {
+    return executeSwap(norm, accountMode, clients, route);
+  } else if (norm.kind === "bridge") {
+    return executeBridge(norm, accountMode, clients, route);
+  } else if (norm.kind === "bridge-swap") {
+    return executeBridgeSwap(norm, accountMode, clients, route);
   } else {
     throw new ExecutionError(
       `Unsupported transfer type: ${(norm as any).kind}`,
