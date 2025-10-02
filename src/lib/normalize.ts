@@ -6,6 +6,7 @@ import { resolveTokenSymbol, type Token } from "./tokens";
 import { resolveChain, isChainSupported, getChainConfig } from "./chains/registry";
 import { LifiApiClient, TokenApiClient, type TokenSearchResponse, type MultiProviderSearchRequest } from "./api-client";
 import type { MultiProviderTokenResponse, UnifiedToken } from "@/types/unified-token";
+import { resolveAddressOrEns, isEnsName } from "./ens";
 
 export type NormalizedNativeTransfer = {
   kind: "native-transfer";
@@ -389,24 +390,32 @@ export async function normalizeTransferIntent(
     );
   }
 
-  // Handle ENS names (future enhancement - for now reject)
-  if (intent.recipient.endsWith(".eth")) {
-    throw new NormalizationError(
-      "ENS names not supported yet. Please use 0x address",
-      "ENS_NOT_SUPPORTED"
-    );
+  // Resolve ENS name if present
+  let recipientAddress: string;
+  if (isEnsName(intent.recipient)) {
+    try {
+      recipientAddress = await resolveAddressOrEns(intent.recipient);
+      console.log(`✅ Resolved ENS name '${intent.recipient}' to ${recipientAddress}`);
+    } catch (error) {
+      throw new NormalizationError(
+        `Could not resolve ENS name: ${intent.recipient}`,
+        "ENS_RESOLUTION_FAILED"
+      );
+    }
+  } else {
+    recipientAddress = intent.recipient;
   }
 
   // Validate address format
-  if (!isAddress(intent.recipient)) {
+  if (!isAddress(recipientAddress)) {
     throw new NormalizationError(
-      "Recipient must be a valid checksummed 0x address",
+      "Recipient must be a valid checksummed 0x address or ENS name",
       "ADDRESS_INVALID"
     );
   }
 
   // Checksum the address
-  const to = getAddress(intent.recipient) as `0x${string}`;
+  const to = getAddress(recipientAddress) as `0x${string}`;
 
   // Validate and parse amount
   if (!intent.amount || typeof intent.amount !== "string") {
@@ -706,10 +715,29 @@ async function normalizeSwapIntent(
   // Parse amount
   const fromAmount = parseUnits(intent.amount, fromToken.decimals);
 
-  // Resolve recipient (defaults to sender)
-  const recipient = intent.recipient
-    ? (isAddress(intent.recipient) ? getAddress(intent.recipient) : opts?.senderAddress)
-    : opts?.senderAddress;
+  // Resolve recipient (ENS, address, or default to sender)
+  let recipient: `0x${string}` | undefined;
+
+  if (intent.recipient) {
+    if (isEnsName(intent.recipient)) {
+      try {
+        const resolved = await resolveAddressOrEns(intent.recipient);
+        recipient = getAddress(resolved);
+        console.log(`✅ Resolved swap recipient ENS '${intent.recipient}' to ${recipient}`);
+      } catch (error) {
+        throw new NormalizationError(
+          `Could not resolve ENS name for recipient: ${intent.recipient}`,
+          "ENS_RESOLUTION_FAILED"
+        );
+      }
+    } else if (isAddress(intent.recipient)) {
+      recipient = getAddress(intent.recipient);
+    } else {
+      recipient = opts?.senderAddress;
+    }
+  } else {
+    recipient = opts?.senderAddress;
+  }
 
   if (!recipient) {
     throw new NormalizationError(
@@ -793,10 +821,29 @@ async function normalizeBridgeIntent(
   // Parse amount
   const amount = parseUnits(intent.amount, token.decimals);
 
-  // Resolve recipient (defaults to sender's address on destination chain)
-  const recipient = intent.recipient
-    ? (isAddress(intent.recipient) ? getAddress(intent.recipient) : opts?.senderAddress)
-    : opts?.senderAddress;
+  // Resolve recipient (ENS, address, or default to sender)
+  let recipient: `0x${string}` | undefined;
+
+  if (intent.recipient) {
+    if (isEnsName(intent.recipient)) {
+      try {
+        const resolved = await resolveAddressOrEns(intent.recipient);
+        recipient = getAddress(resolved);
+        console.log(`✅ Resolved bridge recipient ENS '${intent.recipient}' to ${recipient}`);
+      } catch (error) {
+        throw new NormalizationError(
+          `Could not resolve ENS name for recipient: ${intent.recipient}`,
+          "ENS_RESOLUTION_FAILED"
+        );
+      }
+    } else if (isAddress(intent.recipient)) {
+      recipient = getAddress(intent.recipient);
+    } else {
+      recipient = opts?.senderAddress;
+    }
+  } else {
+    recipient = opts?.senderAddress;
+  }
 
   if (!recipient) {
     throw new NormalizationError(
@@ -902,10 +949,29 @@ async function normalizeBridgeSwapIntent(
   // Parse amount
   const fromAmount = parseUnits(intent.amount, fromToken.decimals);
 
-  // Resolve recipient (defaults to sender's address on destination chain)
-  const recipient = intent.recipient
-    ? (isAddress(intent.recipient) ? getAddress(intent.recipient) : opts?.senderAddress)
-    : opts?.senderAddress;
+  // Resolve recipient (ENS, address, or default to sender)
+  let recipient: `0x${string}` | undefined;
+
+  if (intent.recipient) {
+    if (isEnsName(intent.recipient)) {
+      try {
+        const resolved = await resolveAddressOrEns(intent.recipient);
+        recipient = getAddress(resolved);
+        console.log(`✅ Resolved bridge-swap recipient ENS '${intent.recipient}' to ${recipient}`);
+      } catch (error) {
+        throw new NormalizationError(
+          `Could not resolve ENS name for recipient: ${intent.recipient}`,
+          "ENS_RESOLUTION_FAILED"
+        );
+      }
+    } else if (isAddress(intent.recipient)) {
+      recipient = getAddress(intent.recipient);
+    } else {
+      recipient = opts?.senderAddress;
+    }
+  } else {
+    recipient = opts?.senderAddress;
+  }
 
   if (!recipient) {
     throw new NormalizationError(
