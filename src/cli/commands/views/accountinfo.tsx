@@ -120,7 +120,11 @@ export function AccountInfoView({ core }: AccountInfoViewProps) {
         <div className="bg-blue-50 p-3 rounded border">
           <h3 className="font-semibold text-blue-700 mb-2">Quick Actions</h3>
           <div className="text-xs space-y-1">
-            <div>• Use <code>/balance</code> to check your native token balance</div>
+            <div>
+              • Use <code>/balances</code>
+              <span className="text-gray-500"> (/balance)</span> to check your
+              token balances
+            </div>
             <div>• Use <code>/send</code> to transfer tokens</div>
             <div>• Use <code>/chains</code> to see supported networks</div>
             <div>• Use <code>/switch &lt;chain&gt;</code> to change networks</div>
