@@ -84,14 +84,14 @@ function ExecFiNotesContent({ minimized, fullscreen, onClose, onMinimize, onTogg
     <div className="pointer-events-none">
       <div
         ref={windowRef}
-        className={fullscreen ? "fixed inset-0 z-40 flex items-center justify-center" : "fixed px-4 z-40"}
+        className={fullscreen ? "fixed inset-0 pb-24 z-40 flex items-center justify-center" : "fixed px-4 z-40"}
         style={fullscreen ? undefined : { left: pos.x, top: pos.y, visibility: isReady ? "visible" : "hidden" }}
       >
         <div
           ref={containerRef}
           className={
             fullscreen
-              ? "relative flex flex-col h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] cursor-default overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono pointer-events-auto"
+              ? "relative flex flex-col h-[calc(95vh-4rem)] w-[calc(100vw-4rem)] cursor-default overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono pointer-events-auto"
               : "mx-auto h-[28rem] w-full max-w-3xl cursor-default overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-xl font-mono pointer-events-auto"
           }
         >
@@ -292,19 +292,6 @@ export function NotesApp() {
           </div>
         )}
       </section>
-    </div>
-  );
-}
-
-export function NotesPreview() {
-  return (
-    <div className="space-y-2 text-slate-300">
-      <h1 className="text-[13px] font-semibold text-slate-100">execFi.md</h1>
-      <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-slate-300">
-        <li>Intent → validate → simulate → execute</li>
-        <li>Privy Smart Accounts (4337)</li>
-        <li>Idempotency + explorer link</li>
-      </ul>
     </div>
   );
 }
