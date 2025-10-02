@@ -41,6 +41,52 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Log build arguments
+        run: |
+          echo "📦 Build arguments being passed:"
+          echo "NEXT_PUBLIC_APP_NAME: ${{ secrets.NEXT_PUBLIC_APP_NAME }}"
+          echo "NEXT_PUBLIC_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_PROJECT_ID }}"
+          echo "NEXT_PUBLIC_COIN_GECKO_API_KEY: [REDACTED]"
+          echo "NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_APP_ID }}"
+          echo "NEXT_PUBLIC_PRIVY_APP_SECRET: [REDACTED]"
+          echo "NEXT_PUBLIC_ZERO_DEV_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_ZERO_DEV_PROJECT_ID }}"
+          echo "NEXT_PUBLIC_ZERO_DEV_PASSKEY_SERVER_URL: ${{ secrets.NEXT_PUBLIC_ZERO_DEV_PASSKEY_SERVER_URL }}"
+          echo "NEXT_PUBLIC_BUNDLER_RPC: ${{ secrets.NEXT_PUBLIC_BUNDLER_RPC }}"
+          echo "NEXT_PUBLIC_BICONOMY_BUNDLER: ${{ secrets.NEXT_PUBLIC_BICONOMY_BUNDLER }}"
+          echo "NEXT_PUBLIC_BICONOMY_PAYMASTER: ${{ secrets.NEXT_PUBLIC_BICONOMY_PAYMASTER }}"
+          echo "NEXT_PUBLIC_BICONOMY_PAYMASTER_API_KEY: [REDACTED]"
+          echo "NEXT_PUBLIC_BICONOMY_API_KEY: [REDACTED]"
+          echo "NEXT_PUBLIC_BICONOMY_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_BICONOMY_PROJECT_ID }}"
+          echo "NEXT_PUBLIC_LIFI_KEY: [REDACTED]"
+          echo "NEXT_PUBLIC_ALCHEMY_KEY: [REDACTED]"
+          echo "NEXT_PUBLIC_DEFAULT_CHAIN_ID: ${{ secrets.NEXT_PUBLIC_DEFAULT_CHAIN_ID }}"
+          echo "OPENROUTER_API_KEY: [REDACTED]"
+          echo "NEXT_PUBLIC_ENABLE_LIFI_EXECUTION: ${{ secrets.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION }}"
+          echo "MAX_TX_AMOUNT_ETH: ${{ secrets.MAX_TX_AMOUNT_ETH }}"
+          echo "DAILY_SPEND_LIMIT_ETH: ${{ secrets.DAILY_SPEND_LIMIT_ETH }}"
+          echo "NEXT_PUBLIC_PRIVY_SIGNER_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_SIGNER_ID }}"
+          echo "NEXT_PUBLIC_PRIVY_NATIVE_TRANSFER_POLICY_ID: ${{ secrets.NEXT_PUBLIC_PRIVY_NATIVE_TRANSFER_POLICY_ID }}"
+          echo "GAS_HEADROOM_MULT: ${{ secrets.GAS_HEADROOM_MULT }}"
+          echo "MIN_BALANCE_AFTER_TX_ETH: ${{ secrets.MIN_BALANCE_AFTER_TX_ETH }}"
+          echo "CONFIRM_BEFORE_SEND: ${{ secrets.CONFIRM_BEFORE_SEND }}"
+          echo "ENABLE_LIFI_PROVIDER: ${{ secrets.ENABLE_LIFI_PROVIDER }}"
+          echo "ENABLE_RELAY_PROVIDER: ${{ secrets.ENABLE_RELAY_PROVIDER }}"
+          echo "ENABLE_LOCAL_PROVIDER: ${{ secrets.ENABLE_LOCAL_PROVIDER }}"
+          echo "ENABLE_COINGECKO_PROVIDER: ${{ secrets.ENABLE_COINGECKO_PROVIDER }}"
+          echo "NEXT_PUBLIC_LIFI_API_KEY: [REDACTED]"
+          echo "LIFI_API_KEY: [REDACTED]"
+          echo "COINGECKO_API_KEY: [REDACTED]"
+          echo "LIFI_PROVIDER_PRIORITY: ${{ secrets.LIFI_PROVIDER_PRIORITY }}"
+          echo "RELAY_PROVIDER_PRIORITY: ${{ secrets.RELAY_PROVIDER_PRIORITY }}"
+          echo "LOCAL_PROVIDER_PRIORITY: ${{ secrets.LOCAL_PROVIDER_PRIORITY }}"
+          echo "COINGECKO_PROVIDER_PRIORITY: ${{ secrets.COINGECKO_PROVIDER_PRIORITY }}"
+          echo "TOKEN_SEARCH_TIMEOUT_MS: ${{ secrets.TOKEN_SEARCH_TIMEOUT_MS }}"
+          echo "PROVIDER_HEALTH_CHECK_INTERVAL_MS: ${{ secrets.PROVIDER_HEALTH_CHECK_INTERVAL_MS }}"
+          echo "TOKEN_CACHE_TTL_SECONDS: ${{ secrets.TOKEN_CACHE_TTL_SECONDS }}"
+          echo "INTEGRATOR_LIFI: ${{ secrets.INTEGRATOR_LIFI }}"
+          echo "NEXT_PUBLIC_LISK_MAINNET: ${{ secrets.NEXT_PUBLIC_LISK_MAINNET }}"
+          echo "NEXT_PUBLIC_LISK_TESTNET: ${{ secrets.NEXT_PUBLIC_LISK_TESTNET }}"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
