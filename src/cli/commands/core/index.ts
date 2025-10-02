@@ -29,7 +29,7 @@ export const helpCmd: CommandDef = {
       // Show general help - simplified for now
       const helpText = `📚 Available Commands
 
-CORE COMMANDS (Phase 1):
+CORE COMMANDS:
   /help (/?) - Show commands and usage
   /whoami - Show current user, chain, and account info
   /balance (/bal) - Show native token balance
@@ -44,23 +44,23 @@ CORE COMMANDS (Phase 1):
   /cancel - Cancel current flow or operation
   /reset (/restart) - Emergency reset
 
-ESSENTIAL COMMANDS (Phase 2):
+ESSENTIAL COMMANDS:
   /balances (/bals) - Show all token balances across networks
   /tx <hash> - Show transaction details and status
   /txs [limit] - Show recent transaction history
   /pending - Show pending transactions
 
-ADVANCED FEATURES (Phase 3):
+ADVANCED FEATURES:
   /policy - Configure transaction policies
   /limits - Set spending limits
   /addressbook (/contacts) - Show saved contacts and addresses
   /contact - Add new contacts
 
-DEFI INTEGRATION (Phase 4):
-  /swap (/sw) - Execute token swaps using LI.FI
-  /bridge (/br) - Execute cross-chain token transfers
-  /quote (/q, /price) - Get quotes for swaps and bridges
-  /ens (/name) - Resolve ENS names to addresses
+DEFI INTEGRATION (Powered by LI.FI):
+  /swap <from> <to> <amount> [--chain <name>] - Execute token swaps
+  /bridge <token> <amount> <to-chain> [--from-chain <name>] - Cross-chain transfers
+  /quote <from> <to> <amount> [--chain <name>] - Get real-time swap quotes
+  /ens <name|address> [--reverse] - Resolve ENS names to addresses
 
 CHAIN MANAGEMENT:
   /chain list - Show all supported chains
@@ -68,7 +68,11 @@ CHAIN MANAGEMENT:
   /chain current - Show current chain status
   /chain info <name> - Show detailed chain information
 
-💡 Tip: You can also use natural language like "send 0.1 ETH to vitalik.eth"
+💡 Natural language also supported:
+  "swap 0.1 ETH to USDC"
+  "bridge 100 USDC from base to polygon"
+  "send 0.1 ETH to vitalik.eth"
+
 🚀 25+ commands available! Try /swap ETH USDC 0.1 or /ens vitalik.eth`;
 
       dispatch({

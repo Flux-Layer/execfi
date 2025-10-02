@@ -52,41 +52,16 @@ export const swapCmd: CommandDef = {
     return { ok: true, args: { fromToken, toToken, amount, simulate, slippage, chain } };
   },
 
-  run: async ({ fromToken, toToken, amount, simulate }, _ctx, dispatch) => {
-    try {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `🔄 ${simulate ? 'Simulating' : 'Executing'} swap: ${amount} ${fromToken} → ${toToken}...`,
-          timestamp: Date.now(),
-        },
-      });
+  run: async ({ fromToken, toToken, amount, chain }, _ctx, dispatch) => {
+    // Convert command to natural language and trigger existing swap flow
+    const naturalLanguage = chain
+      ? `swap ${amount} ${fromToken} to ${toToken} on ${chain}`
+      : `swap ${amount} ${fromToken} to ${toToken}`;
 
-      await new Promise(resolve => setTimeout(resolve, simulate ? 800 : 2000));
-
-      const result = simulate ?
-        `✅ **Swap Simulation**\nEstimated output: ${(parseFloat(amount) * 2500).toFixed(6)} ${toToken}\nGas: ~$2.50` :
-        `✅ **Swap Complete**\nTx: 0x${Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('')}`;
-
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: result,
-          timestamp: Date.now(),
-        },
-      });
-    } catch (error) {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `❌ Swap failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          timestamp: Date.now(),
-        },
-      });
-    }
+    dispatch({
+      type: "INPUT.SUBMIT",
+      text: naturalLanguage,
+    });
   },
 };
 
@@ -132,41 +107,16 @@ export const bridgeCmd: CommandDef = {
     return { ok: true, args: { token, amount, toChain, simulate, fromChain } };
   },
 
-  run: async ({ token, amount, toChain, fromChain, simulate }, _ctx, dispatch) => {
-    try {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `🌉 ${simulate ? 'Simulating' : 'Executing'} bridge: ${amount} ${token} from ${fromChain} → ${toChain}...`,
-          timestamp: Date.now(),
-        },
-      });
+  run: async ({ token, amount, toChain, fromChain }, _ctx, dispatch) => {
+    // Convert command to natural language and trigger existing bridge flow
+    const naturalLanguage = fromChain
+      ? `bridge ${amount} ${token} from ${fromChain} to ${toChain}`
+      : `bridge ${amount} ${token} to ${toChain}`;
 
-      await new Promise(resolve => setTimeout(resolve, simulate ? 1000 : 3000));
-
-      const result = simulate ?
-        `✅ **Bridge Simulation**\nRoute: ${fromChain} → ${toChain}\nFee: 0.001 ETH\nTime: 2-5 minutes` :
-        `✅ **Bridge Initiated**\nTx: 0x${Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('')}\n⏳ Bridge in progress...`;
-
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: result,
-          timestamp: Date.now(),
-        },
-      });
-    } catch (error) {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `❌ Bridge failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          timestamp: Date.now(),
-        },
-      });
-    }
+    dispatch({
+      type: "INPUT.SUBMIT",
+      text: naturalLanguage,
+    });
   },
 };
 
@@ -212,47 +162,16 @@ export const quoteCmd: CommandDef = {
     return { ok: true, args: { fromToken, toToken, amount, chain, routes: parseInt(routes || "3") } };
   },
 
-  run: async ({ fromToken, toToken, amount, chain, routes }, _ctx, dispatch) => {
-    try {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `💰 Getting quotes for ${amount} ${fromToken} → ${toToken} on ${chain}...`,
-          timestamp: Date.now(),
-        },
-      });
+  run: async ({ fromToken, toToken, amount, chain }, _ctx, dispatch) => {
+    // Convert command to natural language query for quote
+    const naturalLanguage = chain
+      ? `quote ${amount} ${fromToken} to ${toToken} on ${chain}`
+      : `how much is ${amount} ${fromToken} in ${toToken}`;
 
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      const baseRate = fromToken === 'ETH' ? 2500 : 0.0004;
-      const quotesText = Array(routes).fill(0).map((_, i) => {
-        const provider = ["LI.FI", "1inch", "Uniswap"][i % 3];
-        const rate = baseRate * (1 + (Math.random() - 0.5) * 0.02);
-        const output = (parseFloat(amount) * rate).toFixed(6);
-        const gasCost = (2.5 + Math.random() * 2).toFixed(2);
-
-        return `**${i + 1}. ${provider}**\n   Output: ${output} ${toToken}\n   Gas: ~$${gasCost}`;
-      }).join('\n\n');
-
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `💰 **Swap Quotes**\n\n**Route**: ${fromToken} → ${toToken} on ${chain}\n**Input**: ${amount} ${fromToken}\n\n${quotesText}`,
-          timestamp: Date.now(),
-        },
-      });
-    } catch (error) {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `❌ Quote failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          timestamp: Date.now(),
-        },
-      });
-    }
+    dispatch({
+      type: "INPUT.SUBMIT",
+      text: naturalLanguage,
+    });
   },
 };
 
@@ -291,53 +210,14 @@ export const ensCmd: CommandDef = {
     return { ok: true, args: { nameOrAddress, reverse } };
   },
 
-  run: async ({ nameOrAddress, reverse }, _ctx, dispatch) => {
-    try {
-      const isAddress = nameOrAddress.startsWith('0x');
-      const lookupType = reverse || isAddress ? 'reverse' : 'forward';
+  run: async ({ nameOrAddress }, _ctx, dispatch) => {
+    // Convert command to natural language query for ENS resolution
+    const naturalLanguage = `resolve ${nameOrAddress}`;
 
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `🔍 ${lookupType === 'reverse' ? 'Reverse' : 'Forward'} ENS lookup for: ${nameOrAddress}...`,
-          timestamp: Date.now(),
-        },
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const mockData = {
-        'vitalik.eth': '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
-        '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045': 'vitalik.eth',
-      };
-
-      const result = lookupType === 'forward'
-        ? mockData[nameOrAddress as keyof typeof mockData] || '0x' + Array(40).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('')
-        : mockData[nameOrAddress as keyof typeof mockData] || 'No reverse record';
-
-      const resultText = lookupType === 'forward'
-        ? `📍 **ENS Forward Lookup**\n\n**Name**: ${nameOrAddress}\n**Address**: \`${result}\``
-        : `📍 **ENS Reverse Lookup**\n\n**Address**: \`${nameOrAddress}\`\n**Name**: ${result}`;
-
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: resultText,
-          timestamp: Date.now(),
-        },
-      });
-    } catch (error) {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `❌ ENS lookup failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          timestamp: Date.now(),
-        },
-      });
-    }
+    dispatch({
+      type: "INPUT.SUBMIT",
+      text: naturalLanguage,
+    });
   },
 };
 
