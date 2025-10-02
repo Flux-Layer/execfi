@@ -1,202 +1,216 @@
 // lib/validation.ts - Intent validation and policy enforcement
 
-import { createPublicClient, http, formatEther, formatUnits, erc20Abi, getContract } from "viem";
+import {
+  createPublicClient,
+  http,
+  formatEther,
+  formatUnits,
+  erc20Abi,
+  getContract,
+} from "viem";
 import type {
   NormalizedNativeTransfer,
   NormalizedERC20Transfer,
   NormalizedSwap,
   NormalizedBridge,
   NormalizedBridgeSwap,
-  NormalizedIntent
+  NormalizedIntent,
 } from "./normalize";
 import { getChainConfig, isChainSupported } from "./chains/registry";
 import type { PolicyConfig } from "./policy/types";
 
 export class ValidationError extends Error {
-   constructor(message: string, public code: string) {
-      super(message);
-      this.name = "ValidationError";
-   }
+  constructor(
+    message: string,
+    public code: string,
+  ) {
+    super(message);
+    this.name = "ValidationError";
+  }
 }
 
 /**
  * Create public client for chain operations
  */
 function getPublicClient(chainId: number) {
-   if (!isChainSupported(chainId)) {
-      throw new ValidationError(
-         `Unsupported chainId: ${chainId}`,
-         "CHAIN_UNSUPPORTED"
-      );
-   }
+  if (!isChainSupported(chainId)) {
+    throw new ValidationError(
+      `Unsupported chainId: ${chainId}`,
+      "CHAIN_UNSUPPORTED",
+    );
+  }
 
-   const chainConfig = getChainConfig(chainId);
-   if (!chainConfig) {
-      throw new ValidationError(
-         `Chain configuration not found for chainId: ${chainId}`,
-         "CHAIN_CONFIG_MISSING"
-      );
-   }
+  const chainConfig = getChainConfig(chainId);
+  if (!chainConfig) {
+    throw new ValidationError(
+      `Chain configuration not found for chainId: ${chainId}`,
+      "CHAIN_CONFIG_MISSING",
+    );
+  }
 
-   return createPublicClient({
-      chain: chainConfig.wagmiChain,
-      transport: http(chainConfig.rpcUrl),
-   });
+  return createPublicClient({
+    chain: chainConfig.wagmiChain,
+    transport: http(chainConfig.rpcUrl),
+  });
 }
 
 /**
  * Validate recipient address is not zero address
  */
 function validateRecipient(to: `0x${string}`) {
-   if (to === "0x0000000000000000000000000000000000000000") {
-      throw new ValidationError("Cannot send to zero address", "ZERO_ADDRESS");
-   }
+  if (to === "0x0000000000000000000000000000000000000000") {
+    throw new ValidationError("Cannot send to zero address", "ZERO_ADDRESS");
+  }
 }
 
 /**
  * Validate amount is within policy limits
  */
 function validateAmountLimits(amountWei: bigint, policyConfig: PolicyConfig) {
-   const amountEth = parseFloat(formatEther(amountWei));
+  const amountEth = parseFloat(formatEther(amountWei));
 
-   if (amountEth > policyConfig.maxTxAmountETH) {
-      throw new ValidationError(
-         `Amount ${amountEth} ETH exceeds maximum transaction limit of ${policyConfig.maxTxAmountETH} ETH`,
-         "AMOUNT_EXCEEDS_LIMIT"
-      );
-   }
+  if (amountEth > policyConfig.maxTxAmountETH) {
+    throw new ValidationError(
+      `Amount ${amountEth} ETH exceeds maximum transaction limit of ${policyConfig.maxTxAmountETH} ETH`,
+      "AMOUNT_EXCEEDS_LIMIT",
+    );
+  }
 
-   if (amountEth <= 0) {
-      throw new ValidationError(
-         "Amount must be greater than 0",
-         "AMOUNT_TOO_SMALL"
-      );
-   }
+  if (amountEth <= 0) {
+    throw new ValidationError(
+      "Amount must be greater than 0",
+      "AMOUNT_TOO_SMALL",
+    );
+  }
 }
 
 /**
  * Estimate gas for native transfer
  */
 async function estimateTransferGas(
-   norm: NormalizedNativeTransfer,
-   fromAddress: `0x${string}`,
-   policyConfig: PolicyConfig
+  norm: NormalizedNativeTransfer,
+  fromAddress: `0x${string}`,
+  policyConfig: PolicyConfig,
 ): Promise<bigint> {
-   const publicClient = getPublicClient(norm.chainId);
+  const publicClient = getPublicClient(norm.chainId);
 
-   try {
-      const gasEstimate = await publicClient.estimateGas({
-         account: fromAddress,
-         to: norm.to,
-         value: norm.amountWei,
-      });
+  try {
+    const gasEstimate = await publicClient.estimateGas({
+      account: fromAddress,
+      to: norm.to,
+      value: norm.amountWei,
+    });
 
-      // Add gas headroom
-      const gasWithHeadroom = BigInt(
-         Math.ceil(Number(gasEstimate) * policyConfig.gasHeadroomMultiplier)
-      );
-      return gasWithHeadroom;
-   } catch {
-      throw new ValidationError(
-         "Failed to estimate gas for transaction",
-         "GAS_ESTIMATION_FAILED"
-      );
-   }
+    // Add gas headroom
+    const gasWithHeadroom = BigInt(
+      Math.ceil(Number(gasEstimate) * policyConfig.gasHeadroomMultiplier),
+    );
+    return gasWithHeadroom;
+  } catch {
+    throw new ValidationError(
+      "Failed to estimate gas for transaction",
+      "GAS_ESTIMATION_FAILED",
+    );
+  }
 }
 
 /**
  * Get current gas price
  */
 async function getCurrentGasPrice(chainId: number): Promise<bigint> {
-   const publicClient = getPublicClient(chainId);
+  const publicClient = getPublicClient(chainId);
 
-   try {
-      return await publicClient.getGasPrice();
-   } catch {
-      throw new ValidationError(
-         "Failed to get current gas price",
-         "GAS_PRICE_FAILED"
-      );
-   }
+  try {
+    return await publicClient.getGasPrice();
+  } catch {
+    throw new ValidationError(
+      "Failed to get current gas price",
+      "GAS_PRICE_FAILED",
+    );
+  }
 }
 
 /**
  * Check basic balance before gas estimation
  */
 async function checkBasicBalance(
-   norm: NormalizedNativeTransfer,
-   fromAddress: `0x${string}`
+  norm: NormalizedNativeTransfer,
+  fromAddress: `0x${string}`,
 ): Promise<bigint> {
-   const publicClient = getPublicClient(norm.chainId);
-   const balance = await publicClient.getBalance({ address: fromAddress });
+  const publicClient = getPublicClient(norm.chainId);
+  const balance = await publicClient.getBalance({ address: fromAddress });
 
-   // First check if we have enough balance for just the transfer amount
-   console.log({balance, amountWei: norm.amountWei})
-   if (balance < norm.amountWei) {
-      const chainConfig = getChainConfig(norm.chainId);
-      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
-      const balanceFormatted = formatEther(balance);
-      const amountFormatted = formatEther(norm.amountWei);
+  // First check if we have enough balance for just the transfer amount
+  console.log({ balance, amountWei: norm.amountWei });
+  if (balance < norm.amountWei) {
+    const chainConfig = getChainConfig(norm.chainId);
+    const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+    const balanceFormatted = formatEther(balance);
+    const amountFormatted = formatEther(norm.amountWei);
 
-      throw new ValidationError(
-         `Insufficient balance. You have ${balanceFormatted} ${nativeSymbol} but trying to send ${amountFormatted} ${nativeSymbol}`,
-         "INSUFFICIENT_FUNDS"
-      );
-   }
+    throw new ValidationError(
+      `Insufficient balance. You have ${balanceFormatted} ${nativeSymbol} but trying to send ${amountFormatted} ${nativeSymbol}`,
+      "INSUFFICIENT_FUNDS",
+    );
+  }
 
-   return balance;
+  return balance;
 }
 
 /**
  * Validate user has sufficient balance for transfer + gas
  */
 async function validateBalance(
-   norm: NormalizedNativeTransfer,
-   fromAddress: `0x${string}`,
-   balance: bigint,
-   policyConfig: PolicyConfig
+  norm: NormalizedNativeTransfer,
+  fromAddress: `0x${string}`,
+  balance: bigint,
+  policyConfig: PolicyConfig,
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
-   // Estimate gas and get gas price (now that we know basic balance is sufficient)
-   const gasEstimate = await estimateTransferGas(norm, fromAddress, policyConfig);
-   const gasPrice = await getCurrentGasPrice(norm.chainId);
-   const gasCost = gasEstimate * gasPrice;
+  // Estimate gas and get gas price (now that we know basic balance is sufficient)
+  const gasEstimate = await estimateTransferGas(
+    norm,
+    fromAddress,
+    policyConfig,
+  );
+  const gasPrice = await getCurrentGasPrice(norm.chainId);
+  const gasCost = gasEstimate * gasPrice;
 
-   // Calculate total cost (amount + gas)
-   const totalCost = norm.amountWei + gasCost;
+  // Calculate total cost (amount + gas)
+  const totalCost = norm.amountWei + gasCost;
 
-   // Check if balance is sufficient for total cost
-   console.log({balance, totalCost})
-   if (balance < totalCost) {
-      const chainConfig = getChainConfig(norm.chainId);
-      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
-      const balanceFormatted = formatEther(balance);
-      const totalCostFormatted = formatEther(totalCost);
-      const gasCostFormatted = formatEther(gasCost);
-      const amountFormatted = formatEther(norm.amountWei);
+  // Check if balance is sufficient for total cost
+  console.log({ balance, totalCost });
+  if (balance < totalCost) {
+    const chainConfig = getChainConfig(norm.chainId);
+    const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+    const balanceFormatted = formatEther(balance);
+    const totalCostFormatted = formatEther(totalCost);
+    const gasCostFormatted = formatEther(gasCost);
+    const amountFormatted = formatEther(norm.amountWei);
 
-      throw new ValidationError(
-         `Insufficient balance for transaction + gas. You have ${balanceFormatted} ${nativeSymbol} but need ${totalCostFormatted} ${nativeSymbol} (${amountFormatted} ${nativeSymbol} + ${gasCostFormatted} ${nativeSymbol} gas)`,
-         "INSUFFICIENT_FUNDS_WITH_GAS"
-      );
-   }
+    throw new ValidationError(
+      `Insufficient balance for transaction + gas. You have ${balanceFormatted} ${nativeSymbol} but need ${totalCostFormatted} ${nativeSymbol} (${amountFormatted} ${nativeSymbol} + ${gasCostFormatted} ${nativeSymbol} gas)`,
+      "INSUFFICIENT_FUNDS_WITH_GAS",
+    );
+  }
 
-   // Check minimum balance after transaction
-   const balanceAfterTx = balance - totalCost;
-   const minBalanceWei = BigInt(
-      Math.floor(policyConfig.minBalanceAfterTxETH * 1e18)
-   );
+  // Check minimum balance after transaction
+  const balanceAfterTx = balance - totalCost;
+  const minBalanceWei = BigInt(
+    Math.floor(policyConfig.minBalanceAfterTxETH * 1e16),
+  );
 
-   if (balanceAfterTx < minBalanceWei) {
-      const chainConfig = getChainConfig(norm.chainId);
-      const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
-      const balanceAfterFormatted = formatEther(balanceAfterTx);
-      throw new ValidationError(
-         `Transaction would leave balance too low (${balanceAfterFormatted} ${nativeSymbol}). Minimum ${policyConfig.minBalanceAfterTxETH} ${nativeSymbol} required`,
-         "BALANCE_TOO_LOW_AFTER_TX"
-      );
-   }
+  if (balanceAfterTx < minBalanceWei) {
+    const chainConfig = getChainConfig(norm.chainId);
+    const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+    const balanceAfterFormatted = formatEther(balanceAfterTx);
+    throw new ValidationError(
+      `Transaction would leave balance too low (${balanceAfterFormatted} ${nativeSymbol}). Minimum ${policyConfig.minBalanceAfterTxETH} ${nativeSymbol} required`,
+      "BALANCE_TOO_LOW_AFTER_TX",
+    );
+  }
 
-   return { gasEstimate, gasCost };
+  return { gasEstimate, gasCost };
 }
 
 /**
@@ -204,11 +218,11 @@ async function validateBalance(
  * This function is kept for backward compatibility but does nothing
  */
 async function validateDailySpendLimit(
-   _norm: NormalizedNativeTransfer,
-   _policyConfig: PolicyConfig
+  _norm: NormalizedNativeTransfer,
+  _policyConfig: PolicyConfig,
 ): Promise<void> {
-   // Handled by policy checker in checkPolicy()
-   return;
+  // Handled by policy checker in checkPolicy()
+  return;
 }
 
 /**
@@ -216,24 +230,29 @@ async function validateDailySpendLimit(
  * Returns gas estimates needed for execution
  */
 export async function validateNativeTransfer(
-   norm: NormalizedNativeTransfer,
-   fromAddress: `0x${string}`,
-   policyConfig: PolicyConfig
+  norm: NormalizedNativeTransfer,
+  fromAddress: `0x${string}`,
+  policyConfig: PolicyConfig,
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
-   // Basic validation
-   validateRecipient(norm.to);
-   validateAmountLimits(norm.amountWei, policyConfig);
+  // Basic validation
+  validateRecipient(norm.to);
+  validateAmountLimits(norm.amountWei, policyConfig);
 
-   // Check basic balance first (before gas estimation)
-   const balance = await checkBasicBalance(norm, fromAddress);
+  // Check basic balance first (before gas estimation)
+  const balance = await checkBasicBalance(norm, fromAddress);
 
-   // Balance and gas validation (with known balance)
-   const { gasEstimate, gasCost } = await validateBalance(norm, fromAddress, balance, policyConfig);
+  // Balance and gas validation (with known balance)
+  const { gasEstimate, gasCost } = await validateBalance(
+    norm,
+    fromAddress,
+    balance,
+    policyConfig,
+  );
 
-   // Policy validation (daily limits now handled in policy checker)
-   await validateDailySpendLimit(norm, policyConfig);
+  // Policy validation (daily limits now handled in policy checker)
+  await validateDailySpendLimit(norm, policyConfig);
 
-   return { gasEstimate, gasCost };
+  return { gasEstimate, gasCost };
 }
 
 /**
@@ -242,7 +261,7 @@ export async function validateNativeTransfer(
 export async function validateERC20Transfer(
   norm: NormalizedERC20Transfer,
   fromAddress: `0x${string}`,
-  policyConfig: PolicyConfig
+  policyConfig: PolicyConfig,
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Basic validation
   validateRecipient(norm.to);
@@ -251,7 +270,7 @@ export async function validateERC20Transfer(
   if (norm.amountWei <= 0n) {
     throw new ValidationError(
       "Amount must be greater than 0",
-      "AMOUNT_TOO_SMALL"
+      "AMOUNT_TOO_SMALL",
     );
   }
 
@@ -275,7 +294,7 @@ export async function validateERC20Transfer(
 
       throw new ValidationError(
         `Insufficient ${norm.token.symbol} balance. You have ${balanceFormatted} ${norm.token.symbol} but trying to send ${amountFormatted} ${norm.token.symbol}`,
-        "INSUFFICIENT_TOKEN_BALANCE"
+        "INSUFFICIENT_TOKEN_BALANCE",
       );
     }
 
@@ -283,14 +302,14 @@ export async function validateERC20Transfer(
     const gasEstimate = await publicClient.estimateContractGas({
       address: norm.token.address,
       abi: erc20Abi,
-      functionName: 'transfer',
+      functionName: "transfer",
       args: [norm.to, norm.amountWei],
       account: fromAddress,
     });
 
     // Add gas headroom for ERC-20 transfers (higher than native due to contract complexity)
     const gasWithHeadroom = BigInt(
-      Math.ceil(Number(gasEstimate) * policyConfig.gasHeadroomMultiplier)
+      Math.ceil(Number(gasEstimate) * policyConfig.gasHeadroomMultiplier),
     );
 
     // Get current gas price
@@ -298,7 +317,9 @@ export async function validateERC20Transfer(
     const gasCost = gasWithHeadroom * gasPrice;
 
     // Check if user has enough native currency for gas
-    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+    const nativeBalance = await publicClient.getBalance({
+      address: fromAddress,
+    });
 
     if (nativeBalance < gasCost) {
       const chainConfig = getChainConfig(norm.chainId);
@@ -308,37 +329,39 @@ export async function validateERC20Transfer(
 
       throw new ValidationError(
         `Insufficient ${nativeSymbol} for gas fees. You need ${gasCostFormatted} ${nativeSymbol} for gas but only have ${nativeBalanceFormatted} ${nativeSymbol}`,
-        "INSUFFICIENT_GAS_FUNDS"
+        "INSUFFICIENT_GAS_FUNDS",
       );
     }
 
     // Daily spend limits now handled by policy checker
 
     return { gasEstimate: gasWithHeadroom, gasCost };
-
   } catch (error: any) {
     if (error instanceof ValidationError) {
       throw error;
     }
 
     // Handle contract call failures
-    if (error.message?.includes("revert") || error.message?.includes("execution reverted")) {
+    if (
+      error.message?.includes("revert") ||
+      error.message?.includes("execution reverted")
+    ) {
       throw new ValidationError(
         `Token contract error: ${norm.token.symbol} transfer would fail`,
-        "TOKEN_CONTRACT_ERROR"
+        "TOKEN_CONTRACT_ERROR",
       );
     }
 
     if (error.message?.includes("gas")) {
       throw new ValidationError(
         "Failed to estimate gas for token transfer",
-        "GAS_ESTIMATION_FAILED"
+        "GAS_ESTIMATION_FAILED",
       );
     }
 
     throw new ValidationError(
       `Token validation failed: ${error.message || "Unknown error"}`,
-      "TOKEN_VALIDATION_FAILED"
+      "TOKEN_VALIDATION_FAILED",
     );
   }
 }
@@ -347,23 +370,23 @@ export async function validateERC20Transfer(
  * Simulate transaction before execution
  */
 export async function simulateTransfer(
-   norm: NormalizedNativeTransfer,
-   fromAddress: `0x${string}`
+  norm: NormalizedNativeTransfer,
+  fromAddress: `0x${string}`,
 ): Promise<void> {
-   const publicClient = getPublicClient(norm.chainId);
+  const publicClient = getPublicClient(norm.chainId);
 
-   try {
-      await publicClient.call({
-         account: fromAddress,
-         to: norm.to,
-         value: norm.amountWei,
-      });
-   } catch {
-      throw new ValidationError(
-         "Transaction simulation failed. Transaction would likely fail on-chain",
-         "SIMULATION_FAILED"
-      );
-   }
+  try {
+    await publicClient.call({
+      account: fromAddress,
+      to: norm.to,
+      value: norm.amountWei,
+    });
+  } catch {
+    throw new ValidationError(
+      "Transaction simulation failed. Transaction would likely fail on-chain",
+      "SIMULATION_FAILED",
+    );
+  }
 }
 
 /**
@@ -371,7 +394,7 @@ export async function simulateTransfer(
  */
 export async function simulateERC20Transfer(
   norm: NormalizedERC20Transfer,
-  fromAddress: `0x${string}`
+  fromAddress: `0x${string}`,
 ): Promise<void> {
   const publicClient = getPublicClient(norm.chainId);
 
@@ -379,7 +402,7 @@ export async function simulateERC20Transfer(
     await publicClient.simulateContract({
       address: norm.token.address,
       abi: erc20Abi,
-      functionName: 'transfer',
+      functionName: "transfer",
       args: [norm.to, norm.amountWei],
       account: fromAddress,
     });
@@ -387,7 +410,7 @@ export async function simulateERC20Transfer(
     console.error("ERC-20 simulation error:", error);
     throw new ValidationError(
       `Token transfer simulation failed. Transaction would likely fail on-chain: ${error.shortMessage || error.message}`,
-      "SIMULATION_FAILED"
+      "SIMULATION_FAILED",
     );
   }
 }
@@ -398,7 +421,7 @@ export async function simulateERC20Transfer(
 export async function validateSwap(
   norm: NormalizedSwap,
   fromAddress: `0x${string}`,
-  policyConfig: PolicyConfig
+  policyConfig: PolicyConfig,
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Get public client for the chain
   const publicClient = getPublicClient(norm.fromChainId);
@@ -408,7 +431,9 @@ export async function validateSwap(
     let balance: bigint;
 
     // For native tokens (ETH), use getBalance
-    if (norm.fromToken.address === '0x0000000000000000000000000000000000000000') {
+    if (
+      norm.fromToken.address === "0x0000000000000000000000000000000000000000"
+    ) {
       balance = await publicClient.getBalance({ address: fromAddress });
     } else {
       // For ERC-20 tokens, use balanceOf
@@ -422,40 +447,48 @@ export async function validateSwap(
 
     if (balance < norm.fromAmount) {
       const balanceFormatted = formatUnits(balance, norm.fromToken.decimals);
-      const amountFormatted = formatUnits(norm.fromAmount, norm.fromToken.decimals);
+      const amountFormatted = formatUnits(
+        norm.fromAmount,
+        norm.fromToken.decimals,
+      );
 
       throw new ValidationError(
         `Insufficient ${norm.fromToken.symbol} balance. You have ${balanceFormatted} but trying to swap ${amountFormatted}`,
-        "INSUFFICIENT_TOKEN_BALANCE"
+        "INSUFFICIENT_TOKEN_BALANCE",
       );
     }
 
     // Check native token balance for gas
-    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+    const nativeBalance = await publicClient.getBalance({
+      address: fromAddress,
+    });
     const chainConfig = getChainConfig(norm.fromChainId);
 
     // Estimate gas (rough estimate for approval + swap)
     const estimatedGas = 300000n; // Conservative estimate for DEX swaps
     const gasPrice = await publicClient.getGasPrice();
-    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100)) / 100n;
+    const gasCost =
+      (estimatedGas *
+        gasPrice *
+        BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100))) /
+      100n;
 
     if (nativeBalance < gasCost) {
       const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
       throw new ValidationError(
         `Insufficient ${nativeSymbol} for gas fees. Need ~${formatEther(gasCost)} ${nativeSymbol}`,
-        "INSUFFICIENT_GAS_FUNDS"
+        "INSUFFICIENT_GAS_FUNDS",
       );
     }
 
     return { gasEstimate: estimatedGas, gasCost };
-
   } catch (error: any) {
     if (error instanceof ValidationError) {
       throw error;
     }
     throw new ValidationError(
       `Swap validation failed: ${error.message || "Unknown error"}`,
-      "SWAP_VALIDATION_FAILED"
+      "SWAP_VALIDATION_FAILED",
     );
   }
 }
@@ -466,7 +499,7 @@ export async function validateSwap(
 export async function validateBridge(
   norm: NormalizedBridge,
   fromAddress: `0x${string}`,
-  policyConfig: PolicyConfig
+  policyConfig: PolicyConfig,
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Get public client for source chain
   const publicClient = getPublicClient(norm.fromChainId);
@@ -476,7 +509,7 @@ export async function validateBridge(
     let balance: bigint;
 
     // For native tokens (ETH), use getBalance
-    if (norm.token.address === '0x0000000000000000000000000000000000000000') {
+    if (norm.token.address === "0x0000000000000000000000000000000000000000") {
       balance = await publicClient.getBalance({ address: fromAddress });
     } else {
       // For ERC-20 tokens, use balanceOf
@@ -494,36 +527,41 @@ export async function validateBridge(
 
       throw new ValidationError(
         `Insufficient ${norm.token.symbol} balance. You have ${balanceFormatted} but trying to bridge ${amountFormatted}`,
-        "INSUFFICIENT_TOKEN_BALANCE"
+        "INSUFFICIENT_TOKEN_BALANCE",
       );
     }
 
     // Check native token balance for gas
-    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+    const nativeBalance = await publicClient.getBalance({
+      address: fromAddress,
+    });
     const chainConfig = getChainConfig(norm.fromChainId);
 
     // Estimate gas (rough estimate for approval + bridge)
     const estimatedGas = 250000n; // Conservative estimate for bridges
     const gasPrice = await publicClient.getGasPrice();
-    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100)) / 100n;
+    const gasCost =
+      (estimatedGas *
+        gasPrice *
+        BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100))) /
+      100n;
 
     if (nativeBalance < gasCost) {
       const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
       throw new ValidationError(
         `Insufficient ${nativeSymbol} for gas fees. Need ~${formatEther(gasCost)} ${nativeSymbol}`,
-        "INSUFFICIENT_GAS_FUNDS"
+        "INSUFFICIENT_GAS_FUNDS",
       );
     }
 
     return { gasEstimate: estimatedGas, gasCost };
-
   } catch (error: any) {
     if (error instanceof ValidationError) {
       throw error;
     }
     throw new ValidationError(
       `Bridge validation failed: ${error.message || "Unknown error"}`,
-      "BRIDGE_VALIDATION_FAILED"
+      "BRIDGE_VALIDATION_FAILED",
     );
   }
 }
@@ -534,7 +572,7 @@ export async function validateBridge(
 export async function validateBridgeSwap(
   norm: NormalizedBridgeSwap,
   fromAddress: `0x${string}`,
-  policyConfig: PolicyConfig
+  policyConfig: PolicyConfig,
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Get public client for source chain
   const publicClient = getPublicClient(norm.fromChainId);
@@ -544,7 +582,9 @@ export async function validateBridgeSwap(
     let balance: bigint;
 
     // For native tokens (ETH), use getBalance
-    if (norm.fromToken.address === '0x0000000000000000000000000000000000000000') {
+    if (
+      norm.fromToken.address === "0x0000000000000000000000000000000000000000"
+    ) {
       balance = await publicClient.getBalance({ address: fromAddress });
     } else {
       // For ERC-20 tokens, use balanceOf
@@ -558,40 +598,48 @@ export async function validateBridgeSwap(
 
     if (balance < norm.fromAmount) {
       const balanceFormatted = formatUnits(balance, norm.fromToken.decimals);
-      const amountFormatted = formatUnits(norm.fromAmount, norm.fromToken.decimals);
+      const amountFormatted = formatUnits(
+        norm.fromAmount,
+        norm.fromToken.decimals,
+      );
 
       throw new ValidationError(
         `Insufficient ${norm.fromToken.symbol} balance. You have ${balanceFormatted} but trying to bridge-swap ${amountFormatted}`,
-        "INSUFFICIENT_TOKEN_BALANCE"
+        "INSUFFICIENT_TOKEN_BALANCE",
       );
     }
 
     // Check native token balance for gas
-    const nativeBalance = await publicClient.getBalance({ address: fromAddress });
+    const nativeBalance = await publicClient.getBalance({
+      address: fromAddress,
+    });
     const chainConfig = getChainConfig(norm.fromChainId);
 
     // Estimate gas (rough estimate for approval + bridge + swap)
     const estimatedGas = 400000n; // Conservative estimate for complex bridge-swaps
     const gasPrice = await publicClient.getGasPrice();
-    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100)) / 100n;
+    const gasCost =
+      (estimatedGas *
+        gasPrice *
+        BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100))) /
+      100n;
 
     if (nativeBalance < gasCost) {
       const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
       throw new ValidationError(
         `Insufficient ${nativeSymbol} for gas fees. Need ~${formatEther(gasCost)} ${nativeSymbol}`,
-        "INSUFFICIENT_GAS_FUNDS"
+        "INSUFFICIENT_GAS_FUNDS",
       );
     }
 
     return { gasEstimate: estimatedGas, gasCost };
-
   } catch (error: any) {
     if (error instanceof ValidationError) {
       throw error;
     }
     throw new ValidationError(
       `Bridge-swap validation failed: ${error.message || "Unknown error"}`,
-      "BRIDGE_SWAP_VALIDATION_FAILED"
+      "BRIDGE_SWAP_VALIDATION_FAILED",
     );
   }
 }
@@ -602,7 +650,7 @@ export async function validateBridgeSwap(
 export async function validateIntent(
   norm: NormalizedIntent,
   fromAddress: `0x${string}`,
-  policyConfig: PolicyConfig
+  policyConfig: PolicyConfig,
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   if (norm.kind === "native-transfer") {
     return validateNativeTransfer(norm, fromAddress, policyConfig);
@@ -617,7 +665,7 @@ export async function validateIntent(
   } else {
     throw new ValidationError(
       `Unknown transfer type: ${(norm as any).kind}`,
-      "UNKNOWN_TRANSFER_TYPE"
+      "UNKNOWN_TRANSFER_TYPE",
     );
   }
 }
@@ -627,20 +675,26 @@ export async function validateIntent(
  */
 export async function simulateIntent(
   norm: NormalizedIntent,
-  fromAddress: `0x${string}`
+  fromAddress: `0x${string}`,
 ): Promise<void> {
   if (norm.kind === "native-transfer") {
     return simulateTransfer(norm, fromAddress);
   } else if (norm.kind === "erc20-transfer") {
     return simulateERC20Transfer(norm, fromAddress);
-  } else if (norm.kind === "swap" || norm.kind === "bridge" || norm.kind === "bridge-swap") {
+  } else if (
+    norm.kind === "swap" ||
+    norm.kind === "bridge" ||
+    norm.kind === "bridge-swap"
+  ) {
     // Skip simulation for LI.FI-based operations (they have their own validation)
-    console.log(`⏭️ Skipping simulation for ${norm.kind} (uses LI.FI validation)`);
+    console.log(
+      `⏭️ Skipping simulation for ${norm.kind} (uses LI.FI validation)`,
+    );
     return;
   } else {
     throw new ValidationError(
       `Unknown transfer type for simulation: ${(norm as any).kind}`,
-      "UNKNOWN_TRANSFER_TYPE"
+      "UNKNOWN_TRANSFER_TYPE",
     );
   }
 }

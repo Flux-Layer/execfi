@@ -6,7 +6,7 @@ export const POLICY_PRESETS: Record<PolicyPreset, PolicyConfig> = {
   safe: {
     maxTxAmountETH: 0.1,
     dailyLimitETH: 1.0,
-    minBalanceAfterTxETH: 0.001,
+    minBalanceAfterTxETH: 0.0000001,
     gasHeadroomMultiplier: 1.2,
     confirmationThresholdETH: 0.01,
     blockZeroAddress: true,
@@ -19,7 +19,7 @@ export const POLICY_PRESETS: Record<PolicyPreset, PolicyConfig> = {
   moderate: {
     maxTxAmountETH: 1.0,
     dailyLimitETH: 5.0,
-    minBalanceAfterTxETH: 0.001,
+    minBalanceAfterTxETH: 0.0000000001,
     gasHeadroomMultiplier: 1.1,
     confirmationThresholdETH: 0.1,
     blockZeroAddress: true,
@@ -32,7 +32,7 @@ export const POLICY_PRESETS: Record<PolicyPreset, PolicyConfig> = {
   advanced: {
     maxTxAmountETH: 10.0,
     dailyLimitETH: 50.0,
-    minBalanceAfterTxETH: 0.0001,
+    minBalanceAfterTxETH: 0.0000000000001,
     gasHeadroomMultiplier: 1.1,
     confirmationThresholdETH: 1.0,
     blockZeroAddress: true,
@@ -46,7 +46,7 @@ export const POLICY_PRESETS: Record<PolicyPreset, PolicyConfig> = {
     // Starts as copy of moderate
     maxTxAmountETH: 1.0,
     dailyLimitETH: 5.0,
-    minBalanceAfterTxETH: 0.001,
+    minBalanceAfterTxETH: 0.0000000001,
     gasHeadroomMultiplier: 1.1,
     confirmationThresholdETH: 0.1,
     blockZeroAddress: true,
