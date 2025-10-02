@@ -1,6 +1,6 @@
 services:
   execfi:
-    image: ghcr.io/${GITHUB_REPOSITORY:-topengdev/hq-hackathon-project-1}:staging
+    image: ghcr.io/topengdev/hq-hackathon-project-1-fe:staging
     ports:
       - "3290:3290"
     restart: unless-stopped

@@ -61,10 +61,7 @@ cd /opt/execfi
 # Download docker-compose.prod.yml
 wget https://raw.githubusercontent.com/TopengDev/hq-hackathon-project-1/staging/docker-compose.prod.yml
 
-# Set your GitHub repository name
-export GITHUB_REPOSITORY=topengdev/hq-hackathon-project-1
-
-# Start services
+# Start services (image name is hardcoded in docker-compose.prod.yml)
 docker compose -f docker-compose.prod.yml up -d
 ```
 

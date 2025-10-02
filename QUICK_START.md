@@ -29,7 +29,6 @@ echo "YOUR_PAT" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
 # Deploy app
 mkdir -p /opt/execfi && cd /opt/execfi
 # Copy docker-compose.prod.yml to VPS (scp or create manually)
-export GITHUB_REPOSITORY=topengdev/hq-hackathon-project-1
 docker compose -f docker-compose.prod.yml up -d
 
 # Setup Nginx
