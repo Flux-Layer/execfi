@@ -5,6 +5,10 @@ import "./globals.css";
 import ClientShell from "./ClientShell";
 import { seoDefaults } from "@/lib/seo";
 
+// Force dynamic rendering for client-side app with Privy
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

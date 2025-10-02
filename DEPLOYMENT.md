@@ -151,6 +151,9 @@ COINGECKO_PROVIDER_PRIORITY
 TOKEN_SEARCH_TIMEOUT_MS
 PROVIDER_HEALTH_CHECK_INTERVAL_MS
 TOKEN_CACHE_TTL_SECONDS
+INTEGRATOR_LIFI
+NEXT_PUBLIC_LISK_MAINNET
+NEXT_PUBLIC_LISK_TESTNET
 ```
 
 ### Enable GitHub Container Registry
@@ -162,6 +165,7 @@ Your repository must have **Packages** enabled (it's on by default for public re
 ### Automatic Deployment
 
 1. **Push to `staging` branch**:
+
    ```bash
    git push origin staging
    ```
@@ -180,6 +184,7 @@ Your repository must have **Packages** enabled (it's on by default for public re
 ### Manual Deployment
 
 Trigger workflow manually:
+
 - Go to GitHub → Actions → "Build and Deploy to VPS" → "Run workflow"
 
 ### Rollback
@@ -294,6 +299,7 @@ cat ~/.docker/config.json
 ## Support
 
 If deployment fails:
+
 1. Check GitHub Actions logs
 2. Check VPS docker logs: `docker logs execfi-app`
 3. Verify GitHub Secrets are set correctly

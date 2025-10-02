@@ -91,6 +91,9 @@ jobs:
             TOKEN_SEARCH_TIMEOUT_MS=${{ secrets.TOKEN_SEARCH_TIMEOUT_MS }}
             PROVIDER_HEALTH_CHECK_INTERVAL_MS=${{ secrets.PROVIDER_HEALTH_CHECK_INTERVAL_MS }}
             TOKEN_CACHE_TTL_SECONDS=${{ secrets.TOKEN_CACHE_TTL_SECONDS }}
+            INTEGRATOR_LIFI=${{ secrets.INTEGRATOR_LIFI }}
+            NEXT_PUBLIC_LISK_MAINNET=${{ secrets.NEXT_PUBLIC_LISK_MAINNET }}
+            NEXT_PUBLIC_LISK_TESTNET=${{ secrets.NEXT_PUBLIC_LISK_TESTNET }}
 
       - name: Deployment complete
         run: |
