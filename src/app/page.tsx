@@ -1,11 +1,8 @@
-"use client";
+import { buildMetadata } from "@/lib/seo";
+import HomePageClient from "./HomePageClient";
 
-import TextInput from "../components/textInput";
+export const metadata = buildMetadata({ path: "/" });
 
 export default function Home() {
-   return (
-      <main className="w-full h-screen flex items-center justify-center bg-black">
-         <TextInput />
-      </main>
-   );
+  return <HomePageClient />;
 }

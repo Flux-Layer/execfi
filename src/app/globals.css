@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Smooth fade in/out pulse for loader caption */
+@keyframes fadePulse {
+  0% { opacity: 0.35; }
+  50% { opacity: 1; }
+  100% { opacity: 0.35; }
+}
+.animate-fadePulse {
+  animation: fadePulse 2.4s ease-in-out infinite;
+}
+
+/* Neon silver text glow */
+.neon-silver {
+  color: #e5e7eb; /* slate-200 */
+  text-shadow:
+    0 0 6px rgba(192,192,255,0.85),
+    0 0 18px rgba(192,192,255,0.45);
+}
+
 html{
    box-sizing: border-box;
    padding: 0;
@@ -16,4 +34,20 @@ html{
     linear-gradient(black, black);
   -webkit-mask-clip: content-box, border-box;
   -webkit-mask-composite: xor;
+}
+
+/* Hide scrollbar while keeping scrolling functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
+}
+
+/* Shrink fonts for terminal preview without altering layout */
+.terminal-font-shrink, .terminal-font-shrink * {
+  font-size: 0.75rem !important; /* ~12px */
+  line-height: 1.2 !important;
 }
