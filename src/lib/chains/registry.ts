@@ -46,7 +46,8 @@ export interface ChainConfig {
  */
 function getRpcUrl(chainId: number, fallbackUrl?: string): string {
   const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_KEY;
-  const infuraKey = process.env.NEXT_PUBLIC_INFURA_KEY;
+  const moralisMainnetKey = process.env.NEXT_PUBLIC_lISK_MAINNET;
+  const moralisTesnetKey = process.env.NEXT_PUBLIC_lISK_TESTNET;
 
   const alchemyUrls: Record<number, string> = {
     // base
@@ -79,6 +80,8 @@ function getRpcUrl(chainId: number, fallbackUrl?: string): string {
     11124: `https://abstract-testnet.g.alchemy.com/v2/${alchemyKey}`,
 
     // lisk
+    1135: `https://site1.moralis-nodes.com/lisk/${moralisMainnetKey}`,
+    4202: `https://site1.moralis-nodes.com/lisk-sepolia/${moralisTesnetKey}`,
   };
 
   if (alchemyKey && alchemyUrls[chainId]) {
