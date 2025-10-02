@@ -1,6 +1,18 @@
-"use client";
-
 import React from "react";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata = buildMetadata({
+  title: "Docs",
+  description:
+    "Learn how ExecFi turns natural language intents into secure onchain execution with Privy smart accounts.",
+  path: "/execfi",
+  keywords: [
+    "ExecFi documentation",
+    "ExecFi notes",
+    "onchain automation overview",
+    "Privy smart accounts",
+  ],
+});
 
 export default function ExecFiDocsPage() {
   return (

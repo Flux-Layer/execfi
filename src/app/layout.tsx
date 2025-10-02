@@ -1,19 +1,9 @@
-"use client";
-
-import React, { useEffect, useState } from "react";
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import PrivyAppProvider from "@providers/privy-provider";
-import { WagmiAppProvider } from "@providers/wagmi-provider"; // ⬅️ import baru
-import { QCProvider } from "@providers/query-client.provider";
-import { EOAProvider } from "@providers/EOAProvider";
-import { ChainSelectionProvider } from "@/hooks/useChainSelection";
-import { Toaster } from "react-hot-toast";
-import Dock from "@components/dock";
-import PathFinderLoader from "@/components/loader/path-finder";
-// import TerminalHeader from "@/components/terminal/TerminalHeader";
-import { DockProvider } from "@/context/DockContext";
-import { TerminalStoreProvider } from "@/cli/hooks/useTerminalStore";
+import ClientShell from "./ClientShell";
+import { seoDefaults } from "@/lib/seo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,74 +15,63 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Intro loader: show for 5s, then fade out smoothly
-  const [introVisible, setIntroVisible] = useState(true);
-  const [introMounted, setIntroMounted] = useState(true);
-  useEffect(() => {
-    const t = setTimeout(() => setIntroVisible(false), 5000);
-    return () => clearTimeout(t);
-  }, []);
-  useEffect(() => {
-    if (introVisible) return;
-    const t = setTimeout(() => setIntroMounted(false), 700); // match fade/scale duration
-    return () => clearTimeout(t);
-  }, [introVisible]);
+export const metadata: Metadata = {
+  metadataBase: new URL(seoDefaults.siteUrl),
+  title: {
+    default: seoDefaults.title,
+    template: seoDefaults.titleTemplate,
+  },
+  description: seoDefaults.description,
+  keywords: seoDefaults.keywords,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: seoDefaults.siteUrl,
+    title: seoDefaults.title,
+    description: seoDefaults.description,
+    siteName: seoDefaults.siteName,
+    images: [
+      {
+        url: seoDefaults.image,
+        width: 1200,
+        height: 630,
+        alt: `${seoDefaults.siteName} preview`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: seoDefaults.twitterHandle,
+    creator: seoDefaults.twitterHandle,
+    title: seoDefaults.title,
+    description: seoDefaults.description,
+    images: [seoDefaults.image],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      maxImagePreview: "large",
+      maxSnippet: -1,
+      maxVideoPreview: -1,
+    },
+  },
+  icons: {
+    icon: "/execfi.favicon.svg",
+    apple: "/execfi.favicon.svg",
+  },
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <PrivyAppProvider>
-          <EOAProvider>
-            <DockProvider>
-              <ChainSelectionProvider>
-                <WagmiAppProvider>
-                  <QCProvider>
-                    <TerminalStoreProvider>
-                      {/* Intro loader overlay for first 5s with smooth fade */}
-                      {introMounted && (
-                        <div
-                          className={`fixed inset-0 z-50 transition-[opacity,transform] duration-600 ease-out ${introVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
-                        >
-                          <PathFinderLoader caption="Initializing" />
-                        </div>
-                      )}
-
-                      {children}
-                      <Dock />
-                      <Toaster
-                        position="top-right"
-                        toastOptions={{
-                          duration: 4000,
-                          style: {
-                            background: "#1f2937",
-                            color: "#f9fafb",
-                            border: "1px solid #374151",
-                          },
-                          success: {
-                            iconTheme: {
-                              primary: "#10b981",
-                              secondary: "#f9fafb",
-                            },
-                          },
-                          error: {
-                            iconTheme: {
-                              primary: "#ef4444",
-                              secondary: "#f9fafb",
-                            },
-                          },
-                        }}
-                      />
-                    </TerminalStoreProvider>
-                  </QCProvider>
-                </WagmiAppProvider>
-              </ChainSelectionProvider>
-            </DockProvider>
-          </EOAProvider>
-        </PrivyAppProvider>
+        <ClientShell>{children}</ClientShell>
       </body>
     </html>
   );
