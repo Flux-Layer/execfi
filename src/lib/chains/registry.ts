@@ -46,8 +46,8 @@ export interface ChainConfig {
  */
 function getRpcUrl(chainId: number, fallbackUrl?: string): string {
   const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_KEY;
-  const moralisMainnetKey = process.env.NEXT_PUBLIC_lISK_MAINNET;
-  const moralisTesnetKey = process.env.NEXT_PUBLIC_lISK_TESTNET;
+  const moralisMainnetKey = process.env.NEXT_PUBLIC_LISK_MAINNET;
+  const moralisTesnetKey = process.env.NEXT_PUBLIC_LISK_TESTNET;
 
   const alchemyUrls: Record<number, string> = {
     // base
