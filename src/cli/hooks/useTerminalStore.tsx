@@ -9,6 +9,7 @@ import type { Store } from "../state/store";
 import type { AppState, Dispatch } from "../state/types";
 import { createPersistedStore, createStore } from "../state/store";
 import { FLOWS } from "../state/flows";
+import { loadPolicy, createDefaultPolicy } from "@/lib/policy/storage";
 
 // Context for the terminal store
 const TerminalStoreContext = createContext<{
@@ -63,10 +64,14 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   // Initialize core context - allow basic initialization even when unauthenticated
   useEffect(() => {
     if (ready) {
+      // Load or create policy state
+      const policy = loadPolicy() || createDefaultPolicy("moderate");
+
       const coreContext = {
         chainId: selectedChainId, // Use selected chain from chain selection context
         idempotency: new Map(),
         accountMode: "EOA" as const, // Default to EOA mode
+        policy, // Add policy state
 
         // Auth-specific fields only when authenticated
         ...(authenticated && user && smartWalletReady

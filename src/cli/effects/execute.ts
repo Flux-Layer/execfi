@@ -2,6 +2,7 @@
 import type { StepDef } from "../state/types";
 import { executeIntent, getSmartAccountAddress } from "@/lib/execute";
 import { validateNoDuplicate, updateTransactionStatus } from "@/lib/idempotency";
+import { getIntentAmountETH } from "@/lib/policy/checker";
 
 export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   console.log("🔍 Execute effect - Full context:", {
@@ -118,6 +119,10 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
       hash: executionResult.txHash as `0x${string}`,
       explorerUrl: executionResult.explorerUrl,
     });
+
+    // Track transaction in policy
+    const amountETH = getIntentAmountETH(ctx.norm);
+    dispatch({ type: "POLICY.TX_TRACKED", amountETH });
 
     // Add success message to chat
     dispatch({

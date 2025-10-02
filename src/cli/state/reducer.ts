@@ -1,6 +1,8 @@
 // Pure reducer for HSM state transitions
 import type { AppState, AppEvent, FlowContext } from "./types";
 import { inferFlowName, parseSlashCommand, createAppError } from "./events";
+import { trackTransaction } from "@/lib/policy/checker";
+import { savePolicy, createDefaultPolicy } from "@/lib/policy/storage";
 
 /**
  * Initial state factory
@@ -15,6 +17,7 @@ export function createInitialState(): AppState {
       userId: "",
       chainId: 8453, // Base mainnet
       idempotency: new Map(),
+      policy: createDefaultPolicy("moderate"), // Initialize with default moderate policy
     },
     inputText: "",
     chatHistory: [],
@@ -989,6 +992,38 @@ export function reducer(state: AppState, event: AppEvent): AppState {
           chainId: event.chainId,
         },
       };
+
+    case "POLICY.UPDATE":
+      return {
+        ...state,
+        core: {
+          ...state.core,
+          policy: event.policy,
+        },
+      };
+
+    case "POLICY.TX_TRACKED": {
+      // Track transaction in policy
+      const updatedPolicy = trackTransaction(state.core.policy, event.amountETH);
+      savePolicy(updatedPolicy);
+
+      return {
+        ...state,
+        core: {
+          ...state.core,
+          policy: updatedPolicy,
+        },
+      };
+    }
+
+    case "POLICY.RESET":
+      // Handled by policy commands, no state change needed here
+      return state;
+
+    case "POLICY.VIOLATION":
+      // Policy violations are logged, no state change needed
+      console.warn("Policy violations:", event.violations);
+      return state;
 
     default:
       return state;

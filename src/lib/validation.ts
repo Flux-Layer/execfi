@@ -10,6 +10,7 @@ import type {
   NormalizedIntent
 } from "./normalize";
 import { getChainConfig, isChainSupported } from "./chains/registry";
+import type { PolicyConfig } from "./policy/types";
 
 export class ValidationError extends Error {
    constructor(message: string, public code: string) {
@@ -17,27 +18,6 @@ export class ValidationError extends Error {
       this.name = "ValidationError";
    }
 }
-
-// Chain configuration now dynamically retrieved from registry
-
-/**
- * Policy configuration (from env or defaults)
- */
-const POLICY = {
-   // Per-transaction limits in ETH
-   MAX_TX_AMOUNT_ETH: parseFloat(process.env.MAX_TX_AMOUNT_ETH || "1.0"),
-
-   // Daily spend limits in ETH
-   DAILY_SPEND_LIMIT_ETH: parseFloat(process.env.DAILY_SPEND_LIMIT_ETH || "5.0"),
-
-   // Gas headroom multiplier (110% = 1.1)
-   GAS_HEADROOM_MULT: parseFloat(process.env.GAS_HEADROOM_MULT || "1.1"),
-
-   // Minimum balance to keep after transaction (in ETH)
-   MIN_BALANCE_AFTER_TX_ETH: parseFloat(
-      process.env.MIN_BALANCE_AFTER_TX_ETH || "0.0000001"
-   ),
-};
 
 /**
  * Create public client for chain operations
@@ -76,12 +56,12 @@ function validateRecipient(to: `0x${string}`) {
 /**
  * Validate amount is within policy limits
  */
-function validateAmountLimits(amountWei: bigint) {
+function validateAmountLimits(amountWei: bigint, policyConfig: PolicyConfig) {
    const amountEth = parseFloat(formatEther(amountWei));
 
-   if (amountEth > POLICY.MAX_TX_AMOUNT_ETH) {
+   if (amountEth > policyConfig.maxTxAmountETH) {
       throw new ValidationError(
-         `Amount ${amountEth} ETH exceeds maximum transaction limit of ${POLICY.MAX_TX_AMOUNT_ETH} ETH`,
+         `Amount ${amountEth} ETH exceeds maximum transaction limit of ${policyConfig.maxTxAmountETH} ETH`,
          "AMOUNT_EXCEEDS_LIMIT"
       );
    }
@@ -99,7 +79,8 @@ function validateAmountLimits(amountWei: bigint) {
  */
 async function estimateTransferGas(
    norm: NormalizedNativeTransfer,
-   fromAddress: `0x${string}`
+   fromAddress: `0x${string}`,
+   policyConfig: PolicyConfig
 ): Promise<bigint> {
    const publicClient = getPublicClient(norm.chainId);
 
@@ -112,7 +93,7 @@ async function estimateTransferGas(
 
       // Add gas headroom
       const gasWithHeadroom = BigInt(
-         Math.ceil(Number(gasEstimate) * POLICY.GAS_HEADROOM_MULT)
+         Math.ceil(Number(gasEstimate) * policyConfig.gasHeadroomMultiplier)
       );
       return gasWithHeadroom;
    } catch {
@@ -172,10 +153,11 @@ async function checkBasicBalance(
 async function validateBalance(
    norm: NormalizedNativeTransfer,
    fromAddress: `0x${string}`,
-   balance: bigint
+   balance: bigint,
+   policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
    // Estimate gas and get gas price (now that we know basic balance is sufficient)
-   const gasEstimate = await estimateTransferGas(norm, fromAddress);
+   const gasEstimate = await estimateTransferGas(norm, fromAddress, policyConfig);
    const gasPrice = await getCurrentGasPrice(norm.chainId);
    const gasCost = gasEstimate * gasPrice;
 
@@ -201,7 +183,7 @@ async function validateBalance(
    // Check minimum balance after transaction
    const balanceAfterTx = balance - totalCost;
    const minBalanceWei = BigInt(
-      Math.floor(POLICY.MIN_BALANCE_AFTER_TX_ETH * 1e18)
+      Math.floor(policyConfig.minBalanceAfterTxETH * 1e18)
    );
 
    if (balanceAfterTx < minBalanceWei) {
@@ -209,7 +191,7 @@ async function validateBalance(
       const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
       const balanceAfterFormatted = formatEther(balanceAfterTx);
       throw new ValidationError(
-         `Transaction would leave balance too low (${balanceAfterFormatted} ${nativeSymbol}). Minimum ${POLICY.MIN_BALANCE_AFTER_TX_ETH} ${nativeSymbol} required`,
+         `Transaction would leave balance too low (${balanceAfterFormatted} ${nativeSymbol}). Minimum ${policyConfig.minBalanceAfterTxETH} ${nativeSymbol} required`,
          "BALANCE_TOO_LOW_AFTER_TX"
       );
    }
@@ -218,22 +200,15 @@ async function validateBalance(
 }
 
 /**
- * Validate daily spend limits (placeholder - requires persistent storage)
+ * Daily spend limits are now handled by the policy checker system
+ * This function is kept for backward compatibility but does nothing
  */
 async function validateDailySpendLimit(
-   norm: NormalizedNativeTransfer
+   _norm: NormalizedNativeTransfer,
+   _policyConfig: PolicyConfig
 ): Promise<void> {
-   // TODO: Implement daily spend tracking with persistent storage
-   // For MVP, we'll skip this validation
-   // In production, this would check against a database of user transactions
-
-   const amountEth = parseFloat(formatEther(norm.amountWei));
-   if (amountEth > POLICY.DAILY_SPEND_LIMIT_ETH) {
-      throw new ValidationError(
-         `Transaction amount ${amountEth} ETH exceeds daily limit of ${POLICY.DAILY_SPEND_LIMIT_ETH} ETH`,
-         "DAILY_LIMIT_EXCEEDED"
-      );
-   }
+   // Handled by policy checker in checkPolicy()
+   return;
 }
 
 /**
@@ -242,20 +217,21 @@ async function validateDailySpendLimit(
  */
 export async function validateNativeTransfer(
    norm: NormalizedNativeTransfer,
-   fromAddress: `0x${string}`
+   fromAddress: `0x${string}`,
+   policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
    // Basic validation
    validateRecipient(norm.to);
-   validateAmountLimits(norm.amountWei);
+   validateAmountLimits(norm.amountWei, policyConfig);
 
    // Check basic balance first (before gas estimation)
    const balance = await checkBasicBalance(norm, fromAddress);
 
    // Balance and gas validation (with known balance)
-   const { gasEstimate, gasCost } = await validateBalance(norm, fromAddress, balance);
+   const { gasEstimate, gasCost } = await validateBalance(norm, fromAddress, balance, policyConfig);
 
-   // Policy validation
-   await validateDailySpendLimit(norm);
+   // Policy validation (daily limits now handled in policy checker)
+   await validateDailySpendLimit(norm, policyConfig);
 
    return { gasEstimate, gasCost };
 }
@@ -265,7 +241,8 @@ export async function validateNativeTransfer(
  */
 export async function validateERC20Transfer(
   norm: NormalizedERC20Transfer,
-  fromAddress: `0x${string}`
+  fromAddress: `0x${string}`,
+  policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Basic validation
   validateRecipient(norm.to);
@@ -313,7 +290,7 @@ export async function validateERC20Transfer(
 
     // Add gas headroom for ERC-20 transfers (higher than native due to contract complexity)
     const gasWithHeadroom = BigInt(
-      Math.ceil(Number(gasEstimate) * POLICY.GAS_HEADROOM_MULT)
+      Math.ceil(Number(gasEstimate) * policyConfig.gasHeadroomMultiplier)
     );
 
     // Get current gas price
@@ -335,16 +312,7 @@ export async function validateERC20Transfer(
       );
     }
 
-    // Validate daily spend limits (convert to ETH equivalent for policy)
-    const tokenAmountFormatted = formatUnits(norm.amountWei, norm.token.decimals);
-    const tokenAmountEth = parseFloat(tokenAmountFormatted); // Simplified - in production would need price oracle
-
-    if (tokenAmountEth > POLICY.DAILY_SPEND_LIMIT_ETH) {
-      throw new ValidationError(
-        `Transaction amount ${tokenAmountFormatted} ${norm.token.symbol} exceeds daily limit`,
-        "DAILY_LIMIT_EXCEEDED"
-      );
-    }
+    // Daily spend limits now handled by policy checker
 
     return { gasEstimate: gasWithHeadroom, gasCost };
 
@@ -429,7 +397,8 @@ export async function simulateERC20Transfer(
  */
 export async function validateSwap(
   norm: NormalizedSwap,
-  fromAddress: `0x${string}`
+  fromAddress: `0x${string}`,
+  policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Get public client for the chain
   const publicClient = getPublicClient(norm.fromChainId);
@@ -468,7 +437,7 @@ export async function validateSwap(
     // Estimate gas (rough estimate for approval + swap)
     const estimatedGas = 300000n; // Conservative estimate for DEX swaps
     const gasPrice = await publicClient.getGasPrice();
-    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(POLICY.GAS_HEADROOM_MULT * 100)) / 100n;
+    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100)) / 100n;
 
     if (nativeBalance < gasCost) {
       const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
@@ -496,7 +465,8 @@ export async function validateSwap(
  */
 export async function validateBridge(
   norm: NormalizedBridge,
-  fromAddress: `0x${string}`
+  fromAddress: `0x${string}`,
+  policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Get public client for source chain
   const publicClient = getPublicClient(norm.fromChainId);
@@ -535,7 +505,7 @@ export async function validateBridge(
     // Estimate gas (rough estimate for approval + bridge)
     const estimatedGas = 250000n; // Conservative estimate for bridges
     const gasPrice = await publicClient.getGasPrice();
-    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(POLICY.GAS_HEADROOM_MULT * 100)) / 100n;
+    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100)) / 100n;
 
     if (nativeBalance < gasCost) {
       const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
@@ -563,7 +533,8 @@ export async function validateBridge(
  */
 export async function validateBridgeSwap(
   norm: NormalizedBridgeSwap,
-  fromAddress: `0x${string}`
+  fromAddress: `0x${string}`,
+  policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   // Get public client for source chain
   const publicClient = getPublicClient(norm.fromChainId);
@@ -602,7 +573,7 @@ export async function validateBridgeSwap(
     // Estimate gas (rough estimate for approval + bridge + swap)
     const estimatedGas = 400000n; // Conservative estimate for complex bridge-swaps
     const gasPrice = await publicClient.getGasPrice();
-    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(POLICY.GAS_HEADROOM_MULT * 100)) / 100n;
+    const gasCost = estimatedGas * gasPrice * BigInt(Math.floor(policyConfig.gasHeadroomMultiplier * 100)) / 100n;
 
     if (nativeBalance < gasCost) {
       const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
@@ -630,18 +601,19 @@ export async function validateBridgeSwap(
  */
 export async function validateIntent(
   norm: NormalizedIntent,
-  fromAddress: `0x${string}`
+  fromAddress: `0x${string}`,
+  policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
   if (norm.kind === "native-transfer") {
-    return validateNativeTransfer(norm, fromAddress);
+    return validateNativeTransfer(norm, fromAddress, policyConfig);
   } else if (norm.kind === "erc20-transfer") {
-    return validateERC20Transfer(norm, fromAddress);
+    return validateERC20Transfer(norm, fromAddress, policyConfig);
   } else if (norm.kind === "swap") {
-    return validateSwap(norm, fromAddress);
+    return validateSwap(norm, fromAddress, policyConfig);
   } else if (norm.kind === "bridge") {
-    return validateBridge(norm, fromAddress);
+    return validateBridge(norm, fromAddress, policyConfig);
   } else if (norm.kind === "bridge-swap") {
-    return validateBridgeSwap(norm, fromAddress);
+    return validateBridgeSwap(norm, fromAddress, policyConfig);
   } else {
     throw new ValidationError(
       `Unknown transfer type: ${(norm as any).kind}`,

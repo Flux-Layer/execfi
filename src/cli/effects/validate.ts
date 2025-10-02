@@ -1,6 +1,7 @@
 // Validation effects using existing orchestrator logic
 import type { StepDef } from "../state/types";
 import { validateIntent } from "@/lib/validation";
+import { checkPolicy } from "@/lib/policy/checker";
 
 export const validateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   if (!ctx.norm) {
@@ -51,7 +52,44 @@ export const validateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal
   try {
     console.log("🔄 Validating transaction:", ctx.norm, "using", accountMode, "mode with address:", fromAddress);
 
-    const { gasEstimate, gasCost } = await validateIntent(ctx.norm, fromAddress);
+    // Step 1: Policy check
+    const policyCheck = checkPolicy(ctx.norm, core.policy, fromAddress);
+
+    if (!policyCheck.allowed) {
+      const blockingViolations = policyCheck.violations.filter(v => v.severity === "block");
+      const errorMessage = blockingViolations.map(v => v.message).join("\n");
+      const suggestions = blockingViolations.map(v => v.suggestion).filter(Boolean).join("\n");
+
+      dispatch({
+        type: "VALIDATE.FAIL",
+        error: {
+          code: "POLICY_VIOLATION",
+          message: `Policy violations:\n${errorMessage}\n\nSuggestions:\n${suggestions}`,
+          detail: policyCheck.violations,
+          phase: "validate",
+        },
+      });
+      return;
+    }
+
+    // Step 2: Show warnings for non-blocking violations
+    const warnings = policyCheck.violations.filter(v => v.severity === "warn");
+    if (warnings.length > 0) {
+      warnings.forEach(warning => {
+        dispatch({
+          type: "OVERLAY.PUSH",
+          overlay: {
+            kind: "toast",
+            level: "warn",
+            text: warning.message,
+            ttlMs: 5000,
+          },
+        });
+      });
+    }
+
+    // Step 3: Standard validation (balance, gas, etc.)
+    const { gasEstimate, gasCost } = await validateIntent(ctx.norm, fromAddress, core.policy.config);
 
     if (signal.aborted) return;
 
