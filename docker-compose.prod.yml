@@ -1,6 +1,6 @@
 services:
   execfi:
-    image: ghcr.io/topengdev/hq-hackathon-project-1-fe:staging
+    image: ghcr.io/flux-layer/execfi:staging
     ports:
       - "3290:3290"
     restart: unless-stopped
