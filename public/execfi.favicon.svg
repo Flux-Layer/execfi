@@ -1,0 +1,43 @@
+<!-- ExecFi • favicon mark -->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#22D3EE" />
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="#0B1223" />
+  <rect x="12" y="12" width="488" height="488" rx="84" fill="none" stroke="rgba(255, 255, 255, 0.12)" stroke-width="4" />
+
+  <g transform="translate(256 230)">
+    <text
+      text-anchor="middle"
+      dominant-baseline="central"
+      font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+      font-weight="700"
+      font-size="150"
+      letter-spacing="6"
+      fill="url(#grad)"
+      filter="url(#glow)"
+    >&gt; exf_</text>
+  </g>
+
+  <text
+    x="256"
+    y="360"
+    text-anchor="middle"
+    font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    font-weight="400"
+    font-size="40"
+    letter-spacing="4"
+    fill="#9CA3AF"
+  >execfi</text>
+</svg>
