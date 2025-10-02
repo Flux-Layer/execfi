@@ -20,6 +20,8 @@ export async function lifiService(params: {
       order = "CHEAPEST",
       slippage = 0.005,
     } = params;
+
+    const integrator = process.env.INTEGRATOR_LIFI!;
   
     const query = new URLSearchParams({
       fromChain: String(fromChain),
@@ -31,7 +33,7 @@ export async function lifiService(params: {
       toAddress: toAddress ?? fromAddress,
       order,
       slippage: String(slippage),
-      integrator: "execFii",
+      integrator: integrator,
       fee: "0.01",
     });
   
