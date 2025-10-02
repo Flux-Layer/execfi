@@ -16,7 +16,7 @@ import { resolveChainIds, formatChainLabel, getSupportedMainnetChainIds } from "
  */
 export const balancesCmd: CommandDef = {
   name: "/balances",
-  aliases: ["/bals", "/portfolio"],
+  aliases: ["/balance", "/bal", "/bals", "/portfolio"],
   category: "core",
   summary: "Show multi-token portfolio with USD values",
   usage: "/balances [--chain <id|name>] [--limit <n>] [--sort <field>] [--summary|--detailed] [--insights]",
@@ -297,7 +297,7 @@ ${chainSummary}
 💡 **Tips:**
 • Use --min-usd to adjust minimum value filter
 • Try --chain to check other networks (e.g., --chain ethereum,polygon)
-• Use /balance for native token only
+• Run /balances --detailed for a chain-by-chain check
 • Ensure your wallet has tokens on the selected chain(s)`;
   }
 
@@ -453,4 +453,3 @@ ${chainSummary}
 
   return header + holdingsHeader + holdingRows + chainHeader + chainRows + insightsSection + quickActions + actionItems + footer;
 }
-

@@ -118,7 +118,8 @@ const InitialText = () => {
           available commands
         </p>
         <p className="text-slate-300 ml-2">
-          • Use <span className="text-emerald-400">/balance</span> to check your
+          • Use <span className="text-emerald-400">/balances</span>
+          <span className="text-slate-400"> (/balance)</span> to check your
           token balances
         </p>
         <p className="text-slate-300 ml-2">
@@ -198,7 +199,8 @@ const InitialText = () => {
           💡 <strong>Pro Tip:</strong> Start with{" "}
           <span className="text-emerald-400">/accountinfo</span> to see your
           wallet details, then{" "}
-          <span className="text-emerald-400">/balance</span> to check your
+          <span className="text-emerald-400">/balances</span>
+          <span className="text-slate-400"> (/balance)</span> to check your
           assets before making transactions.
         </p>
       </div>

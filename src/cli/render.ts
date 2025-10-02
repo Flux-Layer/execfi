@@ -168,7 +168,7 @@ function renderView(page: AppState["viewStack"][0]): string[] {
       lines.push("/back - Go back one level");
       lines.push("");
       lines.push("🔍 Information:");
-      lines.push("/balances - View account balances");
+      lines.push("/balances (/balance) - View account balances");
       lines.push("/tx <hash> - View transaction details");
       lines.push("");
       lines.push("⚡ Flow Control:");

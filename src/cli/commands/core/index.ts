@@ -1,6 +1,7 @@
 // Core command implementations for ExecFi CLI
 import type { CommandDef } from "../types";
-import { parseFlags, parseSendSyntax } from "../parser";
+import { parseSendSyntax } from "../parser";
+import { getChainDisplayName } from "@/lib/chains/registry";
 
 export const helpCmd: CommandDef = {
   name: "/help",
@@ -8,7 +9,7 @@ export const helpCmd: CommandDef = {
   category: "core",
   summary: "Show commands and usage",
   usage: "/help [command]",
-  examples: ["/help", "/help /send", "/? /balance"],
+  examples: ["/help", "/help /send", "/? /balances"],
   parse: (line) => {
     const parts = line.trim().split(/\s+/);
     const query = parts[1]?.toLowerCase();
@@ -32,7 +33,7 @@ export const helpCmd: CommandDef = {
 CORE COMMANDS:
   /help (/?) - Show commands and usage
   /whoami - Show current user, chain, and account info
-  /balance (/bal) - Show native token balance
+  /balances (/balance, /bal, /bals) - Show token balances across networks
   /clear (/cls) - Clear terminal screen
   /accountinfo - Show detailed account information
   /send - Send native or ERC-20 tokens
@@ -45,7 +46,7 @@ CORE COMMANDS:
   /reset (/restart) - Emergency reset
 
 ESSENTIAL COMMANDS:
-  /balances (/bals) - Show all token balances across networks
+  /balances (/balance, /bal, /bals) - Show all token balances across networks
   /tx <hash> - Show transaction details and status
   /txs [limit] - Show recent transaction history
   /pending - Show pending transactions
@@ -124,120 +125,6 @@ export const whoamiCmd: CommandDef = {
   },
 };
 
-export const balanceCmd: CommandDef = {
-  name: "/balance",
-  aliases: ["/bal"],
-  category: "core",
-  summary: "Show native token balance",
-  usage: "/balance [--chain <id|name>]",
-  flags: [
-    {
-      name: "chain",
-      alias: "c",
-      type: "string",
-      description: "Override chain for this query only",
-    },
-  ],
-  examples: ["/balance", "/balance --chain base", "/bal -c 1"],
-  parse: (line) => {
-    try {
-      const flags = parseFlags(line, balanceCmd.flags);
-      return { ok: true, args: flags };
-    } catch (error) {
-      return { ok: false, error: `Parse error: ${error}` };
-    }
-  },
-  run: (args, ctx, dispatch) => {
-    const targetChain = args.chain || ctx.chainId;
-    const chainName = getChainName(targetChain);
-
-    // Get the user's address
-    const address =
-      ctx.accountMode === "SMART_ACCOUNT"
-        ? ctx.saAddress
-        : ctx.selectedWallet?.address;
-
-    if (!address) {
-      dispatch({
-        type: "CHAT.ADD",
-        message: {
-          role: "assistant",
-          content: `❌ No wallet address available. Please connect a wallet first.`,
-          timestamp: Date.now(),
-        },
-      });
-      return;
-    }
-
-    // Show real balance from your tested API call: 0.000038 ETH
-    const ethBalance = 0.000038;
-
-    // Fetch real-time ETH price and calculate USD value
-    fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&x_cg_demo_api_key=${process.env.NEXT_PUBLIC_COIN_GECKO_API_KEY}`,
-    )
-      .then((response) => response.json())
-      .then((priceData) => {
-        const ethPriceUSD = priceData.ethereum?.usd || 2600; // fallback price
-        const usdValue = ethBalance * ethPriceUSD;
-
-        const realBalanceText = `💰 Balance: ${ethBalance} ETH
-Address: ${address.slice(0, 6)}...${address.slice(-4)}
-Chain: ${chainName} (${targetChain})
-
-📊 Account Summary:
-• Native Token: ${ethBalance} ETH
-• Raw Balance: 38409633460487 wei
-• USD Value: $${usdValue.toFixed(4)} (ETH @ $${ethPriceUSD.toLocaleString()})
-• Last Updated: ${new Date().toLocaleTimeString()}
-
-⚠️  Low balance detected - consider adding funds
-💡 Tip: Use /send to transfer tokens`;
-
-        dispatch({
-          type: "CHAT.ADD",
-          message: {
-            role: "assistant",
-            content: realBalanceText,
-            timestamp: Date.now(),
-          },
-        });
-
-        // Command completed successfully
-      })
-      .catch((error) => {
-        console.error("Price fetch error:", error);
-        // Fallback to estimated price if API fails
-        const ethPriceUSD = 2600;
-        const usdValue = ethBalance * ethPriceUSD;
-
-        const fallbackBalanceText = `💰 Balance: ${ethBalance} ETH
-Address: ${address.slice(0, 6)}...${address.slice(-4)}
-Chain: ${chainName} (${targetChain})
-
-📊 Account Summary:
-• Native Token: ${ethBalance} ETH
-• Raw Balance: 38409633460487 wei
-• USD Value: $${usdValue.toFixed(4)} (ETH @ ~$${ethPriceUSD.toLocaleString()})
-• Last Updated: ${new Date().toLocaleTimeString()}
-
-⚠️  Low balance detected - consider adding funds
-💡 Tip: Use /send to transfer tokens`;
-
-        dispatch({
-          type: "CHAT.ADD",
-          message: {
-            role: "assistant",
-            content: fallbackBalanceText,
-            timestamp: Date.now(),
-          },
-        });
-
-        // Command completed with fallback data
-      });
-  },
-};
-
 export const clearCmd: CommandDef = {
   name: "/clear",
   aliases: ["/cls"],
@@ -292,7 +179,7 @@ Wallet:
 ${walletInfo}
 
 Quick Actions:
-• Use /balance to check your native token balance
+• Use /balances (alias: /balance) to check your token balances
 • Use /send to transfer tokens
 • Use /login to sign in (if not signed in)
 • Use /logout to sign out (if signed in)`;
@@ -410,8 +297,6 @@ export const resetCmd: CommandDef = {
     dispatch({ type: "APP.RESET" });
   },
 };
-
-import { getChainDisplayName } from "@/lib/chains/registry";
 
 // Utility function to get chain name from ID
 function getChainName(chainId: number | string): string {

@@ -422,7 +422,7 @@ This could mean:
 💡 **Try:**
 • \`/txs --chain ethereum\` to check other chains
 • \`/pending\` to see any pending transactions
-• \`/balance\` to verify your current balance`;
+• \`/balances\` (alias: \`/balance\`) to verify your current balance`;
   }
 
   // Get native currency symbol
@@ -478,7 +478,7 @@ Your account has no pending transactions or operations.
 • Your wallet is ready for new transactions
 
 **Quick Actions:**
-• \`/balance\` to check your current balance
+• \`/balances\` (alias: \`/balance\`) to check your current balance
 • \`/txs\` to see recent transaction history
 • \`/send <amount> <token> to <address>\` to start a new transaction`;
   }

@@ -16,7 +16,6 @@ export const COMMANDS: CommandDef[] = [
   // Core commands (Phase 1)
   CoreCommands.helpCmd,
   CoreCommands.whoamiCmd,
-  CoreCommands.balanceCmd,
   CoreCommands.clearCmd,
   CoreCommands.accountinfoCmd,
   CoreCommands.sendCmd,
