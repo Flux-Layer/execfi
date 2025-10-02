@@ -253,7 +253,7 @@ function HSMTerminalContent({
             transition={isDragging ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 24 }}
             className={
               fullscreen
-                ? "fixed inset-0 z-30 flex items-center justify-center"
+                ? "fixed inset-0 z-30 pb-24 flex items-center justify-center"
                 : "absolute px-4"
             }
             style={{
@@ -274,7 +274,7 @@ function HSMTerminalContent({
               onClick={() => inputRef.current?.focus()}
               className={
                 fullscreen
-                  ? "relative flex flex-col h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] cursor-text overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
+                  ? "relative flex flex-col h-[calc(95vh-4rem)] w-[calc(100vw-4rem)] cursor-text overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
                   : "mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto scrollbar-hide rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
               }
               draggable={false}
