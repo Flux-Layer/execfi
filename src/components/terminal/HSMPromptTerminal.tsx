@@ -275,7 +275,7 @@ function HSMTerminalContent({
               className={
                 fullscreen
                   ? "relative flex flex-col h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] cursor-text overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
-                  : "mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
+                  : "mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto scrollbar-hide rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
               }
               draggable={false}
             >
@@ -287,7 +287,7 @@ function HSMTerminalContent({
                 onToggleFullscreen={onToggleFullscreen}
                 isFullscreen={fullscreen}
               />
-              <div className={fullscreen ? "h-[calc(100%-3rem)] overflow-y-auto" : ""}>
+              <div className={fullscreen ? "h-[calc(100%-3rem)] overflow-y-auto scrollbar-hide" : ""}>
                 <HSMTerminalBody inputRef={inputRef} containerRef={containerRef} />
               </div>
             </motion.div>

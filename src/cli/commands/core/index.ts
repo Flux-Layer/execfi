@@ -51,26 +51,16 @@ ESSENTIAL COMMANDS (Phase 2):
   /pending - Show pending transactions
 
 ADVANCED FEATURES (Phase 3):
-  /session - Manage session signers and policies
   /policy - Configure transaction policies
   /limits - Set spending limits
-  /approve (/allow) - Approve token allowances for contracts
-  /allowances - View current token allowances
-  /revoke - Revoke token allowances
   /addressbook (/contacts) - Show saved contacts and addresses
   /contact - Add new contacts
-  /state - Show current application state (debug)
-  /logs - View application logs and events
-  /trace - Trace transaction execution
-  /config - View and modify configuration
 
 DEFI INTEGRATION (Phase 4):
   /swap (/sw) - Execute token swaps using LI.FI
   /bridge (/br) - Execute cross-chain token transfers
   /quote (/q, /price) - Get quotes for swaps and bridges
   /ens (/name) - Resolve ENS names to addresses
-  /sign (/sig) - Sign messages with your wallet
-  /verify (/ver) - Verify message signatures
 
 CHAIN MANAGEMENT:
   /chain list - Show all supported chains

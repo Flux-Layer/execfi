@@ -13,6 +13,7 @@ import { validateNoDuplicate, updateTransactionStatus } from "./idempotency";
 import { validateIntent, simulateIntent } from "./validation";
 import { executeIntent, getSmartAccountAddress, formatExecutionError } from "./execute";
 import { monitorTransaction, formatMonitoringStatus } from "./monitor";
+import { POLICY_PRESETS } from "./policy/presets";
 
 export class OrchestrationError extends Error {
   constructor(
@@ -132,7 +133,7 @@ export async function orchestrateTransaction(
 
     // Phase 5: Validation
     console.log("🔄 Phase 5: Validating transaction...");
-    const { gasEstimate, gasCost } = await validateIntent(norm, smartAccountAddress);
+    const { gasEstimate, gasCost } = await validateIntent(norm, smartAccountAddress, POLICY_PRESETS.moderate);
     console.log("✅ Validation passed", { gasEstimate, gasCost });
 
     // Phase 6: Simulation (optional but recommended)

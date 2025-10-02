@@ -1,6 +1,7 @@
 // Core HSM types for ExecFi terminal state machine
 import type { Intent, IntentSuccess } from "@/lib/ai";
 import type { NormalizedIntent } from "@/lib/normalize";
+import type { PolicyState, PolicyViolation } from "@/lib/policy/types";
 
 export type Mode = "IDLE" | "FLOW" | "VIEW" | "GUIDE" | "AUTH";
 
@@ -65,6 +66,9 @@ export type CoreContext = {
 
   // Transaction mode (defaults to "EOA")
   accountMode?: AccountMode;
+
+  // Policy state
+  policy: PolicyState;
 };
 
 export type AppError = {
@@ -170,7 +174,11 @@ export type AppEvent =
   | { type: "COMMAND.EXECUTE"; command: string; commandDef: any; args: any }
   | { type: "BALANCE.FETCH"; chainId?: number; chainName?: string }
   | { type: "TERMINAL.CLEAR" }
-  | { type: "CHAIN.UPDATE"; chainId: number };
+  | { type: "CHAIN.UPDATE"; chainId: number }
+  | { type: "POLICY.UPDATE"; policy: PolicyState }
+  | { type: "POLICY.RESET"; preset?: string }
+  | { type: "POLICY.VIOLATION"; violations: PolicyViolation[] }
+  | { type: "POLICY.TX_TRACKED"; amountETH: number };
 
 // Helper types for effect definitions
 export type Dispatch = (e: AppEvent) => void;
