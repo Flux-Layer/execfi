@@ -227,10 +227,23 @@ export function reducer(state: AppState, event: AppEvent): AppState {
     // Flow state transitions
     case "INTENT.OK":
       if (state.mode === "FLOW" && state.flow?.step === "parse") {
+        // Map intent action to correct flow name
+        let flowName = state.flow.name;
+        if (event.intent.action === "bridge") {
+          flowName = "bridge";
+        } else if (event.intent.action === "bridge_swap") {
+          flowName = "bridge-swap";
+        } else if (event.intent.action === "swap") {
+          flowName = "swap";
+        } else if (event.intent.action === "transfer") {
+          flowName = "transfer";
+        }
+
         return {
           ...state,
           flow: {
             ...state.flow,
+            name: flowName, // Update flow name based on actual detected action
             step: "normalize",
             intent: event.intent,
             error: undefined,
@@ -301,94 +314,120 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         // Detect intent type from raw input
         let reconstructedIntent: any;
 
-        if (raw.match(/\bswap\b/i)) {
-          // Swap intent - parse "swap X eth to usdc on base"
-          const amountMatch = raw.match(/swap\s+([\d.]+)/i);
-          const fromTokenMatch = raw.match(/swap\s+[\d.]+\s+(\w+)/i);
-          const toTokenMatch = raw.match(/to\s+(\w+)/i);
-          const chainMatch = raw.match(/on\s+(\w+)/i);
+        // Pattern detection order (most specific first):
+        // 1. Bridge-swap: "swap X eth on lisk to usdc on base"
+        // 2. Bridge: "swap X eth on lisk to base" or "bridge X eth from lisk to base"
+        // 3. Same-chain swap: "swap X eth to usdc on lisk"
 
-          if (!amountMatch || !fromTokenMatch) {
-            return {
-              ...state,
-              flow: {
-                ...state.flow,
-                step: "failure",
-                error: {
-                  code: "INTENT_RECONSTRUCTION_FAILED",
-                  message: "Failed to reconstruct swap intent with selected token",
-                  phase: "normalize",
-                },
-              },
-            };
-          }
+        const bridgeSwapPattern = raw.match(/swap\s+([\d.]+)\s+(\w+)\s+on\s+(\w+)\s+to\s+(\w+)\s+on\s+(\w+)/i);
+        const unifiedBridgePattern = raw.match(/swap\s+([\d.]+)\s+(\w+)\s+on\s+(\w+)\s+to\s+(\w+)(?!\s+on)/i);
+        const legacyBridgePattern = raw.match(/bridge\s+([\d.]+)\s+(\w+)(?:\s+from\s+(\w+))?(?:\s+to\s+(\w+))?/i);
+        const swapPattern = raw.match(/swap\s+([\d.]+)\s+(\w+)\s+to\s+(\w+)(?:\s+on\s+(\w+))?/i);
 
-          // Determine which token was ambiguous and use the selected token
-          const fromTokenSymbol = fromTokenMatch[1];
-          const toTokenSymbol = toTokenMatch ? toTokenMatch[1] : undefined;
+        if (bridgeSwapPattern) {
+          // Pattern: swap 0.00001 eth on lisk to usdc on base (bridge-swap)
+          const amountMatch = bridgeSwapPattern[1];
+          const fromTokenMatch = bridgeSwapPattern[2];
+          const fromChainMatch = bridgeSwapPattern[3];
+          const toTokenMatch = bridgeSwapPattern[4];
+          const toChainMatch = bridgeSwapPattern[5];
 
           // Check if we already have selected tokens from previous selections
           const previousIntent = state.flow.intent as any;
           const previousFromToken = previousIntent?._selectedFromToken;
           const previousToToken = previousIntent?._selectedToToken;
 
-          // If the selected token matches fromToken symbol, use it as fromToken
-          // Otherwise, use it as toToken
-          const isFromToken = fromTokenSymbol.toLowerCase() === selectedToken.symbol.toLowerCase();
-
-          // Build the token selection data
+          // Use sequential selection logic
+          const isSelectingFromToken = !previousFromToken;
           let selectedFromToken: any;
           let selectedToToken: any;
 
-          if (isFromToken) {
-            // User selected the fromToken
+          if (isSelectingFromToken) {
             selectedFromToken = selectedToken;
-            selectedToToken = previousToToken; // Keep previous toToken if any
+            selectedToToken = previousToToken;
+            console.log("🎯 [TOKEN.SELECT] Bridge-swap first selection → fromToken:", selectedToken.symbol);
           } else {
-            // User selected the toToken
-            selectedFromToken = previousFromToken; // Keep previous fromToken if any
+            selectedFromToken = previousFromToken;
             selectedToToken = selectedToken;
+            console.log("🎯 [TOKEN.SELECT] Bridge-swap second selection → toToken:", selectedToken.symbol);
+          }
+
+          reconstructedIntent = {
+            action: "bridge_swap" as const,
+            fromChain: fromChainMatch,
+            toChain: toChainMatch,
+            fromToken: selectedFromToken ? selectedFromToken.symbol : fromTokenMatch,
+            toToken: selectedToToken ? selectedToToken.symbol : toTokenMatch,
+            amount: amountMatch,
+            _selectedFromToken: selectedFromToken,
+            _selectedToToken: selectedToToken,
+          };
+        } else if (unifiedBridgePattern) {
+          // Pattern: swap 0.00001 eth on lisk to base (unified bridge)
+          const amountMatch = unifiedBridgePattern[1];
+          const tokenMatch = unifiedBridgePattern[2];
+          const fromChainMatch = unifiedBridgePattern[3];
+          const toChainMatch = unifiedBridgePattern[4];
+
+          reconstructedIntent = {
+            action: "bridge" as const,
+            fromChain: fromChainMatch,
+            toChain: toChainMatch,
+            token: selectedToken ? selectedToken.symbol : tokenMatch,
+            amount: amountMatch,
+            _selectedToken: selectedToken,
+          };
+        } else if (legacyBridgePattern) {
+          // Pattern: bridge 0.00001 eth from lisk to base (legacy bridge)
+          const amountMatch = legacyBridgePattern[1];
+          const tokenMatch = legacyBridgePattern[2];
+          const fromChainMatch = legacyBridgePattern[3];
+          const toChainMatch = legacyBridgePattern[4];
+
+          reconstructedIntent = {
+            action: "bridge" as const,
+            fromChain: fromChainMatch || toChainMatch,
+            toChain: toChainMatch || fromChainMatch,
+            token: selectedToken ? selectedToken.symbol : tokenMatch,
+            amount: amountMatch,
+            _selectedToken: selectedToken,
+          };
+        } else if (swapPattern) {
+          // Pattern: swap 0.00001 eth to usdc on lisk (same-chain swap)
+          const amountMatch = swapPattern[1];
+          const fromTokenMatch = swapPattern[2];
+          const toTokenMatch = swapPattern[3];
+          const chainMatch = swapPattern[4];
+
+          // Check if we already have selected tokens
+          const previousIntent = state.flow.intent as any;
+          const previousFromToken = previousIntent?._selectedFromToken;
+          const previousToToken = previousIntent?._selectedToToken;
+
+          // Use sequential selection logic
+          const isSelectingFromToken = !previousFromToken;
+          let selectedFromToken: any;
+          let selectedToToken: any;
+
+          if (isSelectingFromToken) {
+            selectedFromToken = selectedToken;
+            selectedToToken = previousToToken;
+            console.log("🎯 [TOKEN.SELECT] Swap first selection → fromToken:", selectedToken.symbol);
+          } else {
+            selectedFromToken = previousFromToken;
+            selectedToToken = selectedToken;
+            console.log("🎯 [TOKEN.SELECT] Swap second selection → toToken:", selectedToken.symbol);
           }
 
           reconstructedIntent = {
             action: "swap" as const,
-            fromChain: chainMatch ? chainMatch[1] : selectedToken.chainId,
-            toChain: chainMatch ? chainMatch[1] : selectedToken.chainId,
-            fromToken: isFromToken ? selectedToken.symbol : fromTokenSymbol,
-            toToken: isFromToken ? (toTokenSymbol || selectedToken.symbol) : selectedToken.symbol,
-            amount: amountMatch[1],
-            _selectedFromToken: selectedFromToken, // Store from token
-            _selectedToToken: selectedToToken, // Store to token
-          };
-        } else if (raw.match(/\bbridge\b/i) && raw.match(/\bswap\b/i)) {
-          // Bridge-swap intent
-          // TODO: Implement bridge-swap reconstruction
-          return {
-            ...state,
-            flow: {
-              ...state.flow,
-              step: "failure",
-              error: {
-                code: "INTENT_RECONSTRUCTION_FAILED",
-                message: "Bridge-swap token reconstruction not yet implemented",
-                phase: "normalize",
-              },
-            },
-          };
-        } else if (raw.match(/\bbridge\b/i)) {
-          // Bridge intent
-          // TODO: Implement bridge reconstruction
-          return {
-            ...state,
-            flow: {
-              ...state.flow,
-              step: "failure",
-              error: {
-                code: "INTENT_RECONSTRUCTION_FAILED",
-                message: "Bridge token reconstruction not yet implemented",
-                phase: "normalize",
-              },
-            },
+            fromChain: chainMatch || selectedToken.chainId,
+            toChain: chainMatch || selectedToken.chainId,
+            fromToken: selectedFromToken ? selectedFromToken.symbol : fromTokenMatch,
+            toToken: selectedToToken ? selectedToToken.symbol : toTokenMatch,
+            amount: amountMatch,
+            _selectedFromToken: selectedFromToken,
+            _selectedToToken: selectedToToken,
           };
         } else {
           // Transfer intent - parse "send/transfer X token to address"
@@ -435,12 +474,25 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         console.log("🔄 TOKEN.SELECT - Has _selectedFromToken:", !!(reconstructedIntent as any)._selectedFromToken);
         console.log("🔄 TOKEN.SELECT - Has _selectedToToken:", !!(reconstructedIntent as any)._selectedToToken);
 
+        // Map intent action to correct flow name (same logic as INTENT.OK)
+        let flowName = state.flow.name;
+        if (reconstructedIntent.action === "bridge") {
+          flowName = "bridge";
+        } else if (reconstructedIntent.action === "bridge_swap") {
+          flowName = "bridge-swap";
+        } else if (reconstructedIntent.action === "swap") {
+          flowName = "swap";
+        } else if (reconstructedIntent.action === "transfer") {
+          flowName = "transfer";
+        }
+
         // Return new state with updated intent and force step to "normalize"
         // Note: Even if step was already "normalize", updating the intent should be enough
         return {
           ...state,
           flow: {
             ...state.flow,
+            name: flowName, // Update flow name based on reconstructed action
             selectedTokenIndex: event.index,
             tokenSelection: undefined, // Clear selection state
             intent: reconstructedIntent, // Set the reconstructed intent with both tokens

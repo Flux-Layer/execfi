@@ -624,14 +624,28 @@ export async function executeSwap(
         data: txRequest.data as `0x${string}`,
       });
     } else {
-      const txResult = await clients.eoaSendTransaction!({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      }, {
-        address: clients.selectedWallet!.address,
-      });
-      txHash = txResult.hash;
+      try {
+        const txResult = await clients.eoaSendTransaction!({
+          to: txRequest.to as `0x${string}`,
+          value: BigInt(txRequest.value || 0),
+          data: txRequest.data as `0x${string}`,
+        }, {
+          address: clients.selectedWallet!.address,
+        });
+        txHash = txResult.hash;
+      } catch (sendError: any) {
+        console.error("❌ EOA sendTransaction error:", sendError);
+        
+        // Handle specific error types from viem/privy
+        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+          throw new ExecutionError(
+            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
+            "TRANSACTION_REVERTED"
+          );
+        }
+        
+        throw sendError; // Re-throw other errors to be caught by outer catch
+      }
     }
 
     const chainConfig = getChainConfig(norm.fromChainId);
@@ -644,9 +658,32 @@ export async function executeSwap(
       explorerUrl,
     };
   } catch (error: any) {
-    console.error("Swap execution error:", error);
+    console.error("❌ Swap execution error:", error);
+    
+    // Handle specific error types
+    if (error instanceof ExecutionError) {
+      throw error; // Re-throw ExecutionError as-is
+    }
+    
+    // Handle user rejection
+    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+      throw new ExecutionError(
+        "Transaction was cancelled by user",
+        "USER_REJECTED"
+      );
+    }
+    
+    // Handle insufficient funds
+    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+      throw new ExecutionError(
+        "Insufficient balance to complete swap (including gas fees)",
+        "INSUFFICIENT_FUNDS"
+      );
+    }
+    
+    // Generic error
     throw new ExecutionError(
-      `Swap execution failed: ${error.message}`,
+      `Swap execution failed: ${error.message || "Unknown error"}`,
       "SWAP_EXECUTION_FAILED"
     );
   }
@@ -708,14 +745,27 @@ export async function executeBridge(
         data: txRequest.data as `0x${string}`,
       });
     } else {
-      const txResult = await clients.eoaSendTransaction!({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      }, {
-        address: clients.selectedWallet!.address,
-      });
-      txHash = txResult.hash;
+      try {
+        const txResult = await clients.eoaSendTransaction!({
+          to: txRequest.to as `0x${string}`,
+          value: BigInt(txRequest.value || 0),
+          data: txRequest.data as `0x${string}`,
+        }, {
+          address: clients.selectedWallet!.address,
+        });
+        txHash = txResult.hash;
+      } catch (sendError: any) {
+        console.error("❌ EOA sendTransaction error:", sendError);
+        
+        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+          throw new ExecutionError(
+            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
+            "TRANSACTION_REVERTED"
+          );
+        }
+        
+        throw sendError;
+      }
     }
 
     const fromChainConfig = getChainConfig(norm.fromChainId);
@@ -729,9 +779,28 @@ export async function executeBridge(
       explorerUrl,
     };
   } catch (error: any) {
-    console.error("Bridge execution error:", error);
+    console.error("❌ Bridge execution error:", error);
+    
+    if (error instanceof ExecutionError) {
+      throw error;
+    }
+    
+    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+      throw new ExecutionError(
+        "Transaction was cancelled by user",
+        "USER_REJECTED"
+      );
+    }
+    
+    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+      throw new ExecutionError(
+        "Insufficient balance to complete bridge (including gas fees)",
+        "INSUFFICIENT_FUNDS"
+      );
+    }
+    
     throw new ExecutionError(
-      `Bridge execution failed: ${error.message}`,
+      `Bridge execution failed: ${error.message || "Unknown error"}`,
       "BRIDGE_EXECUTION_FAILED"
     );
   }
@@ -794,14 +863,27 @@ export async function executeBridgeSwap(
         data: txRequest.data as `0x${string}`,
       });
     } else {
-      const txResult = await clients.eoaSendTransaction!({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      }, {
-        address: clients.selectedWallet!.address,
-      });
-      txHash = txResult.hash;
+      try {
+        const txResult = await clients.eoaSendTransaction!({
+          to: txRequest.to as `0x${string}`,
+          value: BigInt(txRequest.value || 0),
+          data: txRequest.data as `0x${string}`,
+        }, {
+          address: clients.selectedWallet!.address,
+        });
+        txHash = txResult.hash;
+      } catch (sendError: any) {
+        console.error("❌ EOA sendTransaction error:", sendError);
+        
+        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+          throw new ExecutionError(
+            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
+            "TRANSACTION_REVERTED"
+          );
+        }
+        
+        throw sendError;
+      }
     }
 
     const fromChainConfig = getChainConfig(norm.fromChainId);
@@ -815,9 +897,28 @@ export async function executeBridgeSwap(
       explorerUrl,
     };
   } catch (error: any) {
-    console.error("Bridge-swap execution error:", error);
+    console.error("❌ Bridge-swap execution error:", error);
+    
+    if (error instanceof ExecutionError) {
+      throw error;
+    }
+    
+    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+      throw new ExecutionError(
+        "Transaction was cancelled by user",
+        "USER_REJECTED"
+      );
+    }
+    
+    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+      throw new ExecutionError(
+        "Insufficient balance to complete bridge-swap (including gas fees)",
+        "INSUFFICIENT_FUNDS"
+      );
+    }
+    
     throw new ExecutionError(
-      `Bridge-swap execution failed: ${error.message}`,
+      `Bridge-swap execution failed: ${error.message || "Unknown error"}`,
       "BRIDGE_SWAP_EXECUTION_FAILED"
     );
   }

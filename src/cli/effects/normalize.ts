@@ -1,8 +1,14 @@
 // Normalize effects using existing orchestrator logic
 import type { StepDef } from "../state/types";
 import { normalizeIntent, TokenSelectionError } from "@/lib/normalize";
-import { verifyChainConsistency } from "@/lib/chain-utils";
-import { resolveChain } from "@/lib/chains/registry";
+import { DeFiTokenSelectionError } from "@/lib/defi/errors";
+import {
+  verifyChainConsistency,
+  requestChainSwitch,
+  switchWalletChain,
+  waitForChainPropagation
+} from "@/lib/chain-utils";
+import { resolveChain, getChainConfig } from "@/lib/chains/registry";
 import { transferNormalizeFx } from "./transfer/normalize";
 
 export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
@@ -26,7 +32,7 @@ export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signa
   }
 
   // ============================================================================
-  // EARLY CHAIN DETECTION AND WARNING
+  // CHAIN SWITCHING (for swap/bridge/bridge_swap)
   // ============================================================================
 
   let requiredChainId: number | undefined;
@@ -53,31 +59,75 @@ export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signa
     console.warn("Could not determine required chain during normalization:", error);
   }
 
-  if (requiredChainId && requiredChainId !== core.chainId) {
-    const verification = verifyChainConsistency(
-      core.chainId,
-      requiredChainId,
-      "Normalization"
-    );
+  // Check if chain switch is needed
+  const needsChainSwitch = requiredChainId && requiredChainId !== core.chainId;
+  const alreadySwitched = ctx.chainSwitched === true;
 
-    if (!verification.consistent && verification.warning) {
-      console.log(`⚠️ ${verification.warning}`);
-      console.log(`Transaction will auto-switch to ${requiredChainName} (${requiredChainId}) during execution`);
+  if (needsChainSwitch && !alreadySwitched && requiredChainId) {
+    const currentChain = getChainConfig(core.chainId);
+    const targetChainConfig = getChainConfig(requiredChainId);
 
-      // Add informational message to chat
+    console.log(`🔄 [Normalize Effect] Chain switch required: ${currentChain?.name || core.chainId} → ${requiredChainName}`);
+
+    // Notify user about chain switch
+    dispatch({
+      type: "CHAT.ADD",
+      message: {
+        role: "assistant",
+        content: `🔄 Switching to ${requiredChainName}...`,
+        timestamp: Date.now(),
+      },
+    });
+
+    try {
+      // 1. Request UI chain switch
+      const switchSuccess = await requestChainSwitch(requiredChainId);
+      if (!switchSuccess) {
+        throw new Error("Chain switch was not completed");
+      }
+
+      // 2. Switch wallet chain for EOA mode (best effort)
+      const accountMode = core.accountMode || "EOA";
+      if (accountMode === "EOA" && core.selectedWallet) {
+        await switchWalletChain(core.selectedWallet, requiredChainId);
+      }
+
+      // 3. Wait for state propagation
+      await waitForChainPropagation();
+
+      // 4. Mark as switched to prevent duplicate switches
+      ctx.chainSwitched = true;
+
+      console.log(`✅ [Normalize Effect] Chain switched to ${requiredChainName}`);
+
+      // Notify user of successful switch
       dispatch({
         type: "CHAT.ADD",
         message: {
           role: "assistant",
-          content: `ℹ️ This transaction requires ${requiredChainName}. The chain will be switched automatically.`,
+          content: `✅ Switched to ${requiredChainName}`,
           timestamp: Date.now(),
         },
       });
+    } catch (error: any) {
+      console.error("[Normalize Effect] Chain switch error:", error);
+
+      dispatch({
+        type: "NORMALIZE.FAIL",
+        error: {
+          code: "CHAIN_SWITCH_FAILED",
+          message: `Failed to switch to ${requiredChainName}: ${error.message}`,
+          phase: "normalize",
+        },
+      });
+      return;
     }
+  } else if (requiredChainId && requiredChainId === core.chainId) {
+    console.log(`✅ [Normalize Effect] Already on correct chain: ${requiredChainId}`);
   }
 
   // ============================================================================
-  // END: EARLY CHAIN DETECTION AND WARNING
+  // END: CHAIN SWITCHING
   // ============================================================================
 
   try {
@@ -108,13 +158,15 @@ export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signa
 
     console.error("Normalization error:", error);
 
-    // Handle token selection error specially
-    if (error instanceof TokenSelectionError) {
+    // Handle token selection errors (both generic and DeFi-specific)
+    if (error instanceof TokenSelectionError || error instanceof DeFiTokenSelectionError) {
+      console.log("🎯 Token selection required, dispatching INTENT.TOKEN_SELECTION");
+      
       dispatch({
         type: "INTENT.TOKEN_SELECTION",
         tokenSelection: {
           message: error.message,
-          tokens: error.tokens.map((token) => ({
+          tokens: error.tokens.map((token: any) => ({
             id: token.id,
             chainId: token.chainId,
             address: token.address,
