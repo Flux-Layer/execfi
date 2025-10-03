@@ -172,7 +172,8 @@ export const parseIntentFx: StepDef["onEnter"] = async (
       
       const bridgeSwapMatch = ctx.raw.match(/swap\s+([\d.]+)\s+(\w+)\s+on\s+(\w+)\s+to\s+(\w+)\s+on\s+(\w+)/i);
       const bridgeSwapMatch2 = ctx.raw.match(/swap\s+([\d.]+)\s+(\w+)\s+on\s+(\w+)\s+to\s+(\w+)(?!\s+on)/i);
-      const legacyBridgeMatch = ctx.raw.match(/bridge\s+([\d.]+)\s+(\w+)(?:\s+from\s+(\w+))?(?:\s+to\s+(\w+))?/i);
+      // Legacy bridge: supports both "from" and "on" for source chain
+      const legacyBridgeMatch = ctx.raw.match(/bridge\s+([\d.]+)\s+(\w+)(?:\s+(?:from|on)\s+(\w+))?(?:\s+to\s+(\w+))?/i);
       const swapMatch = ctx.raw.match(/swap\s+([\d.]+)\s+(\w+)\s+to\s+(\w+)(?:\s+on\s+(\w+))?/i);
       
       if (bridgeSwapMatch) {
@@ -254,8 +255,8 @@ export const parseIntentFx: StepDef["onEnter"] = async (
             }
           }
         } else {
-          // Try bridge patterns: "bridge X token from chain1 to chain2"
-          const bridgeMatch = ctx.raw.match(/bridge\s+[\d.]+\s+(\w+)(?:\s+from\s+(\w+))?(?:\s+to\s+(\w+))?/i);
+          // Try bridge patterns: "bridge X token from/on chain1 to chain2"
+          const bridgeMatch = ctx.raw.match(/bridge\s+[\d.]+\s+(\w+)(?:\s+(?:from|on)\s+(\w+))?(?:\s+to\s+(\w+))?/i);
           if (bridgeMatch) {
             ambiguousSymbol = bridgeMatch[1];
             const fromChain = bridgeMatch[2];

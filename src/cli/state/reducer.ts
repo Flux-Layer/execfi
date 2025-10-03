@@ -321,7 +321,8 @@ export function reducer(state: AppState, event: AppEvent): AppState {
 
         const bridgeSwapPattern = raw.match(/swap\s+([\d.]+)\s+(\w+)\s+on\s+(\w+)\s+to\s+(\w+)\s+on\s+(\w+)/i);
         const unifiedBridgePattern = raw.match(/swap\s+([\d.]+)\s+(\w+)\s+on\s+(\w+)\s+to\s+(\w+)(?!\s+on)/i);
-        const legacyBridgePattern = raw.match(/bridge\s+([\d.]+)\s+(\w+)(?:\s+from\s+(\w+))?(?:\s+to\s+(\w+))?/i);
+        // Legacy bridge pattern: supports both "from" and "on" for source chain
+        const legacyBridgePattern = raw.match(/bridge\s+([\d.]+)\s+(\w+)(?:\s+(?:from|on)\s+(\w+))?(?:\s+to\s+(\w+))?/i);
         const swapPattern = raw.match(/swap\s+([\d.]+)\s+(\w+)\s+to\s+(\w+)(?:\s+on\s+(\w+))?/i);
 
         if (bridgeSwapPattern) {

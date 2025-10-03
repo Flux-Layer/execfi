@@ -69,12 +69,26 @@ CHAIN MANAGEMENT:
   /chain current - Show current chain status
   /chain info <name> - Show detailed chain information
 
-💡 Natural language also supported:
-  "swap 0.1 ETH to USDC"
-  "bridge 100 USDC from base to polygon"
-  "send 0.1 ETH to vitalik.eth"
+💡 Natural Language Patterns:
 
-🚀 25+ commands available! Try /swap ETH USDC 0.1 or /ens vitalik.eth`;
+TRANSFER (Send tokens):
+  "send 0.1 ETH to vitalik.eth"
+  "transfer 100 USDC to 0x123... on base"
+
+SWAP (Same-chain token exchange):
+  "swap 0.1 ETH to USDC on base"
+  "swap 100 USDC to DAI"
+
+BRIDGE (Cross-chain, same token):
+  "swap 0.1 ETH on base to polygon"        ← Unified syntax
+  "bridge 100 USDC from base to arbitrum"  ← Legacy syntax
+  "bridge 50 DAI on optimism to ethereum"  ← Also works
+
+BRIDGE-SWAP (Cross-chain, different tokens):
+  "swap 0.1 ETH on base to USDC on polygon"
+  "swap 100 USDC on arbitrum to DAI on optimism"
+
+   Try: swap 0.001 et to usd on base`;
 
       dispatch({
         type: "CHAT.ADD",
