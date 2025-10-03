@@ -253,6 +253,20 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
 
     // Add explorer link to chat
     if (executionResult.explorerUrl && executionResult.txHash) {
+      // Get chain-specific explorer name
+      // For DeFi operations (swap/bridge/bridge-swap), use fromChainId
+      // Transaction is always submitted on the source chain
+      let chainId: number;
+      if (ctx.norm.kind === "bridge" || ctx.norm.kind === "bridge-swap" || ctx.norm.kind === "swap") {
+        chainId = ctx.norm.fromChainId;
+      } else {
+        // Should not reach here since transfers are routed separately, but fallback to Base
+        chainId = 8453;
+      }
+      
+      const chainConfig = getChainConfig(chainId);
+      const explorerName = chainConfig?.explorerName || "Block Explorer";
+      
       dispatch({
         type: "CHAT.ADD",
         message: {
@@ -261,7 +275,7 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
             type: "explorer-link",
             url: executionResult.explorerUrl,
             text: `View transaction: ${executionResult.txHash}`,
-            explorerName: "BaseScan",
+            explorerName: explorerName,
           },
           timestamp: Date.now(),
         },
