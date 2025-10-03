@@ -370,7 +370,8 @@ export async function normalizeTransferIntent(
   const selectedToken = (intent as any)._selectedToken;
 
   // Use the token's chainId if available, otherwise resolve from intent.chain
-  const chainId = selectedToken?.chainId ?? opts?.preferredChainId ?? resolveChainForNormalization(intent.chain);
+  // Priority: 1) selected token chain, 2) intent chain, 3) preferred chain from context
+  const chainId = selectedToken?.chainId ?? resolveChainForNormalization(intent.chain) ?? opts?.preferredChainId;
 
   // Validate chain is supported
   if (!isChainSupported(chainId)) {
