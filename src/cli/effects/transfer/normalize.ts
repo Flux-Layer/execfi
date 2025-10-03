@@ -3,8 +3,12 @@
 import type { StepDef } from "../../state/types";
 import { normalizeTransferIntent } from "@/lib/transfer/normalize";
 import { TransferTokenSelectionError } from "@/lib/transfer/errors";
-import { verifyChainConsistency } from "@/lib/chain-utils";
-import { resolveChain } from "@/lib/chains/registry";
+import {
+  requestChainSwitch,
+  switchWalletChain,
+  waitForChainPropagation
+} from "@/lib/chain-utils";
+import { resolveChain, getChainConfig } from "@/lib/chains/registry";
 
 export const transferNormalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   console.log("🔄 [Transfer Effect] Starting normalization");
@@ -34,40 +38,115 @@ export const transferNormalizeFx: StepDef["onEnter"] = async (ctx, core, dispatc
     return;
   }
 
-  // Early chain detection and warning
-  let requiredChainId: number | undefined;
-  let requiredChainName: string | undefined;
-
+  // ============================================================================
+  // CHAIN SWITCH LOGIC - Must happen before normalization
+  // ============================================================================
+  
+  let targetChainId: number;
+  let targetChainName: string;
+  
   try {
     const transferIntent = ctx.intent as any;
     const chainConfig = resolveChain(transferIntent.chain);
-    requiredChainId = chainConfig.id;
-    requiredChainName = chainConfig.name;
+    targetChainId = chainConfig.id;
+    targetChainName = chainConfig.name;
   } catch (error) {
-    console.warn("[Transfer Effect] Could not determine required chain:", error);
+    dispatch({
+      type: "NORMALIZE.FAIL",
+      error: {
+        code: "INVALID_CHAIN",
+        message: "Cannot determine target chain for transfer",
+        detail: error,
+        phase: "normalize",
+      },
+    });
+    return;
   }
 
-  if (requiredChainId && requiredChainId !== core.chainId) {
-    const verification = verifyChainConsistency(
-      core.chainId,
-      requiredChainId,
-      "Transfer Normalization"
-    );
+  // Check if chain switch is needed
+  const needsChainSwitch = core.chainId !== targetChainId;
+  const alreadySwitched = ctx.chainSwitched === true;
 
-    if (!verification.consistent && verification.warning) {
-      console.log(`⚠️ ${verification.warning}`);
-      console.log(`Transfer will auto-switch to ${requiredChainName} (${requiredChainId}) during execution`);
+  if (needsChainSwitch && !alreadySwitched) {
+    const currentChain = getChainConfig(core.chainId);
+    const targetChainConfig = getChainConfig(targetChainId);
 
+    if (!targetChainConfig) {
+      dispatch({
+        type: "NORMALIZE.FAIL",
+        error: {
+          code: "CHAIN_CONFIG_MISSING",
+          message: `Chain configuration not found for chain ${targetChainId}`,
+          phase: "normalize",
+        },
+      });
+      return;
+    }
+
+    console.log(`🔄 [Transfer Effect] Chain switch required: ${currentChain?.name || core.chainId} → ${targetChainName}`);
+
+    // Notify user about chain switch
+    dispatch({
+      type: "CHAT.ADD",
+      message: {
+        role: "assistant",
+        content: `🔄 Switching to ${targetChainName}...`,
+        timestamp: Date.now(),
+      },
+    });
+
+    try {
+      // 1. Request UI chain switch
+      const switchSuccess = await requestChainSwitch(targetChainId);
+      if (!switchSuccess) {
+        throw new Error("Chain switch was not completed");
+      }
+
+      // 2. Switch wallet chain for EOA mode (best effort)
+      const accountMode = core.accountMode || "EOA";
+      if (accountMode === "EOA" && core.selectedWallet) {
+        await switchWalletChain(core.selectedWallet, targetChainId);
+      }
+
+      // 3. Wait for state propagation
+      await waitForChainPropagation();
+
+      // 4. Mark as switched (prevent duplicate switches)
+      ctx.chainSwitched = true;
+
+      console.log(`✅ [Transfer Effect] Chain switched to ${targetChainName}`);
+
+      // Notify user about successful switch
       dispatch({
         type: "CHAT.ADD",
         message: {
           role: "assistant",
-          content: `ℹ️ This transfer requires ${requiredChainName}. The chain will be switched automatically.`,
+          content: `✅ Switched to ${targetChainName}`,
           timestamp: Date.now(),
         },
       });
+    } catch (error) {
+      console.error("[Transfer Effect] Chain switch failed:", error);
+      dispatch({
+        type: "NORMALIZE.FAIL",
+        error: {
+          code: "CHAIN_SWITCH_FAILED",
+          message: `Failed to switch to ${targetChainName}. Please switch manually and try again.`,
+          detail: error,
+          phase: "normalize",
+        },
+      });
+      return;
     }
+  } else if (needsChainSwitch && alreadySwitched) {
+    console.log(`✅ [Transfer Effect] Chain switch already completed in this flow`);
+  } else {
+    console.log(`✅ [Transfer Effect] Already on correct chain: ${targetChainId}`);
   }
+
+  // ============================================================================
+  // END: CHAIN SWITCH LOGIC
+  // ============================================================================
 
   try {
     console.log("🔄 [Transfer Effect] Normalizing transfer intent:", ctx.intent);

@@ -4,11 +4,6 @@ import type { StepDef } from "../../state/types";
 import { executeTransfer } from "@/lib/transfer/execution";
 import type { NormalizedTransfer } from "@/lib/transfer/types";
 import { validateNoDuplicate, updateTransactionStatus } from "@/lib/idempotency";
-import {
-  requestChainSwitch,
-  switchWalletChain,
-  waitForChainPropagation
-} from "@/lib/chain-utils";
 import { getChainConfig } from "@/lib/chains/registry";
 import { createWalletClient, http, type WalletClient } from "viem";
 
@@ -85,51 +80,34 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
     return;
   }
 
-  // Check if chain switch is needed
-  const needsChainSwitch = core.chainId !== targetChainId;
+  // ============================================================================
+  // CHAIN VALIDATION (chain should already be switched during normalize)
+  // ============================================================================
 
-  if (needsChainSwitch) {
+  if (core.chainId !== targetChainId) {
     const currentChain = getChainConfig(core.chainId);
-    console.log(`🔄 [Transfer Effect] Chain switch required: ${currentChain?.name || core.chainId} → ${targetChainConfig.name || targetChainId}`);
+    console.error(
+      `[Transfer Effect] Chain mismatch at execution: expected ${targetChainId}, got ${core.chainId}`
+    );
 
     dispatch({
-      type: "CHAT.ADD",
-      message: {
-        role: "assistant",
-        content: `🔄 Switching to ${targetChainConfig.name}...`,
-        timestamp: Date.now(),
+      type: "EXEC.FAIL",
+      error: {
+        code: "CHAIN_MISMATCH",
+        message: `Execution chain mismatch. Expected ${targetChainConfig.name}, but currently on ${
+          currentChain?.name || core.chainId
+        }. This should not happen - chain switch should have occurred during normalization.`,
+        phase: "execute",
       },
     });
-
-    // Request UI chain switch
-    try {
-      const switchSuccess = await requestChainSwitch(targetChainId);
-      if (!switchSuccess) {
-        throw new Error("Chain switch was not completed");
-      }
-
-      // For EOA mode, attempt wallet chain switch (best effort)
-      if (accountMode === "EOA" && core.selectedWallet) {
-        await switchWalletChain(core.selectedWallet, targetChainId);
-      }
-
-      // Wait for state propagation
-      await waitForChainPropagation();
-
-      console.log(`✅ [Transfer Effect] Chain switched to ${targetChainConfig.name}`);
-    } catch (error) {
-      console.error("[Transfer Effect] Chain switch failed:", error);
-      dispatch({
-        type: "EXEC.FAIL",
-        error: {
-          code: "CHAIN_SWITCH_FAILED",
-          message: `Failed to switch to ${targetChainConfig.name}. Please switch manually.`,
-          phase: "execute",
-        },
-      });
-      return;
-    }
+    return;
   }
+
+  console.log(`✅ [Transfer Effect] Chain validation passed: ${targetChainId}`);
+
+  // ============================================================================
+  // END: CHAIN VALIDATION
+  // ============================================================================
 
   // Idempotency check
   if (core.userId) {

@@ -92,6 +92,8 @@ export type FlowContext = {
     explorerUrl?: string;
   };
   error?: AppError;
+  // Track if chain switch already happened this flow (prevent duplicates)
+  chainSwitched?: boolean;
   // For token selection flow
   tokenSelection?: {
     message: string;
