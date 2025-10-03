@@ -10,8 +10,16 @@ import {
   waitForChainPropagation
 } from "@/lib/chain-utils";
 import { getChainConfig } from "@/lib/chains/registry";
+import { transferExecuteFx } from "./transfer/execute";
 
 export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  // Route transfers to isolated transfer effect
+  if (ctx.norm?.kind === "native-transfer" || ctx.norm?.kind === "erc20-transfer") {
+    console.log("🔀 [Main Effect] Routing to isolated transfer execution");
+    if (transferExecuteFx) {
+      return await transferExecuteFx(ctx, core, dispatch, signal);
+    }
+  }
   console.log("🔍 Execute effect - Full context:", {
     hasNorm: !!ctx.norm,
     normKind: ctx.norm?.kind,

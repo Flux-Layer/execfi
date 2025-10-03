@@ -361,232 +361,15 @@ export class EnhancedTokenSelectionError extends Error {
 
 /**
  * Normalize transfer intent to internal format (Enhanced with Multi-Provider)
+ * USES ISOLATED TRANSFER SYSTEM (default behavior)
  */
 export async function normalizeTransferIntent(
   intent: TransferIntent,
   opts?: { preferredChainId?: number }
 ): Promise<NormalizedIntent> {
-  // Check if we have a selected token with a specific chainId (from token selection flow)
-  const selectedToken = (intent as any)._selectedToken;
-
-  // Use the token's chainId if available, otherwise resolve from intent.chain
-  // Priority: 1) selected token chain, 2) intent chain, 3) preferred chain from context
-  const chainId = selectedToken?.chainId ?? resolveChainForNormalization(intent.chain) ?? opts?.preferredChainId;
-
-  // Validate chain is supported
-  if (!isChainSupported(chainId)) {
-    const chainConfig = getChainConfig(chainId);
-    const chainName = chainConfig?.name || `Chain ${chainId}`;
-    throw new NormalizationError(
-      `Chain ${chainName} (${chainId}) is not supported. Use '/chain list' to see supported chains.`,
-      "CHAIN_UNSUPPORTED"
-    );
-  }
-
-  // Validate and normalize recipient address
-  if (!intent.recipient || typeof intent.recipient !== "string") {
-    throw new NormalizationError(
-      "Recipient address is required",
-      "ADDRESS_REQUIRED"
-    );
-  }
-
-  // Resolve ENS name if present
-  let recipientAddress: string;
-  if (isEnsName(intent.recipient)) {
-    try {
-      recipientAddress = await resolveAddressOrEns(intent.recipient);
-      console.log(`✅ Resolved ENS name '${intent.recipient}' to ${recipientAddress}`);
-    } catch (error) {
-      throw new NormalizationError(
-        `Could not resolve ENS name: ${intent.recipient}`,
-        "ENS_RESOLUTION_FAILED"
-      );
-    }
-  } else {
-    recipientAddress = intent.recipient;
-  }
-
-  // Validate address format
-  if (!isAddress(recipientAddress)) {
-    throw new NormalizationError(
-      "Recipient must be a valid checksummed 0x address or ENS name",
-      "ADDRESS_INVALID"
-    );
-  }
-
-  // Checksum the address
-  const to = getAddress(recipientAddress) as `0x${string}`;
-
-  // Validate and parse amount
-  if (!intent.amount || typeof intent.amount !== "string") {
-    throw new NormalizationError(
-      "Amount is required",
-      "AMOUNT_REQUIRED"
-    );
-  }
-
-  // Handle MAX amount (will be resolved during validation with balance check)
-  if (intent.amount === "MAX") {
-    throw new NormalizationError(
-      "MAX amount resolution requires balance check during validation",
-      "MAX_AMOUNT_NEEDS_VALIDATION"
-    );
-  }
-
-  // Handle token resolution
-  if (intent.token.type === "native") {
-    // Native token transfer - validate symbol matches chain's native currency
-    const chainConfig = getChainConfig(chainId);
-    if (!chainConfig) {
-      throw new NormalizationError(
-        `Chain configuration not found for chain ${chainId}`,
-        "CHAIN_CONFIG_MISSING"
-      );
-    }
-
-    if (intent.token.symbol !== chainConfig.nativeCurrency.symbol) {
-      throw new NormalizationError(
-        `Native token '${intent.token.symbol}' is not valid for ${chainConfig.name}. Expected '${chainConfig.nativeCurrency.symbol}'`,
-        "NATIVE_TOKEN_MISMATCH"
-      );
-    }
-
-    // Parse amount to wei using the chain's native currency decimals
-    let amountWei: bigint;
-    try {
-      const amountNumber = parseFloat(intent.amount);
-      if (isNaN(amountNumber) || amountNumber <= 0) {
-        throw new Error("Invalid amount");
-      }
-      amountWei = parseUnits(intent.amount, chainConfig.nativeCurrency.decimals);
-    } catch {
-      throw new NormalizationError(
-        `Invalid amount: ${intent.amount}. Must be a positive decimal number`,
-        "AMOUNT_INVALID"
-      );
-    }
-
-    return {
-      kind: "native-transfer",
-      chainId,
-      to,
-      amountWei,
-    };
-  } else {
-    // ERC-20 token transfer
-    let token: Token;
-
-    // Check if we have pre-selected token data (from token selection flow)
-    if ((intent as any)._selectedToken) {
-      const selectedToken = (intent as any)._selectedToken;
-      token = {
-        id: selectedToken.id,
-        chainId: selectedToken.chainId,
-        address: selectedToken.address as `0x${string}`,
-        name: selectedToken.name,
-        symbol: selectedToken.symbol,
-        decimals: 18, // Default for ARB, will be validated later
-        logoURI: selectedToken.logoURI,
-        verified: selectedToken.verified,
-      };
-    } else {
-      // Enhanced multi-provider token resolution path
-      console.log(`🔍 Resolving token '${intent.token.symbol}' using multi-provider system`);
-
-      const tokenResolution = await resolveTokensMultiProvider(intent.token.symbol, chainId);
-
-      if (tokenResolution.needsSelection) {
-        // Multiple tokens found - throw enhanced TokenSelectionError with provider context
-        const enhancedMessage = tokenResolution.message ||
-          `Multiple '${intent.token.symbol}' tokens found. Please select one:`;
-
-        // Convert TokenSearchResponse tokens back to Token format for compatibility
-        const compatibleTokens: Token[] = tokenResolution.tokens.map((token, index) => ({
-          id: index + 1, // Generate ID for compatibility
-          chainId: token.chainId,
-          address: token.address as `0x${string}`,
-          name: token.name,
-          symbol: token.symbol,
-          decimals: token.decimals,
-          logoURI: token.logoURI,
-          verified: token.verified || false,
-        }));
-
-        throw new TokenSelectionError(
-          enhancedMessage,
-          "TOKEN_SELECTION_REQUIRED",
-          compatibleTokens
-        );
-      }
-
-      if (tokenResolution.tokens.length === 0) {
-        // No tokens found - throw error with provider context
-        const message = tokenResolution.message ||
-          `Token '${intent.token.symbol}' not found${chainId ? ` on chain ${chainId}` : ' on any supported chain'}`;
-
-        throw new NormalizationError(
-          message,
-          "TOKEN_NOT_FOUND"
-        );
-      }
-
-      // Single token found - convert to Token format
-      const foundToken = tokenResolution.tokens[0];
-      token = {
-        id: 1,
-        chainId: foundToken.chainId,
-        address: foundToken.address as `0x${string}`,
-        name: foundToken.name,
-        symbol: foundToken.symbol,
-        decimals: foundToken.decimals,
-        logoURI: foundToken.logoURI,
-        verified: foundToken.verified || false,
-      };
-
-      // Log success with provider information
-      if (tokenResolution.message) {
-        console.log(`✅ Token resolved: ${foundToken.name} (${foundToken.symbol}) - ${tokenResolution.message}`);
-      }
-    }
-
-    // Parse amount with token decimals
-    let amountWei: bigint;
-    try {
-      const amountNumber = parseFloat(intent.amount);
-      if (isNaN(amountNumber) || amountNumber <= 0) {
-        throw new Error("Invalid amount");
-      }
-      amountWei = parseUnits(intent.amount, token.decimals);
-    } catch {
-      throw new NormalizationError(
-        `Invalid amount: ${intent.amount}. Must be a positive decimal number`,
-        "AMOUNT_INVALID"
-      );
-    }
-
-    // Handle native token as ERC-20 (when user specifies "eth" as ERC-20)
-    if (token.address === "0x0000000000000000000000000000000000000000") {
-      return {
-        kind: "native-transfer",
-        chainId,
-        to,
-        amountWei,
-      };
-    }
-
-    return {
-      kind: "erc20-transfer",
-      chainId,
-      to,
-      token: {
-        address: token.address as `0x${string}`,
-        symbol: token.symbol,
-        decimals: token.decimals,
-      },
-      amountWei,
-    };
-  }
+  // Always use isolated transfer system (default behavior, no feature flag needed)
+  const { normalizeTransferIntent: isolatedNormalize } = await import("./transfer/normalize");
+  return await isolatedNormalize(intent);
 }
 
 /**
@@ -1009,20 +792,17 @@ export async function normalizeIntent(
 ): Promise<NormalizedIntent> {
   const { intent } = intentSuccess;
 
+  // ✅ ISOLATED TRANSFER SYSTEM - Route transfers to isolated transfer module
   if (intent.action === "transfer") {
+    console.log("🔀 [Main Normalize] Routing to isolated transfer system");
     return await normalizeTransferIntent(intent, opts);
   }
 
-  if (intent.action === "swap") {
-    return await normalizeSwapIntent(intent, opts);
-  }
-
-  if (intent.action === "bridge") {
-    return await normalizeBridgeIntent(intent, opts);
-  }
-
-  if (intent.action === "bridge_swap") {
-    return await normalizeBridgeSwapIntent(intent, opts);
+  // ✅ ISOLATED DEFI SYSTEM - Route DeFi operations to isolated DeFi module
+  if (intent.action === "swap" || intent.action === "bridge" || intent.action === "bridge_swap") {
+    console.log(`🔀 [Main Normalize] Routing ${intent.action} to isolated DeFi system`);
+    const { normalizeDeFiIntent } = await import("./defi/normalize");
+    return await normalizeDeFiIntent(intent as any, opts);
   }
 
   throw new NormalizationError(
