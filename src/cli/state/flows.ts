@@ -6,11 +6,17 @@ import { parseIntentFx } from "../effects/intent";
 import { normalizeFx } from "../effects/normalize";
 import { validateFx } from "../effects/validate";
 import { simulateGasFx, skipFx } from "../effects/simulate";
-import { clarifyToastFx } from "../effects/confirm";
+import {
+  clarifyToastFx,
+  confirmTransferFx,
+  confirmSwapFx,
+  confirmBridgeFx,
+  confirmBridgeSwapFx
+} from "../effects/confirm";
 import { executePrivyFx } from "../effects/execute";
 import { monitorFx } from "../effects/monitor";
 import { successFx, failureFx } from "../effects/feedback";
-import { planSwapFx, planBridgeFx, planBridgeSwapFx } from "../effects/plan";
+import { planSwapFx, planBridgeFx, planBridgeSwapFx, skipPlanFx } from "../effects/plan";
 
 /**
  * Transfer flow definition
@@ -32,14 +38,14 @@ export const transferFlow: FlowDef = {
   },
   plan: {
     // Native transfers don't need complex planning
-    onEnter: skipFx,
+    onEnter: skipPlanFx,
   },
   simulate: {
     onEnter: simulateGasFx,
   },
   confirm: {
-    // Terminal-based confirmation - no overlay needed
-    // User confirms via HSMCurLine input (press Enter or type yes/no)
+    // Terminal-based confirmation with summary display
+    onEnter: confirmTransferFx,
   },
   execute: {
     onEnter: executePrivyFx,
@@ -78,7 +84,7 @@ export const swapFlow: FlowDef = {
     onEnter: skipFx, // Swaps use LI.FI quote, skip simulation
   },
   confirm: {
-    // Terminal-based confirmation - no overlay needed
+    onEnter: confirmSwapFx,
   },
   execute: {
     onEnter: executePrivyFx,
@@ -117,7 +123,7 @@ export const bridgeFlow: FlowDef = {
     onEnter: skipFx, // Bridges use LI.FI quote, skip simulation
   },
   confirm: {
-    // Terminal-based confirmation - no overlay needed
+    onEnter: confirmBridgeFx,
   },
   execute: {
     onEnter: executePrivyFx,
@@ -156,7 +162,7 @@ export const bridgeSwapFlow: FlowDef = {
     onEnter: skipFx, // Bridge-swaps use LI.FI quote, skip simulation
   },
   confirm: {
-    // Terminal-based confirmation - no overlay needed
+    onEnter: confirmBridgeSwapFx,
   },
   execute: {
     onEnter: executePrivyFx,

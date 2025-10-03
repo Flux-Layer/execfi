@@ -3,8 +3,23 @@ import type { StepDef } from "../state/types";
 import { executeIntent, getSmartAccountAddress } from "@/lib/execute";
 import { validateNoDuplicate, updateTransactionStatus } from "@/lib/idempotency";
 import { getIntentAmountETH } from "@/lib/policy/checker";
+import {
+  getIntentChainId,
+  requestChainSwitch,
+  switchWalletChain,
+  waitForChainPropagation
+} from "@/lib/chain-utils";
+import { getChainConfig } from "@/lib/chains/registry";
+import { transferExecuteFx } from "./transfer/execute";
 
 export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  // Route transfers to isolated transfer effect
+  if (ctx.norm?.kind === "native-transfer" || ctx.norm?.kind === "erc20-transfer") {
+    console.log("🔀 [Main Effect] Routing to isolated transfer execution");
+    if (transferExecuteFx) {
+      return await transferExecuteFx(ctx, core, dispatch, signal);
+    }
+  }
   console.log("🔍 Execute effect - Full context:", {
     hasNorm: !!ctx.norm,
     normKind: ctx.norm?.kind,
@@ -51,6 +66,108 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
     });
     return;
   }
+
+  // ============================================================================
+  // CHAIN SYNCHRONIZATION LOGIC
+  // ============================================================================
+
+  let targetChainId: number;
+  try {
+    targetChainId = getIntentChainId(ctx.norm);
+  } catch (error) {
+    dispatch({
+      type: "EXEC.FAIL",
+      error: {
+        code: "INVALID_CHAIN",
+        message: "Cannot determine target chain for transaction",
+        phase: "execute",
+      },
+    });
+    return;
+  }
+
+  const targetChainConfig = getChainConfig(targetChainId);
+  if (!targetChainConfig) {
+    dispatch({
+      type: "EXEC.FAIL",
+      error: {
+        code: "CHAIN_CONFIG_MISSING",
+        message: `Chain configuration not found for chain ${targetChainId}`,
+        phase: "execute",
+      },
+    });
+    return;
+  }
+
+  // Check if chain switch is needed
+  const needsChainSwitch = core.chainId !== targetChainId;
+
+  if (needsChainSwitch) {
+    const currentChain = getChainConfig(core.chainId);
+
+    console.log(`🔄 Chain switch required: ${currentChain?.name || core.chainId} → ${targetChainConfig.name || targetChainId}`);
+
+    // Notify user about chain switch
+    dispatch({
+      type: "CHAT.ADD",
+      message: {
+        role: "assistant",
+        content: `🔄 Switching chains: ${currentChain?.name || core.chainId} → ${targetChainConfig.name}...`,
+        timestamp: Date.now(),
+      },
+    });
+
+    // 1. Request chain switch in application state
+    const chainSwitchSuccess = await requestChainSwitch(targetChainId);
+
+    if (!chainSwitchSuccess) {
+      dispatch({
+        type: "EXEC.FAIL",
+        error: {
+          code: "CHAIN_SWITCH_FAILED",
+          message: `Failed to switch to ${targetChainConfig.name} (${targetChainId})`,
+          phase: "execute",
+        },
+      });
+      return;
+    }
+
+    console.log(`✅ Application chain state switched to ${targetChainId}`);
+
+    // 2. Switch wallet chain if in EOA mode
+    if (accountMode === "EOA" && core.selectedWallet) {
+      const walletSwitchResult = await switchWalletChain(
+        core.selectedWallet,
+        targetChainId
+      );
+
+      if (walletSwitchResult.success) {
+        console.log(`✅ Wallet chain switched to ${targetChainId}`);
+      } else {
+        // Log warning but continue - some embedded wallets may not need explicit switching
+        console.warn(`⚠️ Wallet chain switch warning (may not be critical): ${walletSwitchResult.error}`);
+      }
+    }
+
+    // 3. Wait for state propagation
+    await waitForChainPropagation(500);
+
+    // 4. Confirm user about successful switch
+    dispatch({
+      type: "CHAT.ADD",
+      message: {
+        role: "assistant",
+        content: `✅ Switched to ${targetChainConfig.name}`,
+        timestamp: Date.now(),
+      },
+    });
+  } else {
+    console.log(`✅ Already on correct chain: ${targetChainId}`);
+  }
+
+  // ============================================================================
+  // END: CHAIN SYNCHRONIZATION LOGIC
+  // ============================================================================
 
   let promptId: string | undefined;
 
@@ -136,6 +253,20 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
 
     // Add explorer link to chat
     if (executionResult.explorerUrl && executionResult.txHash) {
+      // Get chain-specific explorer name
+      // For DeFi operations (swap/bridge/bridge-swap), use fromChainId
+      // Transaction is always submitted on the source chain
+      let chainId: number;
+      if (ctx.norm.kind === "bridge" || ctx.norm.kind === "bridge-swap" || ctx.norm.kind === "swap") {
+        chainId = ctx.norm.fromChainId;
+      } else {
+        // Should not reach here since transfers are routed separately, but fallback to Base
+        chainId = 8453;
+      }
+      
+      const chainConfig = getChainConfig(chainId);
+      const explorerName = chainConfig?.explorerName || "Block Explorer";
+      
       dispatch({
         type: "CHAT.ADD",
         message: {
@@ -144,7 +275,7 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
             type: "explorer-link",
             url: executionResult.explorerUrl,
             text: `View transaction: ${executionResult.txHash}`,
-            explorerName: "BaseScan",
+            explorerName: explorerName,
           },
           timestamp: Date.now(),
         },

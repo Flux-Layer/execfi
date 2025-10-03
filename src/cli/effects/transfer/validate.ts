@@ -1,17 +1,13 @@
-// Validation effects using existing orchestrator logic
-import type { StepDef } from "../state/types";
-import { validateIntent } from "@/lib/validation";
-import { checkPolicy } from "@/lib/policy/checker";
-import { transferValidateFx } from "./transfer/validate";
+// cli/effects/transfer/validate.ts - Transfer-specific validation effect
 
-export const validateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
-  // Route transfers to isolated transfer effect
-  if (ctx.norm?.kind === "native-transfer" || ctx.norm?.kind === "erc20-transfer") {
-    console.log("🔀 [Main Effect] Routing to isolated transfer validation");
-    if (transferValidateFx) {
-      return await transferValidateFx(ctx, core, dispatch, signal);
-    }
-  }
+import type { StepDef } from "../../state/types";
+import { validateTransfer } from "@/lib/transfer/validation";
+import { checkPolicy } from "@/lib/policy/checker";
+import type { NormalizedTransfer } from "@/lib/transfer/types";
+
+export const transferValidateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  console.log("🔍 [Transfer Effect] Starting validation");
+
   if (!ctx.norm) {
     dispatch({
       type: "VALIDATE.FAIL",
@@ -24,7 +20,20 @@ export const validateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal
     return;
   }
 
-  // Determine the correct address to use for validation based on account mode
+  // Validate this is a transfer operation
+  if (ctx.norm.kind !== "native-transfer" && ctx.norm.kind !== "erc20-transfer") {
+    dispatch({
+      type: "VALIDATE.FAIL",
+      error: {
+        code: "INVALID_OPERATION",
+        message: `Expected transfer operation, got ${ctx.norm.kind}`,
+        phase: "validate",
+      },
+    });
+    return;
+  }
+
+  // Determine the correct address based on account mode
   const accountMode = core.accountMode || "EOA";
   let fromAddress: `0x${string}` | undefined;
 
@@ -58,7 +67,7 @@ export const validateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal
   }
 
   try {
-    console.log("🔄 Validating transaction:", ctx.norm, "using", accountMode, "mode with address:", fromAddress);
+    console.log("🔍 [Transfer Effect] Validating transfer:", ctx.norm, "using", accountMode, "mode with address:", fromAddress);
 
     // Step 1: Policy check
     const policyCheck = checkPolicy(ctx.norm, core.policy, fromAddress);
@@ -96,23 +105,27 @@ export const validateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal
       });
     }
 
-    // Step 3: Standard validation (balance, gas, etc.)
-    const { gasEstimate, gasCost } = await validateIntent(ctx.norm, fromAddress, core.policy.config);
+    // Step 3: Transfer-specific validation (isolated)
+    const { gasEstimate, gasCost } = await validateTransfer(
+      ctx.norm as NormalizedTransfer,
+      fromAddress,
+      core.policy.config
+    );
 
     if (signal.aborted) return;
 
-    console.log("✅ Validation passed", { gasEstimate, gasCost, accountMode });
+    console.log("✅ [Transfer Effect] Validation passed", { gasEstimate, gasCost, accountMode });
     dispatch({ type: "VALIDATE.OK" });
   } catch (error: any) {
     if (signal.aborted) return;
 
-    console.error("Validation error:", error);
+    console.error("[Transfer Effect] Validation error:", error);
 
     dispatch({
       type: "VALIDATE.FAIL",
       error: {
         code: error.code || "VALIDATION_ERROR",
-        message: error.message || "Transaction validation failed",
+        message: error.message || "Transfer validation failed",
         detail: error,
         phase: "validate",
       },

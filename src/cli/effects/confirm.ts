@@ -1,6 +1,8 @@
 // Confirmation effects - create overlay prompts
 import type { StepDef } from "../state/types";
+import type { NormalizedTransfer } from "@/lib/transfer/types";
 import { formatEther } from "viem";
+import { getChainConfig } from "@/lib/chains/registry";
 
 export const confirmOverlayFx: StepDef["onEnter"] = (ctx, core, dispatch, signal) => {
   if (signal.aborted) return;
@@ -105,3 +107,192 @@ function shortenAddress(address?: `0x${string}`): string {
   if (!address) return "Unknown";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
+
+/**
+ * Show transfer confirmation UI to user
+ * Displays transaction summary and prompts for yes/no confirmation
+ */
+export const confirmTransferFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  console.log("💬 [Transfer Confirm] Showing confirmation UI");
+
+  if (!ctx.norm) {
+    console.error("[Transfer Confirm] No normalized data to confirm");
+    dispatch({
+      type: "CONFIRM.NO",
+    });
+    return;
+  }
+
+  // Validate this is a transfer operation
+  if (ctx.norm.kind !== "native-transfer" && ctx.norm.kind !== "erc20-transfer") {
+    console.error(`[Transfer Confirm] Invalid operation type: ${ctx.norm.kind}`);
+    dispatch({
+      type: "CONFIRM.NO",
+    });
+    return;
+  }
+
+  const norm = ctx.norm as NormalizedTransfer;
+  const chain = getChainConfig(norm.chainId);
+  const chainName = chain?.name || `Chain ${norm.chainId}`;
+
+  // Build transaction summary
+  let summary = "📝 Transaction Summary\n";
+  summary += "─".repeat(50) + "\n\n";
+  
+  // Transaction type
+  summary += `Type: ${norm.kind === "native-transfer" ? "Native Transfer" : "Token Transfer"}\n`;
+  
+  // Chain
+  summary += `Chain: ${chainName} (${norm.chainId})\n\n`;
+  
+  // Amount
+  if (norm.kind === "native-transfer") {
+    const ethAmount = Number(norm.amountWei) / 1e18;
+    summary += `Amount: ${ethAmount} ETH\n`;
+  } else {
+    const tokenAmount = Number(norm.amountWei) / Math.pow(10, norm.token.decimals);
+    summary += `Amount: ${tokenAmount} ${norm.token.symbol}\n`;
+    summary += `Token: ${norm.token.address}\n`;
+  }
+  
+  // Recipient
+  summary += `\nRecipient: ${norm.to}\n`;
+  
+  // Gas estimate (if available)
+  if (ctx.sim?.gasEstimate) {
+    const gasEstimate = ctx.sim.gasEstimate;
+    summary += `\nEstimated Gas: ${gasEstimate.toString()} units\n`;
+  }
+  
+  summary += "\n" + "─".repeat(50);
+
+  // Add summary to chat
+  dispatch({
+    type: "CHAT.ADD",
+    message: {
+      role: "assistant",
+      content: summary,
+      timestamp: Date.now(),
+    },
+  });
+
+  // Add confirmation prompt
+  dispatch({
+    type: "CHAT.ADD",
+    message: {
+      role: "assistant",
+      content: "✅ Type 'yes' or press Enter to confirm\n❌ Type 'no' or 'cancel' to abort",
+      timestamp: Date.now(),
+    },
+  });
+
+  console.log("✅ [Transfer Confirm] Confirmation UI displayed, waiting for user input");
+};
+
+/**
+ * Show swap confirmation UI to user
+ */
+export const confirmSwapFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  console.log("💬 [Swap Confirm] Showing confirmation UI");
+
+  if (!ctx.norm) {
+    console.warn("[Swap Confirm] No normalized data");
+    dispatch({ type: "CONFIRM.YES" });
+    return;
+  }
+
+  try {
+    const norm = ctx.norm as any;
+    const chainConfig = getChainConfig(norm.fromChainId || norm.chainId);
+    const chainName = chainConfig?.name || `Chain ${norm.fromChainId || norm.chainId}`;
+
+    let summary = "📝 Transaction Summary\n";
+    summary += "─".repeat(50) + "\n\n";
+    summary += `Type: Token Swap\n`;
+    summary += `Chain: ${chainName} (${norm.fromChainId || norm.chainId})\n\n`;
+    summary += `From: ${norm.fromAmount || norm.amount} ${norm.fromToken?.symbol || "tokens"}\n`;
+    summary += `To: ~${norm.toAmount || "?"} ${norm.toToken?.symbol || "tokens"}\n`;
+    summary += "\n" + "─".repeat(50);
+
+    dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: summary, timestamp: Date.now() }});
+    dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: "✅ Type 'yes' or press Enter to confirm\n❌ Type 'no' or 'cancel' to abort", timestamp: Date.now() }});
+    console.log("✅ [Swap Confirm] Confirmation UI displayed");
+  } catch (error: any) {
+    console.error("[Swap Confirm] Error:", error);
+    dispatch({ type: "CONFIRM.YES" });
+  }
+};
+
+/**
+ * Show bridge confirmation UI to user
+ */
+export const confirmBridgeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  console.log("💬 [Bridge Confirm] Showing confirmation UI");
+
+  if (!ctx.norm) {
+    console.warn("[Bridge Confirm] No normalized data");
+    dispatch({ type: "CONFIRM.YES" });
+    return;
+  }
+
+  try {
+    const norm = ctx.norm as any;
+    const fromChainConfig = getChainConfig(norm.fromChainId);
+    const toChainConfig = getChainConfig(norm.toChainId);
+    const fromChainName = fromChainConfig?.name || `Chain ${norm.fromChainId}`;
+    const toChainName = toChainConfig?.name || `Chain ${norm.toChainId}`;
+
+    let summary = "📝 Transaction Summary\n";
+    summary += "─".repeat(50) + "\n\n";
+    summary += `Type: Bridge Transfer\n`;
+    summary += `From: ${fromChainName} (${norm.fromChainId})\n`;
+    summary += `To: ${toChainName} (${norm.toChainId})\n\n`;
+    summary += `Amount: ${norm.amount} ${norm.token?.symbol || "tokens"}\n`;
+    summary += "\n" + "─".repeat(50);
+
+    dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: summary, timestamp: Date.now() }});
+    dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: "✅ Type 'yes' or press Enter to confirm\n❌ Type 'no' or 'cancel' to abort", timestamp: Date.now() }});
+    console.log("✅ [Bridge Confirm] Confirmation UI displayed");
+  } catch (error: any) {
+    console.error("[Bridge Confirm] Error:", error);
+    dispatch({ type: "CONFIRM.YES" });
+  }
+};
+
+/**
+ * Show bridge-swap confirmation UI to user
+ */
+export const confirmBridgeSwapFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  console.log("💬 [Bridge-Swap Confirm] Showing confirmation UI");
+
+  if (!ctx.norm) {
+    console.warn("[Bridge-Swap Confirm] No normalized data");
+    dispatch({ type: "CONFIRM.YES" });
+    return;
+  }
+
+  try {
+    const norm = ctx.norm as any;
+    const fromChainConfig = getChainConfig(norm.fromChainId);
+    const toChainConfig = getChainConfig(norm.toChainId);
+    const fromChainName = fromChainConfig?.name || `Chain ${norm.fromChainId}`;
+    const toChainName = toChainConfig?.name || `Chain ${norm.toChainId}`;
+
+    let summary = "📝 Transaction Summary\n";
+    summary += "─".repeat(50) + "\n\n";
+    summary += `Type: Bridge + Swap\n`;
+    summary += `From: ${fromChainName} (${norm.fromChainId})\n`;
+    summary += `To: ${toChainName} (${norm.toChainId})\n\n`;
+    summary += `From Token: ${norm.fromAmount || norm.amount} ${norm.fromToken?.symbol || "tokens"}\n`;
+    summary += `To Token: ~${norm.toAmount || "?"} ${norm.toToken?.symbol || "tokens"}\n`;
+    summary += "\n" + "─".repeat(50);
+
+    dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: summary, timestamp: Date.now() }});
+    dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: "✅ Type 'yes' or press Enter to confirm\n❌ Type 'no' or 'cancel' to abort", timestamp: Date.now() }});
+    console.log("✅ [Bridge-Swap Confirm] Confirmation UI displayed");
+  } catch (error: any) {
+    console.error("[Bridge-Swap Confirm] Error:", error);
+    dispatch({ type: "CONFIRM.YES" });
+  }
+};
