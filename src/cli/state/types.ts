@@ -60,7 +60,7 @@ export type CoreContext = {
   // EOA support
   selectedWallet?: any; // Privy ConnectedWallet for EOA transactions
   eoaSendTransaction?: (
-    transaction: { to: `0x${string}`; value: bigint },
+    transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
     options?: { address?: string }
   ) => Promise<{ hash: `0x${string}` }>; // EOA transaction method from useSendTransaction
 
@@ -92,6 +92,8 @@ export type FlowContext = {
     explorerUrl?: string;
   };
   error?: AppError;
+  // Track if chain switch already happened this flow (prevent duplicates)
+  chainSwitched?: boolean;
   // For token selection flow
   tokenSelection?: {
     message: string;

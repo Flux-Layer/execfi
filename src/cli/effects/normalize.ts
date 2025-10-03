@@ -3,8 +3,16 @@ import type { StepDef } from "../state/types";
 import { normalizeIntent, TokenSelectionError } from "@/lib/normalize";
 import { verifyChainConsistency } from "@/lib/chain-utils";
 import { resolveChain } from "@/lib/chains/registry";
+import { transferNormalizeFx } from "./transfer/normalize";
 
 export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
+  // Route transfers to isolated transfer effect
+  if (ctx.intent?.action === "transfer") {
+    console.log("🔀 [Main Effect] Routing to isolated transfer normalization");
+    if (transferNormalizeFx) {
+      return await transferNormalizeFx(ctx, core, dispatch, signal);
+    }
+  }
   if (!ctx.intent) {
     dispatch({
       type: "NORMALIZE.FAIL",

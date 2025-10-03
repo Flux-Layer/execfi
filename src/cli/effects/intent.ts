@@ -159,8 +159,9 @@ export const parseIntentFx: StepDef["onEnter"] = async (
 
       // Extract the symbol from the original raw input based on command type
       let ambiguousSymbol = 'UNKNOWN';
-      let targetChainId = core.chainId;
+      let targetChainId: number | undefined = undefined; // ✅ Start with undefined to prioritize user input
 
+      // PRIORITY 1: Try to extract chain from raw input patterns
       // Try swap patterns first: "swap X eth to usdc on base"
       const swapMatch = ctx.raw.match(/swap\s+[\d.]+\s+(\w+)(?:\s+to\s+(\w+))?(?:\s+on\s+(\w+))?/i);
       if (swapMatch) {
@@ -177,20 +178,46 @@ export const parseIntentFx: StepDef["onEnter"] = async (
           try {
             const { resolveChain } = await import("@/lib/chains/registry");
             targetChainId = resolveChain(chain).id;
+            console.log(`✅ Extracted chain from swap pattern: ${chain} (${targetChainId})`);
           } catch (e) {
             console.warn("Failed to resolve chain:", chain);
           }
         }
       } else {
-        // Try transfer/send patterns: "send X token to address"
-        const transferMatch = ctx.raw.match(/(?:send|transfer)\s+[\d.]+\s+(\w+)/i);
+        // Try transfer/send patterns: "send X token to address on chain"
+        const transferMatch = ctx.raw.match(/(?:send|transfer)\s+[\d.]+\s+(\w+)(?:\s+to\s+[^\s]+)?(?:\s+on\s+(\w+))?/i);
         if (transferMatch) {
           ambiguousSymbol = transferMatch[1];
+          const chain = transferMatch[2];
+          
+          if (chain) {
+            try {
+              const { resolveChain } = await import("@/lib/chains/registry");
+              targetChainId = resolveChain(chain).id;
+              console.log(`✅ Extracted chain from transfer pattern: ${chain} (${targetChainId})`);
+            } catch (e) {
+              console.warn("Failed to resolve chain:", chain);
+            }
+          }
         } else {
           // Try bridge patterns: "bridge X token from chain1 to chain2"
-          const bridgeMatch = ctx.raw.match(/bridge\s+[\d.]+\s+(\w+)/i);
+          const bridgeMatch = ctx.raw.match(/bridge\s+[\d.]+\s+(\w+)(?:\s+from\s+(\w+))?(?:\s+to\s+(\w+))?/i);
           if (bridgeMatch) {
             ambiguousSymbol = bridgeMatch[1];
+            const fromChain = bridgeMatch[2];
+            const toChain = bridgeMatch[3];
+            
+            // Prioritize fromChain for bridge token lookups
+            const chain = fromChain || toChain;
+            if (chain) {
+              try {
+                const { resolveChain } = await import("@/lib/chains/registry");
+                targetChainId = resolveChain(chain).id;
+                console.log(`✅ Extracted chain from bridge pattern: ${chain} (${targetChainId})`);
+              } catch (e) {
+                console.warn("Failed to resolve chain:", chain);
+              }
+            }
           }
         }
       }
@@ -202,13 +229,22 @@ export const parseIntentFx: StepDef["onEnter"] = async (
         const { resolveTokensMultiProvider } = await import("@/lib/normalize");
         const { resolveChain } = await import("@/lib/chains/registry");
 
-        // 🔧 FIX: Extract and resolve chain information from intent if available
-        const intentChain = (intentResult as any).intent?.chain ||
-                           (intentResult as any).intent?.fromChain;
-        if (intentChain) {
-          targetChainId = typeof intentChain === 'number'
-            ? intentChain
-            : resolveChain(intentChain).id;
+        // PRIORITY 2: If no chain from raw input, try intent result
+        if (!targetChainId) {
+          const intentChain = (intentResult as any).intent?.chain ||
+                             (intentResult as any).intent?.fromChain;
+          if (intentChain) {
+            targetChainId = typeof intentChain === 'number'
+              ? intentChain
+              : resolveChain(intentChain).id;
+            console.log(`✅ Using chain from intent result: ${intentChain} (${targetChainId})`);
+          }
+        }
+
+        // PRIORITY 3: Fall back to current chain only if nothing else found
+        if (!targetChainId) {
+          targetChainId = core.chainId;
+          console.log(`⚠️ No chain specified, falling back to current chain: ${targetChainId}`);
         }
 
         console.log("🚀 Calling enhanced token resolver for symbol:", ambiguousSymbol, "on chain:", targetChainId);

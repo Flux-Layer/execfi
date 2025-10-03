@@ -1,6 +1,7 @@
 // Enhanced transaction monitoring effects with LI.FI integration
 import type { StepDef } from "../state/types";
 import { monitorTransaction, formatMonitoringStatus } from "@/lib/monitor";
+import { transferMonitorFx } from "./transfer/monitor";
 
 /**
  * Enhanced monitoring effect that integrates with LI.FI status tracking
@@ -12,6 +13,13 @@ export const monitorFx: StepDef["onEnter"] = async (
   dispatch,
   signal,
 ) => {
+  // Route transfers to isolated transfer effect
+  if (ctx.norm?.kind === "native-transfer" || ctx.norm?.kind === "erc20-transfer") {
+    console.log("🔀 [Main Effect] Routing to isolated transfer monitoring");
+    if (transferMonitorFx) {
+      return await transferMonitorFx(ctx, core, dispatch, signal);
+    }
+  }
   if (!ctx.exec?.hash) {
     dispatch({
       type: "MONITOR.FAIL",
