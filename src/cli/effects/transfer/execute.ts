@@ -5,6 +5,7 @@ import { executeTransfer } from "@/lib/transfer/execution";
 import type { NormalizedTransfer } from "@/lib/transfer/types";
 import { validateNoDuplicate, updateTransactionStatus } from "@/lib/idempotency";
 import { getChainConfig } from "@/lib/chains/registry";
+import { getTxUrl } from "@/lib/explorer";
 import { createWalletClient, http, type WalletClient } from "viem";
 
 export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
@@ -143,20 +144,57 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
       txHash = result.txHash;
       explorerUrl = result.explorerUrl;
     } else {
-      // EOA execution
+      // EOA execution using Privy's sendTransaction (has signing capability)
       const fromAddress = core.selectedWallet!.address as `0x${string}`;
+      
+      console.log("🔄 [Transfer Effect] Using EOA send transaction");
 
-      // Create wallet client for EOA
-      const walletClient = createWalletClient({
-        chain: targetChainConfig.wagmiChain,
-        transport: http(targetChainConfig.rpcUrl),
-      });
+      if (norm.kind === "native-transfer") {
+        // Native transfer
+        const result = await core.eoaSendTransaction!(
+          {
+            to: norm.to,
+            value: norm.amountWei,
+          },
+          {
+            address: fromAddress,
+          }
+        );
+        txHash = result.hash;
+      } else {
+        // ERC-20 transfer
+        const { encodeFunctionData } = await import("viem");
+        const data = encodeFunctionData({
+          abi: [
+            {
+              name: "transfer",
+              type: "function",
+              stateMutability: "nonpayable",
+              inputs: [
+                { name: "to", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+              outputs: [{ name: "", type: "bool" }],
+            },
+          ],
+          functionName: "transfer",
+          args: [norm.to, norm.amountWei],
+        });
 
-      const gasEstimate = 500000n; // TODO: Get from validation
+        const result = await core.eoaSendTransaction!(
+          {
+            to: norm.token.address,
+            value: 0n,
+            data,
+          },
+          {
+            address: fromAddress,
+          }
+        );
+        txHash = result.hash;
+      }
 
-      const result = await executeTransfer(norm, walletClient, fromAddress, gasEstimate);
-      txHash = result.txHash;
-      explorerUrl = result.explorerUrl;
+      explorerUrl = getTxUrl(targetChainId, txHash);
     }
 
     console.log(`✅ [Transfer Effect] Transfer submitted: ${txHash}`);
@@ -171,6 +209,24 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
       hash: txHash as `0x${string}`,
       explorerUrl,
     });
+
+    // Add clickable explorer link to chat
+    if (explorerUrl && txHash) {
+      const chainName = targetChainConfig.explorerName || "Explorer";
+      dispatch({
+        type: "CHAT.ADD",
+        message: {
+          role: "assistant",
+          content: {
+            type: "explorer-link",
+            url: explorerUrl,
+            text: `View transaction: ${txHash}`,
+            explorerName: chainName,
+          },
+          timestamp: Date.now(),
+        },
+      });
+    }
   } catch (error: any) {
     console.error("[Transfer Effect] Execution error:", error);
 

@@ -391,11 +391,12 @@ export function reducer(state: AppState, event: AppEvent): AppState {
             },
           };
         } else {
-          // Transfer intent - parse "send X token to address"
+          // Transfer intent - parse "send/transfer X token to address"
           const recipientMatch = raw.match(/to\s+(0x[a-fA-F0-9]{40}|[\w\d.-]+\.eth)/i);
-          const amountMatch = raw.match(/send\s+([\d.]+)/i);
+          const amountMatch = raw.match(/(?:send|transfer)\s+([\d.]+)/i); // Support both "send" and "transfer"
 
           if (!recipientMatch || !amountMatch) {
+            console.error("Failed to parse transfer intent:", { raw, recipientMatch, amountMatch });
             return {
               ...state,
               flow: {

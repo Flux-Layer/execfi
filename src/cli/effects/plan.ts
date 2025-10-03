@@ -428,3 +428,25 @@ export const planBridgeSwapFx: StepDef["onEnter"] = async (ctx, core, dispatch, 
     });
   }
 };
+
+/**
+ * Skip plan step for simple transfers that don't need route planning
+ * Dispatches PLAN.OK to transition to next step
+ */
+export const skipPlanFx: StepDef["onEnter"] = (ctx, core, dispatch, signal) => {
+  if (signal.aborted) return;
+
+  console.log("⏭️ Skipping plan step (native transfer - no route planning needed)");
+  
+  setTimeout(() => {
+    if (!signal.aborted) {
+      dispatch({ 
+        type: "PLAN.OK", 
+        plan: { 
+          skipped: true,
+          reason: "Native transfer does not require route planning" 
+        } 
+      });
+    }
+  }, 0);
+};
