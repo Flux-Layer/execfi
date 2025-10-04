@@ -1,16 +1,16 @@
 // Policy system types for ExecFi transaction protection
 
 export type PolicyConfig = {
-  // Transaction Limits
-  maxTxAmountETH: number;           // Max per-transaction in ETH equivalent
-  dailyLimitETH: number;             // Max daily spending in ETH equivalent
+  // Transaction Limits (in USD)
+  maxTxAmountUSD: number;            // Max per-transaction in USD
+  dailyLimitUSD: number;             // Max daily spending in USD
 
   // Safety Rules
-  minBalanceAfterTxETH: number;      // Minimum balance to maintain after tx
+  minBalanceAfterTxUSD: number;      // Minimum balance to maintain after tx (in USD)
   gasHeadroomMultiplier: number;     // Gas estimation buffer (1.1 = 110%)
 
   // Security Controls
-  confirmationThresholdETH: number;  // Require manual confirm above this amount
+  confirmationThresholdUSD: number;  // Require manual confirm above this amount (in USD)
   blockZeroAddress: boolean;         // Block sends to 0x0 address
   blockUnverifiedTokens: boolean;    // Block transfers of unverified tokens
 
@@ -37,7 +37,7 @@ export type PolicyState = {
   metadata: PolicyMetadata;
 
   // Runtime tracking for quotas
-  dailySpent: number;                // ETH spent today
+  dailySpent: number;                // USD spent today
   dailyTxCount: number;              // Transactions today
   hourlyTxCount: number;             // Transactions this hour
   lastResetDate: string;             // ISO date for daily reset

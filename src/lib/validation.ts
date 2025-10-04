@@ -65,23 +65,19 @@ function validateRecipient(to: `0x${string}`) {
 
 /**
  * Validate amount is within policy limits
+ * Note: USD-based limit checking is now handled by checkPolicy() in policy/checker.ts
  */
-function validateAmountLimits(amountWei: bigint, policyConfig: PolicyConfig) {
-  const amountEth = parseFloat(formatEther(amountWei));
-
-  if (amountEth > policyConfig.maxTxAmountETH) {
-    throw new ValidationError(
-      `Amount ${amountEth} ETH exceeds maximum transaction limit of ${policyConfig.maxTxAmountETH} ETH`,
-      "AMOUNT_EXCEEDS_LIMIT",
-    );
-  }
-
-  if (amountEth <= 0) {
+function validateAmountLimits(amountWei: bigint, _policyConfig: PolicyConfig) {
+  // Basic amount validation
+  if (amountWei <= 0n) {
     throw new ValidationError(
       "Amount must be greater than 0",
       "AMOUNT_TOO_SMALL",
     );
   }
+
+  // USD-based policy limits are checked in checkPolicy()
+  // This function now only does basic validation
 }
 
 /**
@@ -194,21 +190,8 @@ async function validateBalance(
     );
   }
 
-  // Check minimum balance after transaction
-  const balanceAfterTx = balance - totalCost;
-  const minBalanceWei = BigInt(
-    Math.floor(policyConfig.minBalanceAfterTxETH * 1e16),
-  );
-
-  if (balanceAfterTx < minBalanceWei) {
-    const chainConfig = getChainConfig(norm.chainId);
-    const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
-    const balanceAfterFormatted = formatEther(balanceAfterTx);
-    throw new ValidationError(
-      `Transaction would leave balance too low (${balanceAfterFormatted} ${nativeSymbol}). Minimum ${policyConfig.minBalanceAfterTxETH} ${nativeSymbol} required`,
-      "BALANCE_TOO_LOW_AFTER_TX",
-    );
-  }
+  // Note: Minimum balance validation now handled by USD-based policy in checkPolicy()
+  // This was checking minBalanceAfterTxETH which is now minBalanceAfterTxUSD
 
   return { gasEstimate, gasCost };
 }

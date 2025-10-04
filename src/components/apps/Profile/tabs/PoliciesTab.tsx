@@ -3,9 +3,10 @@
 import { useMemo } from "react";
 import { POLICY_PRESETS } from "@/lib/policy/presets";
 import { useProfileContext } from "../ProfileContext";
+import { formatUSDValue } from "@/lib/utils/usd-parser";
 
-function formatEth(value: number) {
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH`;
+function formatPolicyAmount(value: number) {
+  return formatUSDValue(value, 'auto');
 }
 
 export function PoliciesTab() {
@@ -48,15 +49,15 @@ export function PoliciesTab() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-400">Max Transaction Amount</p>
-            <p className="mt-2 text-sm font-semibold text-slate-100">{formatEth(policy.config.maxTxAmountETH)}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-100">{formatPolicyAmount(policy.config.maxTxAmountUSD)}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-400">Daily Limit</p>
-            <p className="mt-2 text-sm font-semibold text-slate-100">{formatEth(policy.config.dailyLimitETH)}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-100">{formatPolicyAmount(policy.config.dailyLimitUSD)}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-400">Min Balance After Tx</p>
-            <p className="mt-2 text-sm font-semibold text-slate-100">{formatEth(policy.config.minBalanceAfterTxETH)}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-100">{formatPolicyAmount(policy.config.minBalanceAfterTxUSD)}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-400">Max Transactions Per Day</p>

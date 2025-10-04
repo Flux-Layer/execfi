@@ -70,7 +70,7 @@ export const transferValidateFx: StepDef["onEnter"] = async (ctx, core, dispatch
     console.log("🔍 [Transfer Effect] Validating transfer:", ctx.norm, "using", accountMode, "mode with address:", fromAddress);
 
     // Step 1: Policy check
-    const policyCheck = checkPolicy(ctx.norm, core.policy, fromAddress);
+    const policyCheck = await checkPolicy(ctx.norm, core.policy, fromAddress);
 
     if (!policyCheck.allowed) {
       const blockingViolations = policyCheck.violations.filter(v => v.severity === "block");
