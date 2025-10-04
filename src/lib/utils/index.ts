@@ -6,6 +6,10 @@ import { twMerge } from 'tailwind-merge';
 // Re-export balance utilities
 export * from './balance';
 
+// Re-export USD utilities
+export * from './usd-parser';
+export * from './usd-converter';
+
 // Env & configs
 export function isProductionMode() {
    return process.env.MODE === 'production';

@@ -2,6 +2,7 @@
 import type { CommandDef } from "./types";
 import { parseFlags } from "./parser";
 import { getChainDisplayName } from "@/lib/chains/registry";
+import { formatUSDValue } from "@/lib/utils";
 
 /**
  * Session status command - show current session signer status
@@ -710,7 +711,7 @@ function formatCurrentLimits(_ctx: any): string {
 **Daily Limits:**
 • Limit: $${dailyLimit}
 • Spent Today: $${spentToday}
-• Remaining: $${(dailyLimit - spentToday).toFixed(2)}
+• Remaining: ${formatUSDValue(dailyLimit - spentToday, 'low')}
 • Transactions: ${txCount}/unlimited
 • Resets: ${resetTime.toLocaleString()}
 
@@ -720,7 +721,7 @@ function formatCurrentLimits(_ctx: any): string {
 • Session auto-approval: Only under $${perTxLimit}
 
 **Usage Statistics:**
-• Average Transaction: $${(spentToday / txCount).toFixed(2)}
+• Average Transaction: ${formatUSDValue(spentToday / txCount, 'low')}
 • Largest Today: $12.00
 • Peak Usage Hour: 2-3 PM
 

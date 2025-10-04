@@ -1,6 +1,7 @@
 // lib/utils/balance.ts - Balance formatting utilities
 
 import { formatUnits } from "viem";
+import { formatUSDValue } from "./usd-parser";
 
 /**
  * Format balance with appropriate decimal places for display
@@ -85,4 +86,64 @@ export function hasSufficientBalance(
   gasEstimate: bigint = BigInt(0)
 ): boolean {
   return balance >= amount + gasEstimate;
+}
+
+/**
+ * Format balance with USD equivalent
+ * @param value - Raw balance value (bigint)
+ * @param decimals - Token decimals
+ * @param symbol - Token symbol
+ * @param priceUSD - Token price in USD (optional)
+ * @returns Formatted balance with optional USD value
+ */
+export function formatBalanceWithUSD(
+  value: bigint,
+  decimals: number,
+  symbol: string,
+  priceUSD?: number
+): string {
+  const formatted = formatBalance(value, decimals);
+
+  if (!priceUSD || priceUSD === 0) {
+    return `${formatted} ${symbol}`;
+  }
+
+  const usdValue = parseFloat(formatted) * priceUSD;
+  const usdFormatted = formatUSDValue(usdValue, 'auto');
+
+  return `${formatted} ${symbol} (${usdFormatted})`;
+}
+
+/**
+ * Calculate USD value for a token amount
+ * @param value - Raw balance value (bigint)
+ * @param decimals - Token decimals
+ * @param priceUSD - Token price in USD
+ * @returns USD value as number
+ */
+export function calculateTokenUSDValue(
+  value: bigint,
+  decimals: number,
+  priceUSD: number
+): number {
+  const formatted = formatUnits(value, decimals);
+  return parseFloat(formatted) * priceUSD;
+}
+
+/**
+ * Check if USD value meets minimum threshold
+ * @param value - Raw balance value (bigint)
+ * @param decimals - Token decimals
+ * @param priceUSD - Token price in USD
+ * @param minUSD - Minimum USD threshold
+ * @returns true if meets or exceeds threshold
+ */
+export function meetsMinimumUSDValue(
+  value: bigint,
+  decimals: number,
+  priceUSD: number,
+  minUSD: number
+): boolean {
+  const usdValue = calculateTokenUSDValue(value, decimals, priceUSD);
+  return usdValue >= minUSD;
 }
