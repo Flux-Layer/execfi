@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">ExecFi Open Graph Card</title>
+  <desc id="desc">ExecFi: AI-powered signless crypto transactions</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" rx="48" ry="48" />
+
+  <!-- reuse existing logo asset inline -->
+  <g transform="translate(180, 190) scale(1.8)">
+    <svg width="640" height="140" viewBox="0 0 640 140">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#8B5CF6"/>
+          <stop offset="100%" stop-color="#22D3EE"/>
+        </linearGradient>
+      </defs>
+      <text x="32" y="88" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+            font-weight="700" font-size="64" fill="url(#grad)" letter-spacing="2" filter="url(#glow)">
+        &gt; exf_
+      </text>
+      <text x="36" y="118" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+            font-weight="400" font-size="20" fill="#9CA3AF" letter-spacing="1">
+        execfi
+      </text>
+    </svg>
+  </g>
+
+  <text x="180" y="470" fill="#e2e8f0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="56" font-weight="600">
+    Easy signless transactions driven by AI prompts
+  </text>
+  <text x="180" y="530" fill="#94a3b8" font-family="'Inter', 'Segoe UI', sans-serif" font-size="32" font-weight="400">
+    Automate policy-aware crypto ops without approvals every step.
+  </text>
+</svg>
