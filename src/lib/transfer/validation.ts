@@ -49,23 +49,19 @@ function validateRecipient(to: `0x${string}`) {
 
 /**
  * Validate amount is within policy limits
+ * Note: USD-based limit checking is now handled by checkPolicy() in policy/checker.ts
  */
-function validateAmountLimits(amountWei: bigint, policyConfig: PolicyConfig) {
-  const amountEth = parseFloat(formatEther(amountWei));
-
-  if (amountEth > policyConfig.maxTxAmountETH) {
-    throw new TransferValidationError(
-      `Amount ${amountEth} ETH exceeds maximum transaction limit of ${policyConfig.maxTxAmountETH} ETH`,
-      "AMOUNT_EXCEEDS_LIMIT"
-    );
-  }
-
-  if (amountEth <= 0) {
+function validateAmountLimits(amountWei: bigint, _policyConfig: PolicyConfig) {
+  // Basic amount validation
+  if (amountWei <= 0n) {
     throw new TransferValidationError(
       "Amount must be greater than 0",
       "AMOUNT_TOO_SMALL"
     );
   }
+
+  // USD-based policy limits are checked in checkPolicy()
+  // This function now only does basic validation
 }
 
 /**

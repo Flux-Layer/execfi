@@ -47,7 +47,7 @@ export const TokenSearchResponseSchema = z.object({
     decimals: z.number(),
     logoURI: z.string().optional(),
     verified: z.boolean(),
-    priceUSD: z.string().optional(),
+    priceUSD: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
   })),
 });
 

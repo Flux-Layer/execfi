@@ -7,6 +7,8 @@ import { resolveAddressOrEns, isEnsName } from "../ens";
 import { resolveChain, isChainSupported, getChainConfig } from "../chains/registry";
 import { TokenApiClient, type MultiProviderSearchRequest, type TokenSearchResponse } from "../api-client";
 import type { Token } from "../tokens";
+import { parseIntentUSDAmount, isUSDBasedIntent } from "../ai/schema";
+import { convertUSDToToken } from "../utils/usd-converter";
 
 /**
  * Resolve chain name to chainId
@@ -199,19 +201,45 @@ export async function normalizeTransferIntent(
 
   const to = getAddress(recipientAddress) as `0x${string}`;
 
-  // Step 3: Validate amount
-  if (!intent.amount || typeof intent.amount !== "string") {
-    throw new TransferNormalizationError(
-      "Amount is required",
-      "AMOUNT_REQUIRED"
-    );
-  }
+  // Step 3: Validate and convert amount
+  let transferAmount: string;
 
-  // Handle MAX amount (needs validation phase)
-  if (intent.amount === "MAX") {
+  // Check if USD-based amount
+  if (isUSDBasedIntent(intent as any) && intent.amountUSD) {
+    console.log(`💵 [Transfer] Converting USD amount: ${intent.amountUSD}`);
+    
+    try {
+      const usdAmount = parseIntentUSDAmount(intent.amountUSD);
+      
+      // Determine token symbol for conversion
+      const tokenSymbol = intent.token.type === "native" 
+        ? getChainConfig(chainId)?.nativeCurrency.symbol || "ETH"
+        : intent.token.symbol;
+      
+      // Convert USD to token amount
+      const tokenAmount = await convertUSDToToken(usdAmount, tokenSymbol, chainId);
+      transferAmount = tokenAmount;
+      
+      console.log(`✅ [Transfer] Converted ${intent.amountUSD} → ${tokenAmount} ${tokenSymbol}`);
+    } catch (error) {
+      throw new TransferNormalizationError(
+        `Failed to convert USD amount: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        "USD_CONVERSION_FAILED"
+      );
+    }
+  } else if (intent.amount) {
+    // Traditional token amount
+    if (intent.amount === "MAX") {
+      throw new TransferNormalizationError(
+        "MAX amount resolution requires balance check during validation",
+        "MAX_AMOUNT_NEEDS_VALIDATION"
+      );
+    }
+    transferAmount = intent.amount;
+  } else {
     throw new TransferNormalizationError(
-      "MAX amount resolution requires balance check during validation",
-      "MAX_AMOUNT_NEEDS_VALIDATION"
+      "Amount or amountUSD is required",
+      "AMOUNT_REQUIRED"
     );
   }
 
@@ -237,14 +265,14 @@ export async function normalizeTransferIntent(
     // Parse amount to wei
     let amountWei: bigint;
     try {
-      const amountNumber = parseFloat(intent.amount);
+      const amountNumber = parseFloat(transferAmount);
       if (isNaN(amountNumber) || amountNumber <= 0) {
         throw new Error("Invalid amount");
       }
-      amountWei = parseUnits(intent.amount, chainConfig.nativeCurrency.decimals);
+      amountWei = parseUnits(transferAmount, chainConfig.nativeCurrency.decimals);
     } catch {
       throw new TransferNormalizationError(
-        `Invalid amount: ${intent.amount}. Must be a positive decimal number`,
+        `Invalid amount: ${transferAmount}. Must be a positive decimal number`,
         "AMOUNT_INVALID"
       );
     }
@@ -325,14 +353,14 @@ export async function normalizeTransferIntent(
     // Parse amount with token decimals
     let amountWei: bigint;
     try {
-      const amountNumber = parseFloat(intent.amount);
+      const amountNumber = parseFloat(transferAmount);
       if (isNaN(amountNumber) || amountNumber <= 0) {
         throw new Error("Invalid amount");
       }
-      amountWei = parseUnits(intent.amount, token.decimals);
+      amountWei = parseUnits(transferAmount, token.decimals);
     } catch {
       throw new TransferNormalizationError(
-        `Invalid amount: ${intent.amount}. Must be a positive decimal number`,
+        `Invalid amount: ${transferAmount}. Must be a positive decimal number`,
         "AMOUNT_INVALID"
       );
     }

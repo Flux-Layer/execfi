@@ -4,6 +4,7 @@ import type { CoreContext, Dispatch } from "../state/types";
 import type { PolicyPreset, PolicyState } from "@/lib/policy/types";
 import { POLICY_PRESETS, POLICY_DESCRIPTIONS } from "@/lib/policy/presets";
 import { savePolicy, createDefaultPolicy } from "@/lib/policy/storage";
+import { formatUSDValue } from "@/lib/utils/usd-parser";
 
 /**
  * Main policy command - manage transaction policies and safety limits
@@ -100,7 +101,7 @@ export const policyCmd: CommandDef = {
 
 // Implementation functions
 
-function showPolicy(ctx: CoreContext, dispatch: Dispatch): void {
+async function showPolicy(ctx: CoreContext, dispatch: Dispatch): Promise<void> {
   const { policy } = ctx;
   const { config, metadata, dailySpent, dailyTxCount, hourlyTxCount } = policy;
 
@@ -110,18 +111,18 @@ function showPolicy(ctx: CoreContext, dispatch: Dispatch): void {
 **Last Modified:** ${new Date(metadata.lastModified).toLocaleString()}
 
 **Transaction Limits:**
-• Max Per-Transaction: ${config.maxTxAmountETH} ETH
-• Daily Spending Limit: ${config.dailyLimitETH} ETH
-• Confirmation Threshold: ${config.confirmationThresholdETH} ETH
-• Min Balance After Tx: ${config.minBalanceAfterTxETH} ETH
+• Max Per-Transaction: ${formatUSDValue(config.maxTxAmountUSD, 'auto')}
+• Daily Spending Limit: ${formatUSDValue(config.dailyLimitUSD, 'auto')}
+• Confirmation Threshold: ${formatUSDValue(config.confirmationThresholdUSD, 'auto')}
+• Min Balance After Tx: ${formatUSDValue(config.minBalanceAfterTxUSD, 'auto')}
 
 **Usage Quotas:**
 • Hourly Tx Limit: ${config.maxTxPerHour} tx/hour (Used: ${hourlyTxCount})
 • Daily Tx Limit: ${config.maxTxPerDay} tx/day (Used: ${dailyTxCount})
 
 **Daily Spending:**
-• Spent Today: ${dailySpent.toFixed(4)} ETH
-• Remaining: ${(config.dailyLimitETH - dailySpent).toFixed(4)} ETH
+• Spent Today: ${formatUSDValue(dailySpent, 'auto')}
+• Remaining: ${formatUSDValue(config.dailyLimitUSD - dailySpent, 'auto')}
 • Reset: Tomorrow at midnight
 
 **Security Settings:**
@@ -135,7 +136,7 @@ ${config.blockedAddresses?.length ? `**Blocked Addresses:** ${config.blockedAddr
 
 **Quick Actions:**
 • \`/policy preset safe\` - Switch to conservative limits
-• \`/policy set-max-tx 2.0\` - Increase max transaction to 2 ETH
+• \`/policy set-max-tx 10000\` - Increase max transaction to $10,000
 • \`/policy reset\` - Reset to defaults`;
 
   dispatch({
@@ -197,13 +198,13 @@ function setPreset(ctx: CoreContext, dispatch: Dispatch, preset: PolicyPreset): 
   });
 }
 
-function updateMaxTx(ctx: CoreContext, dispatch: Dispatch, amount: number): void {
+async function updateMaxTx(ctx: CoreContext, dispatch: Dispatch, amount: number): Promise<void> {
   if (isNaN(amount) || amount <= 0) {
     dispatch({
       type: "CHAT.ADD",
       message: {
         role: "assistant",
-        content: `❌ Invalid amount. Usage: /policy set-max-tx <amount>\n\nExample: \`/policy set-max-tx 2.5\``,
+        content: `❌ Invalid amount. Usage: /policy set-max-tx <amount_usd>\n\nExample: \`/policy set-max-tx 5000\` (for $5,000 limit)`,
         timestamp: Date.now(),
       },
     });
@@ -214,7 +215,7 @@ function updateMaxTx(ctx: CoreContext, dispatch: Dispatch, amount: number): void
     ...ctx.policy,
     config: {
       ...ctx.policy.config,
-      maxTxAmountETH: amount,
+      maxTxAmountUSD: amount,
     },
     metadata: {
       ...ctx.policy.metadata,
@@ -230,19 +231,19 @@ function updateMaxTx(ctx: CoreContext, dispatch: Dispatch, amount: number): void
     type: "CHAT.ADD",
     message: {
       role: "assistant",
-      content: `✅ Max transaction amount updated to **${amount} ETH**`,
+      content: `✅ Max transaction amount updated to **${formatUSDValue(amount, 'auto')}**`,
       timestamp: Date.now(),
     },
   });
 }
 
-function updateDailyLimit(ctx: CoreContext, dispatch: Dispatch, amount: number): void {
+async function updateDailyLimit(ctx: CoreContext, dispatch: Dispatch, amount: number): Promise<void> {
   if (isNaN(amount) || amount <= 0) {
     dispatch({
       type: "CHAT.ADD",
       message: {
         role: "assistant",
-        content: `❌ Invalid amount. Usage: /policy set-daily-limit <amount>\n\nExample: \`/policy set-daily-limit 10.0\``,
+        content: `❌ Invalid amount. Usage: /policy set-daily-limit <amount_usd>\n\nExample: \`/policy set-daily-limit 25000\` (for $25,000 daily limit)`,
         timestamp: Date.now(),
       },
     });
@@ -253,7 +254,7 @@ function updateDailyLimit(ctx: CoreContext, dispatch: Dispatch, amount: number):
     ...ctx.policy,
     config: {
       ...ctx.policy.config,
-      dailyLimitETH: amount,
+      dailyLimitUSD: amount,
     },
     metadata: {
       ...ctx.policy.metadata,
@@ -269,19 +270,19 @@ function updateDailyLimit(ctx: CoreContext, dispatch: Dispatch, amount: number):
     type: "CHAT.ADD",
     message: {
       role: "assistant",
-      content: `✅ Daily spending limit updated to **${amount} ETH**`,
+      content: `✅ Daily spending limit updated to **${formatUSDValue(amount, 'auto')}**`,
       timestamp: Date.now(),
     },
   });
 }
 
-function updateConfirmThreshold(ctx: CoreContext, dispatch: Dispatch, amount: number): void {
+async function updateConfirmThreshold(ctx: CoreContext, dispatch: Dispatch, amount: number): Promise<void> {
   if (isNaN(amount) || amount < 0) {
     dispatch({
       type: "CHAT.ADD",
       message: {
         role: "assistant",
-        content: `❌ Invalid amount. Usage: /policy set-confirm-threshold <amount>\n\nExample: \`/policy set-confirm-threshold 0.5\``,
+        content: `❌ Invalid amount. Usage: /policy set-confirm-threshold <amount_usd>\n\nExample: \`/policy set-confirm-threshold 500\` (for $500 threshold)`,
         timestamp: Date.now(),
       },
     });
@@ -292,7 +293,7 @@ function updateConfirmThreshold(ctx: CoreContext, dispatch: Dispatch, amount: nu
     ...ctx.policy,
     config: {
       ...ctx.policy.config,
-      confirmationThresholdETH: amount,
+      confirmationThresholdUSD: amount,
     },
     metadata: {
       ...ctx.policy.metadata,
@@ -308,7 +309,7 @@ function updateConfirmThreshold(ctx: CoreContext, dispatch: Dispatch, amount: nu
     type: "CHAT.ADD",
     message: {
       role: "assistant",
-      content: `✅ Confirmation threshold updated to **${amount} ETH**\n\nTransactions above this amount will require manual confirmation.`,
+      content: `✅ Confirmation threshold updated to **${formatUSDValue(amount, 'auto')}**\n\nTransactions above this amount will require manual confirmation.`,
       timestamp: Date.now(),
     },
   });

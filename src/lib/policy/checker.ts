@@ -3,39 +3,41 @@
 import { formatEther, formatUnits } from "viem";
 import type { PolicyState, PolicyCheckResult, PolicyViolation } from "./types";
 import type { NormalizedIntent } from "@/lib/normalize";
+import { formatUSDValue } from "@/lib/utils";
+import { getNativeTokenPrice, getTokenPriceUSD } from "@/services/priceService";
 
 /**
  * Check if intent violates policy rules
  */
-export function checkPolicy(
+export async function checkPolicy(
   intent: NormalizedIntent,
   policy: PolicyState,
   fromAddress: string
-): PolicyCheckResult {
+): Promise<PolicyCheckResult> {
   const violations: PolicyViolation[] = [];
 
   // Reset quotas if needed
   const updatedPolicy = resetQuotasIfNeeded(policy);
 
-  // Extract ETH-equivalent amount from intent
-  const txAmountETH = getIntentAmountETH(intent);
+  // Extract USD amount from intent
+  const txAmountUSD = await getIntentAmountUSD(intent);
 
   // Check 1: Per-transaction limit
-  if (txAmountETH > updatedPolicy.config.maxTxAmountETH) {
+  if (txAmountUSD > updatedPolicy.config.maxTxAmountUSD) {
     violations.push({
       code: "MAX_TX_EXCEEDED",
-      message: `Transaction amount ${txAmountETH.toFixed(4)} ETH exceeds limit of ${updatedPolicy.config.maxTxAmountETH} ETH`,
+      message: `Transaction amount ${formatUSDValue(txAmountUSD, 'auto')} exceeds limit of ${formatUSDValue(updatedPolicy.config.maxTxAmountUSD, 'auto')} (use /policy set-max-tx to adjust)`,
       severity: "block",
-      suggestion: `Increase limit with: /policy set-max-tx ${Math.ceil(txAmountETH)}`,
+      suggestion: `Increase limit with: /policy set-max-tx ${Math.ceil(txAmountUSD)}`,
     });
   }
 
   // Check 2: Daily spending limit
-  const projectedDailySpent = updatedPolicy.dailySpent + txAmountETH;
-  if (projectedDailySpent > updatedPolicy.config.dailyLimitETH) {
+  const projectedDailySpent = updatedPolicy.dailySpent + txAmountUSD;
+  if (projectedDailySpent > updatedPolicy.config.dailyLimitUSD) {
     violations.push({
       code: "DAILY_LIMIT_EXCEEDED",
-      message: `Daily limit exceeded. Spent: ${updatedPolicy.dailySpent.toFixed(4)} ETH, This tx: ${txAmountETH.toFixed(4)} ETH, Limit: ${updatedPolicy.config.dailyLimitETH} ETH`,
+      message: `Daily limit exceeded. Spent: ${formatUSDValue(updatedPolicy.dailySpent, 'auto')}, This tx: ${formatUSDValue(txAmountUSD, 'auto')}, Limit: ${formatUSDValue(updatedPolicy.config.dailyLimitUSD, 'auto')}`,
       severity: "block",
       suggestion: `Wait until tomorrow or increase limit with: /policy set-daily-limit ${Math.ceil(projectedDailySpent)}`,
     });
@@ -102,10 +104,10 @@ export function checkPolicy(
   }
 
   // Check 9: Confirmation threshold
-  if (txAmountETH > updatedPolicy.config.confirmationThresholdETH || updatedPolicy.config.requireManualConfirm) {
+  if (txAmountUSD > updatedPolicy.config.confirmationThresholdUSD || updatedPolicy.config.requireManualConfirm) {
     violations.push({
       code: "CONFIRMATION_REQUIRED",
-      message: `Manual confirmation required for amounts over ${updatedPolicy.config.confirmationThresholdETH} ETH`,
+      message: `Manual confirmation required for amounts over ${formatUSDValue(updatedPolicy.config.confirmationThresholdUSD, 'auto')}`,
       severity: "warn",
     });
   }
@@ -120,12 +122,12 @@ export function checkPolicy(
 /**
  * Track transaction in policy state (call after successful execution)
  */
-export function trackTransaction(policy: PolicyState, amountETH: number): PolicyState {
+export function trackTransaction(policy: PolicyState, amountUSD: number): PolicyState {
   const updated = resetQuotasIfNeeded(policy);
 
   return {
     ...updated,
-    dailySpent: updated.dailySpent + amountETH,
+    dailySpent: updated.dailySpent + amountUSD,
     dailyTxCount: updated.dailyTxCount + 1,
     hourlyTxCount: updated.hourlyTxCount + 1,
   };
@@ -165,14 +167,50 @@ function resetQuotasIfNeeded(policy: PolicyState): PolicyState {
 }
 
 /**
- * Extract ETH-equivalent amount from intent
+ * Extract USD amount from intent
+ */
+export async function getIntentAmountUSD(intent: NormalizedIntent): Promise<number> {
+  try {
+    if (intent.kind === "native-transfer") {
+      const ethAmount = parseFloat(formatEther(intent.amountWei));
+      const ethPrice = await getNativeTokenPrice(intent.chainId);
+      return ethAmount * ethPrice;
+    }
+    if (intent.kind === "erc20-transfer") {
+      const tokenAmount = parseFloat(formatUnits(intent.amountWei, intent.token.decimals));
+      const tokenPrice = await getTokenPriceUSD(intent.token.symbol, intent.chainId);
+      return tokenAmount * tokenPrice;
+    }
+    if (intent.kind === "swap") {
+      const fromAmount = parseFloat(formatUnits(intent.fromAmount, intent.fromToken.decimals));
+      const fromPrice = await getTokenPriceUSD(intent.fromToken.symbol, intent.fromChainId);
+      return fromAmount * fromPrice;
+    }
+    if (intent.kind === "bridge") {
+      const amount = parseFloat(formatUnits(intent.amount, intent.token.decimals));
+      const tokenPrice = await getTokenPriceUSD(intent.token.symbol, intent.fromChainId);
+      return amount * tokenPrice;
+    }
+    if (intent.kind === "bridge-swap") {
+      const fromAmount = parseFloat(formatUnits(intent.fromAmount, intent.fromToken.decimals));
+      const fromPrice = await getTokenPriceUSD(intent.fromToken.symbol, intent.fromChainId);
+      return fromAmount * fromPrice;
+    }
+    return 0;
+  } catch (error) {
+    console.error("Failed to get intent USD amount:", error);
+    return 0;
+  }
+}
+
+/**
+ * Extract ETH-equivalent amount from intent (legacy, kept for compatibility)
  */
 export function getIntentAmountETH(intent: NormalizedIntent): number {
   if (intent.kind === "native-transfer") {
     return parseFloat(formatEther(intent.amountWei));
   }
   if (intent.kind === "erc20-transfer") {
-    // Simplified: assume token value, would need price oracle in production
     return parseFloat(formatUnits(intent.amountWei, intent.token.decimals));
   }
   if (intent.kind === "swap") {

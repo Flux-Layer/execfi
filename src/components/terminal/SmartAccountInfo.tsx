@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatEther } from "viem";
-import { formatBalanceDisplay } from "@/lib/utils/balance";
+import { formatBalanceDisplay, formatBalanceWithUSD } from "@/lib/utils/balance";
+import { getTokenPriceUSD } from "@/services/priceService";
 
 interface TokenBalance {
   symbol: string;
@@ -18,6 +19,7 @@ const SmartAccountInfo = ({ address }: SmartAccountInfoProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [ethPrice, setEthPrice] = useState<number | null>(null);
 
   // Truncate address for display
   const displayAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -69,6 +71,15 @@ const SmartAccountInfo = ({ address }: SmartAccountInfoProps) => {
 
         setBalances([ethBalance]);
 
+        // Fetch ETH price for USD display
+        try {
+          const price = await getTokenPriceUSD("ETH", 8453);
+          setEthPrice(price);
+        } catch (priceError) {
+          console.warn("Failed to fetch ETH price:", priceError);
+          // Don't set error state, just skip USD display
+        }
+
       } catch (err: any) {
         console.error("Failed to fetch balances:", err);
         setError(err.message || "Failed to fetch balances");
@@ -118,11 +129,22 @@ const SmartAccountInfo = ({ address }: SmartAccountInfoProps) => {
             <p className="ml-4 text-gray-400">No balances found</p>
           ) : (
             <div className="ml-4 space-y-0.5">
-              {balances.map((token) => (
-                <p key={token.symbol} className="text-blue-200 font-mono">
-                  {token.symbol}: {formatBalanceDisplay(token.balance, token.decimals, "")}
-                </p>
-              ))}
+              {balances.map((token) => {
+                // Show USD value if price is available
+                if (token.symbol === "ETH" && ethPrice) {
+                  return (
+                    <p key={token.symbol} className="text-blue-200 font-mono">
+                      {token.symbol}: {formatBalanceWithUSD(token.balance, token.decimals, token.symbol, ethPrice)}
+                    </p>
+                  );
+                }
+                // Fallback to basic display
+                return (
+                  <p key={token.symbol} className="text-blue-200 font-mono">
+                    {token.symbol}: {formatBalanceDisplay(token.balance, token.decimals, "")}
+                  </p>
+                );
+              })}
             </div>
           )}
         </div>

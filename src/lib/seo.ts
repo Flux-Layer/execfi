@@ -4,8 +4,8 @@ const SITE_NAME = "ExecFi";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://execfi.xyz").replace(/\/$/, "");
 const DEFAULT_TITLE = "ExecFi | AI-Powered Onchain Execution";
 const TITLE_TEMPLATE = "%s | ExecFi";
-const DEFAULT_DESCRIPTION = "Streamline onchain operations with ExecFi's AI copilot for digital asset teams.";
-const DEFAULT_IMAGE = "/og/execfi-card.png";
+const DEFAULT_DESCRIPTION = "ExecFi is a DeFi operating system with an AI terminal that executes secure, signless onchain workflows for digital asset.";
+const DEFAULT_IMAGE = "/execfi.favicon.svg";
 const DEFAULT_KEYWORDS = [
   "ExecFi",
   "onchain automation",
@@ -13,7 +13,7 @@ const DEFAULT_KEYWORDS = [
   "crypto fee management",
   "smart contract execution",
 ];
-const TWITTER_HANDLE = "@ExecFi";
+const TWITTER_HANDLE = "@execfiHQ";
 
 export const seoDefaults = {
   siteName: SITE_NAME,

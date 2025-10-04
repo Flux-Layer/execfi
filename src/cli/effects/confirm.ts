@@ -1,8 +1,10 @@
 // Confirmation effects - create overlay prompts
 import type { StepDef } from "../state/types";
 import type { NormalizedTransfer } from "@/lib/transfer/types";
-import { formatEther } from "viem";
+import { formatEther, formatUnits } from "viem";
 import { getChainConfig } from "@/lib/chains/registry";
+import { getTokenPriceUSD } from "@/services/priceService";
+import { formatUSDValue } from "@/lib/utils";
 
 export const confirmOverlayFx: StepDef["onEnter"] = (ctx, core, dispatch, signal) => {
   if (signal.aborted) return;
@@ -144,25 +146,80 @@ export const confirmTransferFx: StepDef["onEnter"] = async (ctx, core, dispatch,
   summary += `Type: ${norm.kind === "native-transfer" ? "Native Transfer" : "Token Transfer"}\n`;
   
   // Chain
-  summary += `Chain: ${chainName} (${norm.chainId})\n\n`;
+  summary += `Chain: ${chainName} (Chain ID: ${norm.chainId})\n\n`;
   
-  // Amount
+  // Amount with USD value
+  let tokenAmount: number;
+  let tokenSymbol: string;
+  
   if (norm.kind === "native-transfer") {
-    const ethAmount = Number(norm.amountWei) / 1e18;
-    summary += `Amount: ${ethAmount} ETH\n`;
+    tokenAmount = Number(norm.amountWei) / 1e18;
+    tokenSymbol = "ETH";
   } else {
-    const tokenAmount = Number(norm.amountWei) / Math.pow(10, norm.token.decimals);
-    summary += `Amount: ${tokenAmount} ${norm.token.symbol}\n`;
-    summary += `Token: ${norm.token.address}\n`;
+    tokenAmount = Number(norm.amountWei) / Math.pow(10, norm.token.decimals);
+    tokenSymbol = norm.token.symbol;
+  }
+  
+  summary += `Amount: ${tokenAmount} ${tokenSymbol}\n`;
+  
+  // Try to fetch USD value and calculate gas
+  let usdValue = 0;
+  let gasUsdCost = 0;
+  let netUsdValue = 0;
+  
+  try {
+    const price = await getTokenPriceUSD(tokenSymbol, norm.chainId);
+    usdValue = tokenAmount * price;
+    summary += `Value: ${formatUSDValue(usdValue, 'medium')} (at ${formatUSDValue(price, 'medium')}/${tokenSymbol})\n`;
+  } catch (error) {
+    console.warn("[Transfer Confirm] Could not fetch USD price:", error);
+    summary += `Value: USD price unavailable\n`;
+  }
+  
+  // Token contract (for ERC20)
+  if (norm.kind === "erc20-transfer") {
+    summary += `Token Contract: ${norm.token.address}\n`;
   }
   
   // Recipient
   summary += `\nRecipient: ${norm.to}\n`;
   
-  // Gas estimate (if available)
+  // Gas estimate with USD cost
   if (ctx.sim?.gasEstimate) {
     const gasEstimate = ctx.sim.gasEstimate;
-    summary += `\nEstimated Gas: ${gasEstimate.toString()} units\n`;
+    summary += `\nEstimated Gas: ${gasEstimate.toString()} units`;
+    
+    // Try to calculate gas cost in USD
+    try {
+      // Estimate gas price (approximate, would need to fetch real gas price)
+      const gasPrice = 2n; // 2 gwei approximate
+      const gasCostWei = BigInt(gasEstimate) * gasPrice * 1_000_000_000n;
+      const gasCostEth = Number(gasCostWei) / 1e18;
+      const ethPrice = await getTokenPriceUSD("ETH", norm.chainId);
+      gasUsdCost = gasCostEth * ethPrice;
+      summary += ` (~${formatUSDValue(gasUsdCost, 'medium')})\n`;
+    } catch (error) {
+      summary += `\n`;
+    }
+  }
+  
+  // Net summary section
+  if (usdValue > 0) {
+    netUsdValue = usdValue - gasUsdCost;
+    summary += "\n📊 NET SUMMARY:\n";
+    summary += "─".repeat(50) + "\n";
+    summary += `Gross Value:     ${formatUSDValue(usdValue, 'medium')}\n`;
+    if (gasUsdCost > 0) {
+      summary += `Gas Cost:      - ${formatUSDValue(gasUsdCost, 'medium')}\n`;
+      summary += "─".repeat(50) + "\n";
+      summary += `Net After Gas:   ${formatUSDValue(netUsdValue, 'medium')}\n`;
+      
+      // Warning if gas is high percentage
+      const gasPercentage = (gasUsdCost / usdValue) * 100;
+      if (gasPercentage > 20) {
+        summary += `\n⚠️  Warning: Gas is ${gasPercentage.toFixed(1)}% of transaction value\n`;
+      }
+    }
   }
   
   summary += "\n" + "─".repeat(50);
@@ -206,13 +263,97 @@ export const confirmSwapFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
     const norm = ctx.norm as any;
     const chainConfig = getChainConfig(norm.fromChainId || norm.chainId);
     const chainName = chainConfig?.name || `Chain ${norm.fromChainId || norm.chainId}`;
+    const chainId = norm.fromChainId || norm.chainId;
 
     let summary = "📝 Transaction Summary\n";
     summary += "─".repeat(50) + "\n\n";
     summary += `Type: Token Swap\n`;
-    summary += `Chain: ${chainName} (${norm.fromChainId || norm.chainId})\n\n`;
-    summary += `From: ${norm.fromAmount || norm.amount} ${norm.fromToken?.symbol || "tokens"}\n`;
-    summary += `To: ~${norm.toAmount || "?"} ${norm.toToken?.symbol || "tokens"}\n`;
+    summary += `Chain: ${chainName} (Chain ID: ${chainId})\n\n`;
+    
+    // Format from amount (it's a BigInt in smallest unit)
+    const fromAmountFormatted = formatUnits(norm.fromAmount || 0n, norm.fromToken?.decimals || 18);
+    const fromAmount = parseFloat(fromAmountFormatted);
+    const fromSymbol = norm.fromToken?.symbol || "tokens";
+    
+    // Get to amount from plan/route (only available after planning)
+    let toAmount = 0;
+    const toSymbol = norm.toToken?.symbol || "tokens";
+    if (ctx.plan?.route?.toAmount && norm.toToken?.decimals) {
+      const formattedToAmount = formatUnits(BigInt(ctx.plan.route.toAmount), norm.toToken.decimals);
+      toAmount = parseFloat(formattedToAmount);
+    }
+    
+    summary += `From: ${fromAmount} ${fromSymbol}\n`;
+    
+    // Try to fetch USD values
+    let fromUsdValue = 0;
+    let toUsdValue = 0;
+    let gasUsdCost = 0;
+    
+    try {
+      const fromPrice = await getTokenPriceUSD(fromSymbol, chainId);
+      fromUsdValue = fromAmount * fromPrice;
+      summary += `From Value: ${formatUSDValue(fromUsdValue, 'medium')}\n`;
+    } catch (error) {
+      console.warn("[Swap Confirm] Could not fetch from token USD price");
+    }
+    
+    summary += `\nTo: ~${toAmount} ${toSymbol}\n`;
+    
+    try {
+      const toPrice = await getTokenPriceUSD(toSymbol, chainId);
+      toUsdValue = toAmount * toPrice;
+      summary += `To Value: ~${formatUSDValue(toUsdValue, 'medium')}\n`;
+    } catch (error) {
+      console.warn("[Swap Confirm] Could not fetch to token USD price");
+    }
+    
+    // Add rate if both amounts are available
+    if (fromAmount && toAmount) {
+      const rate = toAmount / fromAmount;
+      summary += `\nRate: 1 ${fromSymbol} = ${rate.toFixed(6)} ${toSymbol}\n`;
+    }
+    
+    // Add slippage info if available
+    if (ctx.plan?.route?.steps?.[0]?.estimate) {
+      const estimate = ctx.plan.route.steps[0].estimate;
+      if (estimate.approvalAddress) {
+        summary += `\nNote: Token approval may be required\n`;
+      }
+      if (estimate.gasCosts) {
+        const gasCosts = estimate.gasCosts[0];
+        if (gasCosts?.amountUSD) {
+          gasUsdCost = parseFloat(gasCosts.amountUSD);
+          summary += `Estimated Gas: ${formatUSDValue(gasUsdCost, 'medium')}\n`;
+        }
+      }
+    }
+    
+    // Net summary section
+    if (toUsdValue > 0 && fromUsdValue > 0) {
+      const netUsdValue = toUsdValue - gasUsdCost;
+      const profitLoss = netUsdValue - fromUsdValue;
+      
+      summary += "\n📊 NET SUMMARY:\n";
+      summary += "─".repeat(50) + "\n";
+      summary += `You're Spending: ${formatUSDValue(fromUsdValue, 'medium')}\n`;
+      summary += `You'll Receive:  ~${formatUSDValue(toUsdValue, 'medium')} (gross)\n`;
+      if (gasUsdCost > 0) {
+        summary += `Gas Cost:      - ${formatUSDValue(gasUsdCost, 'medium')}\n`;
+        summary += "─".repeat(50) + "\n";
+        summary += `Net After Gas:   ~${formatUSDValue(netUsdValue, 'medium')}\n`;
+        summary += `Net Profit/Loss: ${profitLoss >= 0 ? '+' : ''}${formatUSDValue(Math.abs(profitLoss), 'medium')} ${profitLoss >= 0 ? '✅' : '⚠️'}\n`;
+        
+        // Warning if gas is high percentage or unprofitable
+        const gasPercentage = (gasUsdCost / toUsdValue) * 100;
+        if (profitLoss < 0) {
+          summary += `\n⚠️  Warning: This swap will result in a net loss of ${formatUSDValue(Math.abs(profitLoss), 'medium')}\n`;
+        } else if (gasPercentage > 20) {
+          summary += `\n⚠️  Warning: Gas is ${gasPercentage.toFixed(1)}% of received value\n`;
+        }
+      }
+    }
+    
     summary += "\n" + "─".repeat(50);
 
     dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: summary, timestamp: Date.now() }});
@@ -246,9 +387,70 @@ export const confirmBridgeFx: StepDef["onEnter"] = async (ctx, core, dispatch, s
     let summary = "📝 Transaction Summary\n";
     summary += "─".repeat(50) + "\n\n";
     summary += `Type: Bridge Transfer\n`;
-    summary += `From: ${fromChainName} (${norm.fromChainId})\n`;
-    summary += `To: ${toChainName} (${norm.toChainId})\n\n`;
-    summary += `Amount: ${norm.amount} ${norm.token?.symbol || "tokens"}\n`;
+    summary += `From Chain: ${fromChainName} (Chain ID: ${norm.fromChainId})\n`;
+    summary += `To Chain: ${toChainName} (Chain ID: ${norm.toChainId})\n\n`;
+    
+    // Format amount (it's a BigInt in smallest unit)
+    const amountFormatted = formatUnits(norm.amount || 0n, norm.token?.decimals || 18);
+    const amount = parseFloat(amountFormatted);
+    const tokenSymbol = norm.token?.symbol || "tokens";
+    
+    summary += `Amount: ${amount} ${tokenSymbol}\n`;
+    
+    // Try to fetch USD value
+    let usdValue = 0;
+    let gasUsdCost = 0;
+    
+    try {
+      const price = await getTokenPriceUSD(tokenSymbol, norm.fromChainId);
+      usdValue = amount * price;
+      summary += `Value: ${formatUSDValue(usdValue, 'medium')}\n`;
+    } catch (error) {
+      console.warn("[Bridge Confirm] Could not fetch USD price");
+    }
+    
+    // Add bridge info if available
+    if (ctx.plan?.route) {
+      const route = ctx.plan.route;
+      if (route.steps?.[0]?.toolDetails?.name) {
+        summary += `\nBridge Provider: ${route.steps[0].toolDetails.name}\n`;
+      }
+      if (route.steps?.[0]?.estimate?.executionDuration) {
+        const durationSeconds = route.steps[0].estimate.executionDuration;
+        const minutes = Math.ceil(durationSeconds / 60);
+        summary += `Estimated Time: ~${minutes} minute${minutes !== 1 ? 's' : ''}\n`;
+      }
+      if (route.steps?.[0]?.estimate?.gasCosts) {
+        const gasCosts = route.steps[0].estimate.gasCosts[0];
+        if (gasCosts?.amountUSD) {
+          gasUsdCost = parseFloat(gasCosts.amountUSD);
+          summary += `Estimated Gas: ${formatUSDValue(gasUsdCost, 'medium')}\n`;
+        }
+      }
+    }
+    
+    // Net summary section
+    if (usdValue > 0) {
+      const netUsdValue = usdValue - gasUsdCost;
+      const netTokenAmount = amount * (netUsdValue / usdValue);
+      
+      summary += "\n📊 NET SUMMARY:\n";
+      summary += "─".repeat(50) + "\n";
+      summary += `Gross Value:     ${formatUSDValue(usdValue, 'medium')}\n`;
+      if (gasUsdCost > 0) {
+        summary += `Gas Cost:      - ${formatUSDValue(gasUsdCost, 'medium')}\n`;
+        summary += "─".repeat(50) + "\n";
+        summary += `Net After Gas:   ${formatUSDValue(netUsdValue, 'medium')}\n`;
+        summary += `You'll Receive:  ~${netTokenAmount.toFixed(6)} ${tokenSymbol} on ${toChainName}\n`;
+        
+        // Warning if gas is high percentage
+        const gasPercentage = (gasUsdCost / usdValue) * 100;
+        if (gasPercentage > 20) {
+          summary += `\n⚠️  Warning: Gas is ${gasPercentage.toFixed(1)}% of bridge value\n`;
+        }
+      }
+    }
+    
     summary += "\n" + "─".repeat(50);
 
     dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: summary, timestamp: Date.now() }});
@@ -282,10 +484,96 @@ export const confirmBridgeSwapFx: StepDef["onEnter"] = async (ctx, core, dispatc
     let summary = "📝 Transaction Summary\n";
     summary += "─".repeat(50) + "\n\n";
     summary += `Type: Bridge + Swap\n`;
-    summary += `From: ${fromChainName} (${norm.fromChainId})\n`;
-    summary += `To: ${toChainName} (${norm.toChainId})\n\n`;
-    summary += `From Token: ${norm.fromAmount || norm.amount} ${norm.fromToken?.symbol || "tokens"}\n`;
-    summary += `To Token: ~${norm.toAmount || "?"} ${norm.toToken?.symbol || "tokens"}\n`;
+    summary += `From Chain: ${fromChainName} (Chain ID: ${norm.fromChainId})\n`;
+    summary += `To Chain: ${toChainName} (Chain ID: ${norm.toChainId})\n\n`;
+    
+    // Format from amount (it's a BigInt in smallest unit)
+    const fromAmountFormatted = formatUnits(norm.fromAmount || 0n, norm.fromToken?.decimals || 18);
+    const fromAmount = parseFloat(fromAmountFormatted);
+    const fromSymbol = norm.fromToken?.symbol || "tokens";
+    
+    // Get to amount from plan/route (only available after planning)
+    let toAmount = 0;
+    const toSymbol = norm.toToken?.symbol || "tokens";
+    if (ctx.plan?.route?.toAmount && norm.toToken?.decimals) {
+      toAmount = parseFloat(formatUnits(BigInt(ctx.plan.route.toAmount), norm.toToken.decimals));
+    }
+    
+    summary += `From Token: ${fromAmount} ${fromSymbol}\n`;
+    
+    // Try to fetch USD values
+    let fromUsdValue = 0;
+    let toUsdValue = 0;
+    let gasUsdCost = 0;
+    
+    try {
+      const fromPrice = await getTokenPriceUSD(fromSymbol, norm.fromChainId);
+      fromUsdValue = fromAmount * fromPrice;
+      summary += `From Value: ${formatUSDValue(fromUsdValue, 'medium')}\n`;
+    } catch (error) {
+      console.warn("[Bridge-Swap Confirm] Could not fetch from token USD price");
+    }
+    
+    summary += `\nTo Token: ~${toAmount} ${toSymbol}\n`;
+    
+    try {
+      const toPrice = await getTokenPriceUSD(toSymbol, norm.toChainId);
+      toUsdValue = toAmount * toPrice;
+      summary += `To Value: ~${formatUSDValue(toUsdValue, 'medium')}\n`;
+    } catch (error) {
+      console.warn("[Bridge-Swap Confirm] Could not fetch to token USD price");
+    }
+    
+    // Add route info if available
+    if (ctx.plan?.route) {
+      const route = ctx.plan.route;
+      const steps = route.steps || [];
+      
+      if (steps.length > 0) {
+        summary += `\nSteps: ${steps.length} step${steps.length !== 1 ? 's' : ''}\n`;
+      }
+      
+      // Estimated time
+      if (route.steps?.[0]?.estimate?.executionDuration) {
+        const durationSeconds = route.steps[0].estimate.executionDuration;
+        const minutes = Math.ceil(durationSeconds / 60);
+        summary += `Estimated Time: ~${minutes} minute${minutes !== 1 ? 's' : ''}\n`;
+      }
+      
+      // Gas costs
+      if (route.gasCostUSD) {
+        gasUsdCost = parseFloat(route.gasCostUSD);
+        summary += `Estimated Gas: ${formatUSDValue(gasUsdCost, 'medium')}\n`;
+      }
+    }
+    
+    // Net summary section
+    if (toUsdValue > 0 && fromUsdValue > 0) {
+      const netUsdValue = toUsdValue - gasUsdCost;
+      const profitLoss = netUsdValue - fromUsdValue;
+      const netTokenAmount = toAmount * (netUsdValue / toUsdValue);
+      
+      summary += "\n📊 NET SUMMARY:\n";
+      summary += "─".repeat(50) + "\n";
+      summary += `You're Spending: ${formatUSDValue(fromUsdValue, 'medium')} (${fromSymbol} on ${fromChainName})\n`;
+      summary += `You'll Receive:  ~${formatUSDValue(toUsdValue, 'medium')} (gross, ${toSymbol} on ${toChainName})\n`;
+      if (gasUsdCost > 0) {
+        summary += `Gas Cost:      - ${formatUSDValue(gasUsdCost, 'medium')}\n`;
+        summary += "─".repeat(50) + "\n";
+        summary += `Net After Gas:   ~${formatUSDValue(netUsdValue, 'medium')}\n`;
+        summary += `Final Amount:    ~${netTokenAmount.toFixed(6)} ${toSymbol} on ${toChainName}\n`;
+        summary += `Net Profit/Loss: ${profitLoss >= 0 ? '+' : ''}${formatUSDValue(Math.abs(profitLoss), 'medium')} ${profitLoss >= 0 ? '✅' : '⚠️'}\n`;
+        
+        // Warning if gas is high percentage or unprofitable
+        const gasPercentage = (gasUsdCost / toUsdValue) * 100;
+        if (profitLoss < 0) {
+          summary += `\n⚠️  Warning: This bridge-swap will result in a net loss of ${formatUSDValue(Math.abs(profitLoss), 'medium')}\n`;
+        } else if (gasPercentage > 20) {
+          summary += `\n⚠️  Warning: Gas is ${gasPercentage.toFixed(1)}% of received value\n`;
+        }
+      }
+    }
+    
     summary += "\n" + "─".repeat(50);
 
     dispatch({ type: "CHAT.ADD", message: { role: "assistant", content: summary, timestamp: Date.now() }});

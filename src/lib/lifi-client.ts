@@ -49,7 +49,7 @@ export const LifiTokenSchema = z.object({
   chainId: z.number(),
   decimals: z.number(),
   logoURI: z.string().optional(),
-  priceUSD: z.string().optional(),
+  priceUSD: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
 });
 
 export const LifiTokensResponseSchema = z.object({
@@ -351,7 +351,12 @@ export async function searchTokens(params: {
             !params.symbol ||
             token.symbol.toLowerCase().includes(params.symbol.toLowerCase())
           ) {
-            allTokens.push(token);
+            // Convert SDK Token to our LifiToken format (transform priceUSD from string to number)
+            const lifiToken: LifiToken = {
+              ...token,
+              priceUSD: token.priceUSD ? parseFloat(token.priceUSD) : undefined,
+            };
+            allTokens.push(lifiToken);
           }
         }
       }

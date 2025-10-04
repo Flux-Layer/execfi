@@ -1,6 +1,7 @@
 // lib/ai/schema.ts - Zod schemas for Intent validation
 
 import { z } from 'zod';
+import { parseUSDInput } from '@/lib/utils/usd-parser';
 
 // Token schema for native transfers - supports all chain native tokens
 const NativeTokenSchema = z.object({
@@ -28,10 +29,14 @@ const TransferIntentSchema = z.object({
   action: z.literal('transfer'),
   chain: z.union([z.string(), z.number()]), // "base" | 8453
   token: TokenSchema,
-  amount: z.string(), // decimal string or "MAX"
+  amount: z.string().optional(), // decimal string or "MAX"
+  amountUSD: z.string().optional(), // USD amount (e.g., "100", "$100")
   recipient: z.string(), // 0x address or ENS
   useSession: z.boolean().optional(), // whether to use session key for automated signing
-});
+}).refine(
+  (data) => data.amount || data.amountUSD,
+  { message: "Either amount or amountUSD must be provided" }
+);
 
 // Swap intent schema - same chain token exchange
 const SwapIntentSchema = z.object({
@@ -40,10 +45,14 @@ const SwapIntentSchema = z.object({
   toChain: z.union([z.string(), z.number()]).optional(), // Defaults to fromChain
   fromToken: z.string(),
   toToken: z.string(),
-  amount: z.string(),
+  amount: z.string().optional(),
+  amountUSD: z.string().optional(), // USD amount for swap
   recipient: z.string().optional(), // Defaults to sender
   slippage: z.number().optional(), // Optional slippage tolerance
-});
+}).refine(
+  (data) => data.amount || data.amountUSD,
+  { message: "Either amount or amountUSD must be provided" }
+);
 
 // Bridge intent schema - same token cross-chain transfer
 const BridgeIntentSchema = z.object({
@@ -51,9 +60,13 @@ const BridgeIntentSchema = z.object({
   fromChain: z.union([z.string(), z.number()]),
   toChain: z.union([z.string(), z.number()]),
   token: z.string(), // Same token on both chains
-  amount: z.string(),
+  amount: z.string().optional(),
+  amountUSD: z.string().optional(), // USD amount for bridge
   recipient: z.string().optional(), // Defaults to sender's address on destination chain
-});
+}).refine(
+  (data) => data.amount || data.amountUSD,
+  { message: "Either amount or amountUSD must be provided" }
+);
 
 // Bridge-swap intent schema - cross-chain token exchange
 const BridgeSwapIntentSchema = z.object({
@@ -62,10 +75,14 @@ const BridgeSwapIntentSchema = z.object({
   toChain: z.union([z.string(), z.number()]),
   fromToken: z.string(),
   toToken: z.string(),
-  amount: z.string(),
+  amount: z.string().optional(),
+  amountUSD: z.string().optional(), // USD amount for bridge-swap
   recipient: z.string().optional(), // Defaults to sender's address on destination chain
   slippage: z.number().optional(), // Optional slippage tolerance
-});
+}).refine(
+  (data) => data.amount || data.amountUSD,
+  { message: "Either amount or amountUSD must be provided" }
+);
 
 // Union of all intent types
 const IntentUnionSchema = z.union([
@@ -166,4 +183,22 @@ export function isBridgeIntent(intent: IntentSuccess['intent']): intent is Bridg
 
 export function isBridgeSwapIntent(intent: IntentSuccess['intent']): intent is BridgeSwapIntent {
   return intent.action === 'bridge_swap';
+}
+
+/**
+ * Check if intent uses USD-based amount
+ */
+export function isUSDBasedIntent(intent: IntentSuccess['intent']): boolean {
+  return 'amountUSD' in intent && typeof intent.amountUSD === 'string';
+}
+
+/**
+ * Parse USD amount from intent
+ */
+export function parseIntentUSDAmount(amountUSD: string): number {
+  try {
+    return parseUSDInput(amountUSD);
+  } catch (error: any) {
+    throw new Error(`Invalid USD amount in intent: ${amountUSD}`);
+  }
 }

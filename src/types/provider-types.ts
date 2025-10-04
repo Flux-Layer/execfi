@@ -38,7 +38,7 @@ export interface ProviderResult<T = any> {
  */
 export interface LifiTokenMetadata {
   coinKey?: string;
-  priceUSD?: string;
+  priceUSD?: number; // Changed from string to number for better type safety
   verified: boolean;
 }
 

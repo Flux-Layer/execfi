@@ -4,7 +4,7 @@ import type { PolicyState, PolicyPreset } from "./types";
 import { POLICY_PRESETS } from "./presets";
 
 const POLICY_STORAGE_KEY = "execfi:policy";
-const POLICY_VERSION = "1.0.0";
+const POLICY_VERSION = "2.0.0"; // Updated for USD-based limits
 
 export function loadPolicy(): PolicyState | null {
   try {

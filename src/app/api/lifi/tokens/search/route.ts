@@ -43,7 +43,7 @@ const TokenSearchResponseSchema = z.object({
       decimals: z.number(),
       logoURI: z.string().optional(),
       verified: z.boolean().default(true),
-      priceUSD: z.string().optional(),
+      priceUSD: z.number().optional(), // Changed from string to number
     })),
     count: z.number(),
     requestId: z.string(),
