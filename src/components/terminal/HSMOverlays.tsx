@@ -107,8 +107,9 @@ const ConfirmOverlay = ({
         </div>
 
         <div className="mt-4 text-sm text-slate-400 text-center">
-          Press <kbd className="bg-slate-700 px-1 rounded">Enter</kbd> to confirm,{" "}
-          <kbd className="bg-slate-700 px-1 rounded">Esc</kbd> to cancel
+          Press <kbd className="bg-slate-700 px-1 rounded">Enter</kbd> to
+          confirm, <kbd className="bg-slate-700 px-1 rounded">Esc</kbd> to
+          cancel
         </div>
       </motion.div>
     </motion.div>
@@ -149,7 +150,7 @@ const ToastOverlay = ({
       initial={{ opacity: 0, y: -20, x: "-50%" }}
       animate={{ opacity: 1, y: 0, x: "-50%" }}
       exit={{ opacity: 0, y: -20, x: "-50%" }}
-      className={`absolute top-4 left-1/2 transform border rounded-lg p-3 max-w-sm shadow-lg z-50 ${getToastStyles()}`}
+      className={`absolute top-4 left-1/2 transform border rounded-lg p-3 shadow-lg z-50 ${getToastStyles()}`}
     >
       <div className="flex items-start space-x-3">
         <div className="flex-1">
