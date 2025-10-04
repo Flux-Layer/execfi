@@ -10,9 +10,12 @@ export interface TransferIntent {
     type: "native" | "erc20";
     symbol: string;
     address?: string;
+    decimals?: number;
   };
-  amount: string;
+  amount?: string; // Token amount (traditional)
+  amountUSD?: string; // USD amount (new)
   recipient: string;
+  useSession?: boolean;
 }
 
 /**

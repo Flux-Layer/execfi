@@ -10,6 +10,7 @@ import {
   type AggregatedToken
 } from "@/services/portfolioService";
 import { resolveChainIds, formatChainLabel, getSupportedMainnetChainIds } from "@/lib/utils/chain";
+import { formatUSDValue, formatUSDCompact } from "@/lib/utils";
 
 /**
  * Multi-token balance command - shows top tokens by USD value
@@ -285,7 +286,7 @@ function formatDetailedPortfolioDisplay(
 
 **Account:** ${address.slice(0, 6)}...${address.slice(-4)}
 ${chainSummary}
-**Total Value:** $${totalUsdValue.toFixed(4)}
+**Total Value:** ${formatUSDValue(totalUsdValue, 'high')}
 **Tokens:** ${tokens.length} token(s)
 **Updated:** ${now.toLocaleTimeString()}
 
@@ -315,7 +316,7 @@ ${chainSummary}
 
     // Handle price availability
     const priceInfo = token.priceUsd !== undefined
-      ? `USD Value: $${token.usdValue.toFixed(4)} (${percentage}%)`
+      ? `USD Value: ${formatUSDValue(token.usdValue, 'medium')} (${percentage}%)`
       : `USD Value: (price unavailable)`;
 
     return `${index + 1}. **${token.symbol}**${chainLabel} (${token.name})
@@ -360,7 +361,7 @@ function formatPortfolioSummaryDisplay(
 
 **Account:** ${summary.address.slice(0, 6)}...${summary.address.slice(-4)}
 ${chainSummary}
-**Total Value:** $${summary.totalUsdValue.toFixed(4)}
+**Total Value:** ${formatUSDValue(summary.totalUsdValue, 'high')}
 **Unique Tokens:** ${summary.uniqueTokens} types
 **Total Positions:** ${summary.totalPositions} positions
 **Updated:** ${now.toLocaleTimeString()}
@@ -397,7 +398,7 @@ ${chainSummary}
               minimumFractionDigits: 0,
               maximumFractionDigits: 8,
             });
-            const posUsdValue = pos.usdValue > 0 ? ` ($${pos.usdValue.toFixed(2)})` : '';
+            const posUsdValue = pos.usdValue > 0 ? ` (${formatUSDValue(pos.usdValue, 'low')})` : '';
             return `     • ${pos.chainName}: ${posBalance} ${holding.symbol}${posUsdValue}`;
           })
           .join('\n')
@@ -405,7 +406,7 @@ ${chainSummary}
 
     // Handle price availability
     const priceInfo = holding.priceUsd !== undefined
-      ? `**${holding.symbol}** - $${holding.totalUsdValue.toFixed(2)} (${percentage}%)`
+      ? `**${holding.symbol}** - ${formatUSDValue(holding.totalUsdValue, 'low')} (${percentage}%)`
       : `**${holding.symbol}** - (price unavailable)`;
 
     const mainRow = `${index + 1}. ${priceInfo}`;
@@ -419,7 +420,7 @@ ${chainSummary}
   const chainHeader = `\n📊 CHAIN DISTRIBUTION\n`;
   const chainRows = summary.chainDistribution.map(chain => {
     const percentage = chain.percentage.toFixed(1);
-    return `  • ${chain.chainName}: $${chain.usdValue.toFixed(2)} (${percentage}%) - ${chain.tokenCount} token${chain.tokenCount !== 1 ? 's' : ''}`;
+    return `  • ${chain.chainName}: ${formatUSDValue(chain.usdValue, 'low')} (${percentage}%) - ${chain.tokenCount} token${chain.tokenCount !== 1 ? 's' : ''}`;
   }).join('\n');
 
   // Insights Section

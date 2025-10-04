@@ -9,7 +9,8 @@ export interface SwapIntent {
   toChain?: string | number; // Optional, defaults to fromChain
   fromToken: string;
   toToken: string;
-  amount: string;
+  amount?: string; // Token amount (traditional)
+  amountUSD?: string; // USD amount (new)
   recipient?: string;
   slippage?: number;
   _selectedFromToken?: any; // Pre-selected token from selection flow
@@ -24,7 +25,8 @@ export interface BridgeIntent {
   fromChain: string | number;
   toChain: string | number;
   token: string;
-  amount: string;
+  amount?: string; // Token amount (traditional)
+  amountUSD?: string; // USD amount (new)
   recipient?: string;
   _selectedToken?: any; // Pre-selected token from selection flow
 }
@@ -38,7 +40,8 @@ export interface BridgeSwapIntent {
   toChain: string | number;
   fromToken: string;
   toToken: string;
-  amount: string;
+  amount?: string; // Token amount (traditional)
+  amountUSD?: string; // USD amount (new)
   recipient?: string;
   slippage?: number;
   _selectedFromToken?: any; // Pre-selected token from selection flow

@@ -6,6 +6,8 @@ import { DeFiNormalizationError, DeFiTokenSelectionError } from "./errors";
 import { resolveChain } from "@/lib/chains/registry";
 import { resolveTokensMultiProvider } from "@/lib/normalize";
 import { resolveAddressOrEns, isEnsName } from "@/lib/ens";
+import { isUSDBasedIntent, parseIntentUSDAmount } from "@/lib/ai/schema";
+import { convertUSDToToken } from "@/lib/utils/usd-converter";
 
 /**
  * Normalize DeFi intent (swap/bridge/bridge-swap)
@@ -137,8 +139,34 @@ async function normalizeSwapIntent(
     toToken = toTokenResult.tokens[0];
   }
 
-  // Parse amount
-  const fromAmount = parseUnits(intent.amount, fromToken.decimals);
+  // Parse amount (handle USD or token amount)
+  let swapAmount: string;
+  
+  if (isUSDBasedIntent(intent as any) && intent.amountUSD) {
+    console.log(`💵 [DeFi] Converting USD amount for swap: ${intent.amountUSD}`);
+    
+    try {
+      const usdAmount = parseIntentUSDAmount(intent.amountUSD);
+      const tokenAmount = await convertUSDToToken(usdAmount, fromToken.symbol, fromChainId);
+      swapAmount = tokenAmount;
+      
+      console.log(`✅ [DeFi] Converted ${intent.amountUSD} → ${tokenAmount} ${fromToken.symbol}`);
+    } catch (error) {
+      throw new DeFiNormalizationError(
+        `Failed to convert USD amount for swap: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        "USD_CONVERSION_FAILED"
+      );
+    }
+  } else if (intent.amount) {
+    swapAmount = intent.amount;
+  } else {
+    throw new DeFiNormalizationError(
+      "Amount or amountUSD is required for swap",
+      "AMOUNT_REQUIRED"
+    );
+  }
+
+  const fromAmount = parseUnits(swapAmount, fromToken.decimals);
 
   // Resolve recipient (ENS, address, or default to sender)
   let recipient: `0x${string}` | undefined;
@@ -256,8 +284,34 @@ async function normalizeBridgeIntent(
     token = tokenResult.tokens[0];
   }
 
-  // Parse amount
-  const amount = parseUnits(intent.amount, token.decimals);
+  // Parse amount (handle USD or token amount)
+  let bridgeAmount: string;
+  
+  if (isUSDBasedIntent(intent as any) && intent.amountUSD) {
+    console.log(`💵 [DeFi] Converting USD amount for bridge: ${intent.amountUSD}`);
+    
+    try {
+      const usdAmount = parseIntentUSDAmount(intent.amountUSD);
+      const tokenAmount = await convertUSDToToken(usdAmount, token.symbol, fromChainId);
+      bridgeAmount = tokenAmount;
+      
+      console.log(`✅ [DeFi] Converted ${intent.amountUSD} → ${tokenAmount} ${token.symbol}`);
+    } catch (error) {
+      throw new DeFiNormalizationError(
+        `Failed to convert USD amount for bridge: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        "USD_CONVERSION_FAILED"
+      );
+    }
+  } else if (intent.amount) {
+    bridgeAmount = intent.amount;
+  } else {
+    throw new DeFiNormalizationError(
+      "Amount or amountUSD is required for bridge",
+      "AMOUNT_REQUIRED"
+    );
+  }
+
+  const amount = parseUnits(bridgeAmount, token.decimals);
 
   // Resolve recipient
   let recipient: `0x${string}` | undefined;
@@ -410,8 +464,34 @@ async function normalizeBridgeSwapIntent(
     toToken = toTokenResult.tokens[0];
   }
 
-  // Parse amount
-  const fromAmount = parseUnits(intent.amount, fromToken.decimals);
+  // Parse amount (handle USD or token amount)
+  let bridgeSwapAmount: string;
+  
+  if (isUSDBasedIntent(intent as any) && intent.amountUSD) {
+    console.log(`💵 [DeFi] Converting USD amount for bridge-swap: ${intent.amountUSD}`);
+    
+    try {
+      const usdAmount = parseIntentUSDAmount(intent.amountUSD);
+      const tokenAmount = await convertUSDToToken(usdAmount, fromToken.symbol, fromChainId);
+      bridgeSwapAmount = tokenAmount;
+      
+      console.log(`✅ [DeFi] Converted ${intent.amountUSD} → ${tokenAmount} ${fromToken.symbol}`);
+    } catch (error) {
+      throw new DeFiNormalizationError(
+        `Failed to convert USD amount for bridge-swap: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        "USD_CONVERSION_FAILED"
+      );
+    }
+  } else if (intent.amount) {
+    bridgeSwapAmount = intent.amount;
+  } else {
+    throw new DeFiNormalizationError(
+      "Amount or amountUSD is required for bridge-swap",
+      "AMOUNT_REQUIRED"
+    );
+  }
+
+  const fromAmount = parseUnits(bridgeSwapAmount, fromToken.decimals);
 
   // Resolve recipient
   let recipient: `0x${string}` | undefined;

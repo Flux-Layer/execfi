@@ -17,7 +17,7 @@ export interface UnifiedToken {
   // Enhanced metadata
   logoURI?: string;
   verified: boolean;
-  priceUSD?: string;
+  priceUSD?: number; // Changed from string to number for better type safety and USD utility integration
   lastUpdated?: string;
 
   // Provider context

@@ -3,6 +3,7 @@
 import { formatEther, formatUnits } from "viem";
 import type { PolicyState, PolicyCheckResult, PolicyViolation } from "./types";
 import type { NormalizedIntent } from "@/lib/normalize";
+import { formatUSDValue } from "@/lib/utils";
 
 /**
  * Check if intent violates policy rules
@@ -24,7 +25,7 @@ export function checkPolicy(
   if (txAmountETH > updatedPolicy.config.maxTxAmountETH) {
     violations.push({
       code: "MAX_TX_EXCEEDED",
-      message: `Transaction amount ${txAmountETH.toFixed(4)} ETH exceeds limit of ${updatedPolicy.config.maxTxAmountETH} ETH`,
+      message: `Transaction amount ${txAmountETH.toFixed(4)} ETH exceeds limit of ${updatedPolicy.config.maxTxAmountETH} ETH (use /policy set-max-tx to adjust)`,
       severity: "block",
       suggestion: `Increase limit with: /policy set-max-tx ${Math.ceil(txAmountETH)}`,
     });

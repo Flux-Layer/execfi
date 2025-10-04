@@ -2,6 +2,7 @@
 import { getWalletBalances, createConfig, EVM } from "@lifi/sdk";
 import { formatUnits } from "viem";
 import { getSupportedChains } from "@/lib/chains/registry";
+import { formatUSDValue } from "@/lib/utils";
 
 export type PortfolioToken = {
   chainId: number;
@@ -320,8 +321,21 @@ export async function fetchPortfolioSnapshot(params: {
             if (raw === 0n) continue;
 
             // Calculate USD value if price available
-            const priceUsd = priceUSD ? parseFloat(priceUSD) : undefined;
-            const usdValue = priceUsd ? priceUsd * parseFloat(formatted) : 0;
+            // Handle both number (new) and string (legacy) formats during migration
+            const priceUsd = priceUSD 
+              ? (typeof priceUSD === 'number' ? priceUSD : parseFloat(priceUSD))
+              : undefined;
+            let usdValue = priceUsd ? priceUsd * parseFloat(formatted) : 0;
+
+            // Validate USD calculation
+            if (!Number.isFinite(usdValue) || usdValue < 0) {
+              console.warn(`Invalid USD calculation for token ${symbol}:`, {
+                priceUsd,
+                formatted,
+                usdValue,
+              });
+              usdValue = 0;
+            }
 
             tokens.push({
               chainId,
@@ -496,7 +510,7 @@ function generatePortfolioInsights(
       type: 'concentration',
       severity: 'warning',
       title: 'High concentration risk',
-      description: `${topToken.portfolioPercentage.toFixed(1)}% of portfolio in ${topToken.symbol}`,
+      description: `${topToken.portfolioPercentage.toFixed(1)}% of portfolio in ${topToken.symbol} (${formatUSDValue(topToken.totalUsdValue, 'medium')})`,
       actionable: `Consider diversifying: /swap 0.1 ${topToken.symbol.toLowerCase()} for usdc`,
     });
   } else if (topToken && topToken.portfolioPercentage > 50) {
@@ -504,7 +518,7 @@ function generatePortfolioInsights(
       type: 'concentration',
       severity: 'info',
       title: 'Moderate concentration',
-      description: `${topToken.portfolioPercentage.toFixed(1)}% of portfolio in ${topToken.symbol}`,
+      description: `${topToken.portfolioPercentage.toFixed(1)}% of portfolio in ${topToken.symbol} (${formatUSDValue(topToken.totalUsdValue, 'medium')})`,
       actionable: `Consider some diversification for better risk management`,
     });
   }
@@ -516,7 +530,7 @@ function generatePortfolioInsights(
       type: 'chain-balance',
       severity: 'info',
       title: 'Single chain concentration',
-      description: `${dominantChain.percentage.toFixed(1)}% on ${dominantChain.chainName}`,
+      description: `${dominantChain.percentage.toFixed(1)}% on ${dominantChain.chainName} (${formatUSDValue(dominantChain.usdValue, 'medium')})`,
       actionable: `Consider bridging assets to other chains for better diversification`,
     });
   }
@@ -545,7 +559,7 @@ function generatePortfolioInsights(
       type: 'opportunity',
       severity: 'info',
       title: 'Growing portfolio',
-      description: `Total value: $${totalValue.toFixed(2)}`,
+      description: `Total value: ${formatUSDValue(totalValue, 'low')}`,
       actionable: 'Consider DCA strategies to grow your portfolio over time',
     });
   }
@@ -563,7 +577,7 @@ function generatePortfolioInsights(
       type: 'opportunity',
       severity: 'info',
       title: 'Low stablecoin reserves',
-      description: `Only ${stablecoinPercentage.toFixed(1)}% in stablecoins`,
+      description: `Only ${stablecoinPercentage.toFixed(1)}% in stablecoins (${formatUSDValue(stablecoinValue, 'low')})`,
       actionable: 'Consider keeping some USDC for trading opportunities and gas fees',
     });
   }

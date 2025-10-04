@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { formatEther } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatBalanceWithUSD } from "@/lib/utils/balance";
+import { formatUSDValue } from "@/lib/utils";
+import { getTokenPriceUSD } from "@/services/priceService";
 
 interface SmartAccountBalanceProps {
   address: string | undefined;
@@ -14,6 +17,7 @@ interface TokenBalance {
   balance: bigint;
   decimals: number;
   formatted: string;
+  priceUSD?: number;
 }
 
 const SmartAccountBalance = ({ address, chainId = 8453 }: SmartAccountBalanceProps) => {
@@ -49,11 +53,20 @@ const SmartAccountBalance = ({ address, chainId = 8453 }: SmartAccountBalancePro
         throw new Error(data.error);
       }
 
+      // Fetch price for ETH
+      let priceUSD: number | undefined;
+      try {
+        priceUSD = await getTokenPriceUSD('ETH', chainId);
+      } catch (error) {
+        console.warn("Failed to fetch ETH price:", error);
+      }
+
       const ethBalance: TokenBalance = {
         symbol: "ETH",
         balance: BigInt(data.balance || "0"),
         decimals: 18,
-        formatted: formatEther(BigInt(data.balance || "0"))
+        formatted: formatEther(BigInt(data.balance || "0")),
+        priceUSD,
       };
 
       setBalances([ethBalance]);
@@ -77,16 +90,13 @@ const SmartAccountBalance = ({ address, chainId = 8453 }: SmartAccountBalancePro
     fetchBalances();
   }, [address]);
 
-  const formatBalanceDisplay = (balance: bigint, decimals: number): string => {
-    const formatted = formatEther(balance);
-    const num = parseFloat(formatted);
-
-    if (num === 0) return "0";
-    if (num < 0.0001) return "< 0.0001";
-    if (num < 1) return num.toFixed(4);
-    if (num < 100) return num.toFixed(3);
-
-    return num.toFixed(2);
+  const formatBalanceDisplay = (
+    balance: bigint,
+    decimals: number,
+    symbol: string,
+    priceUSD?: number
+  ): string => {
+    return formatBalanceWithUSD(balance, decimals, symbol, priceUSD);
   };
 
   if (!address) {
@@ -167,7 +177,7 @@ const SmartAccountBalance = ({ address, chainId = 8453 }: SmartAccountBalancePro
               >
                 <div className="w-2 h-2 bg-green-500 rounded-full" />
                 <span className="text-white text-sm font-mono flex-1">
-                  {formatBalanceDisplay(token.balance, token.decimals)} {token.symbol}
+                  {formatBalanceDisplay(token.balance, token.decimals, token.symbol, token.priceUSD)}
                 </span>
                 {token.balance > 0 && (
                   <motion.div
@@ -183,6 +193,31 @@ const SmartAccountBalance = ({ address, chainId = 8453 }: SmartAccountBalancePro
             ))}
           </AnimatePresence>
         )}
+
+        {/* Total Portfolio Value */}
+        {!loading && !error && (() => {
+          const totalUSD = balances.reduce((sum, token) => {
+            if (!token.priceUSD) return sum;
+            const amount = Number(token.balance) / Math.pow(10, token.decimals);
+            return sum + (amount * token.priceUSD);
+          }, 0);
+
+          return totalUSD > 0 ? (
+            <motion.div
+              className="mt-2 p-3 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="text-xs text-gray-400 uppercase tracking-wide">
+                Total Value
+              </div>
+              <div className="text-lg font-bold text-purple-300">
+                {formatUSDValue(totalUSD, 'medium')}
+              </div>
+            </motion.div>
+          ) : null;
+        })()}
       </div>
     </div>
   );

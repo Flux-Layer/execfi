@@ -172,6 +172,7 @@ export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signa
             address: token.address,
             name: token.name,
             symbol: token.symbol,
+            decimals: token.decimals, // ✅ FIX: Include decimals!
             logoURI: token.logoURI,
             verified: token.verified,
           })),
