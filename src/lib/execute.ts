@@ -12,15 +12,10 @@ import type {
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 import { getChainConfig } from "./chains/registry";
-import {
-  FEE_ENTRYPOINT_ADDRESSES,
-  FEE_ENTRYPOINT_ABI,
-} from "./contracts/entrypoint";
 
 // Feature flag for LI.FI execution path
 const ENABLE_LIFI_EXECUTION =
   process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
-const ENABLE_ENTRYPOINT = process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
 
 // Types for LI.FI API integration
 interface LifiTransactionData {
@@ -30,6 +25,12 @@ interface LifiTransactionData {
   gasLimit?: string;
   gasPrice?: string;
   chainId: number;
+}
+
+interface ApprovalRequirement {
+  token: string;
+  spender: string;
+  amount: string;
 }
 
 interface LifiPrepareResponse {
@@ -44,6 +45,7 @@ interface LifiPrepareResponse {
     executionTime: number;
     priceImpact?: number;
   };
+  requiresApproval?: ApprovalRequirement;
   error?: {
     code: string;
     message: string;
@@ -58,7 +60,7 @@ interface LifiPrepareResponse {
 async function prepareLifiTransaction(
   norm: NormalizedIntent,
   fromAddress: string,
-): Promise<LifiTransactionData> {
+): Promise<{ transactionData: LifiTransactionData; requiresApproval?: ApprovalRequirement }> {
   // Get chainId based on intent type
   const chainId = "chainId" in norm ? norm.chainId : norm.fromChainId;
   const chainConfig = getChainConfig(chainId);
@@ -153,7 +155,17 @@ async function prepareLifiTransaction(
       );
     }
 
-    return result.transactionData;
+    // Log approval requirement if present
+    if (result.requiresApproval) {
+      console.log(
+        `⚠️ Approval required for ${result.requiresApproval.token} to spender ${result.requiresApproval.spender}`,
+      );
+    }
+
+    return {
+      transactionData: result.transactionData,
+      requiresApproval: result.requiresApproval,
+    };
   } catch (error) {
     console.error("❌ LI.FI preparation request failed:", error);
 
@@ -281,7 +293,12 @@ export async function executeNativeTransfer(
           ? clients.smartWalletClient!.getAddress()
           : clients.selectedWallet!.address;
 
-      const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
+      const { transactionData: lifiTxData, requiresApproval } = await prepareLifiTransaction(norm, fromAddress);
+
+      // Native transfers should not require approval
+      if (requiresApproval) {
+        console.warn("⚠️ Unexpected approval requirement for native transfer, ignoring...");
+      }
 
       // Convert LI.FI response to format expected by Privy clients
       transactionData = {
@@ -293,19 +310,8 @@ export async function executeNativeTransfer(
       // Current: Direct preparation path
       transactionData = await prepareDirectTransaction(norm);
 
-      // If EntryPoint is enabled and deployed for this chain, wrap native transfer via EntryPoint
-      const entrypoint = FEE_ENTRYPOINT_ADDRESSES[norm.chainId];
-      if (ENABLE_ENTRYPOINT && entrypoint) {
-        transactionData = {
-          to: entrypoint as `0x${string}`,
-          value: norm.amountWei,
-          data: encodeFunctionData({
-            abi: FEE_ENTRYPOINT_ABI,
-            functionName: "transferETH",
-            args: [norm.to],
-          }),
-        };
-      }
+      // Note: EntryPoint routing is now handled in /api/lifi/prepare
+      // This path is only used when ENABLE_LIFI_EXECUTION=false
     }
 
     // Step 7.3: Transaction Execution (Unchanged - preserves existing Privy signing)
@@ -436,7 +442,64 @@ export async function executeERC20Transfer(
         ? clients.smartWalletClient!.getAddress()
         : clients.selectedWallet!.address;
 
-    const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
+    const { transactionData: lifiTxData, requiresApproval } = await prepareLifiTransaction(norm, fromAddress);
+
+    // Handle approval if required (for EntryPoint routing)
+    if (requiresApproval) {
+      console.log(
+        `🔐 Approval required for ${requiresApproval.token} to spender ${requiresApproval.spender}`,
+      );
+
+      // Create approval transaction
+      const approvalTx = {
+        to: requiresApproval.token as `0x${string}`,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: [
+            {
+              name: "approve",
+              type: "function",
+              inputs: [
+                { name: "spender", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+              outputs: [{ name: "", type: "bool" }],
+              stateMutability: "nonpayable",
+            },
+          ],
+          functionName: "approve",
+          args: [requiresApproval.spender as `0x${string}`, BigInt(requiresApproval.amount)],
+        }),
+      };
+
+      // Execute approval transaction
+      let approvalHash: `0x${string}`;
+      if (accountMode === "SMART_ACCOUNT" && clients.smartWalletClient) {
+        console.log("🔄 Executing approval via Smart Account...");
+        const userOpHash = await clients.smartWalletClient.sendUserOperation({
+          calls: [approvalTx],
+        });
+        approvalHash = userOpHash;
+      } else if (clients.eoaSendTransaction) {
+        console.log("🔄 Executing approval via EOA...");
+        const result = await clients.eoaSendTransaction(approvalTx, {
+          address: clients.selectedWallet!.address,
+        });
+        approvalHash = result.hash;
+      } else {
+        throw new ExecutionError(
+          "No wallet client available for approval",
+          "NO_WALLET_CLIENT",
+        );
+      }
+
+      console.log(`✅ Approval transaction submitted: ${approvalHash}`);
+      console.log(`🔗 ${getTxUrl(norm.chainId, approvalHash)}`);
+
+      // Wait a bit for approval to be confirmed
+      console.log("⏳ Waiting for approval confirmation...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
 
     transaction = {
       to: lifiTxData.to as `0x${string}`,
@@ -468,19 +531,8 @@ export async function executeERC20Transfer(
       data,
     };
 
-    // If EntryPoint is enabled and deployed for this chain, route via EntryPoint
-    const entrypoint = FEE_ENTRYPOINT_ADDRESSES[norm.chainId];
-    if (ENABLE_ENTRYPOINT && entrypoint) {
-      transaction = {
-        to: entrypoint as `0x${string}`,
-        value: 0n,
-        data: encodeFunctionData({
-          abi: FEE_ENTRYPOINT_ABI,
-          functionName: "transferERC20",
-          args: [norm.token.address, norm.to, norm.amountWei],
-        }),
-      };
-    }
+    // Note: EntryPoint routing is now handled in /api/lifi/prepare
+    // This path is only used when ENABLE_LIFI_EXECUTION=false
   }
 
   try {

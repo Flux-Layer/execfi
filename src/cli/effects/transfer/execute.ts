@@ -8,6 +8,9 @@ import { getChainConfig } from "@/lib/chains/registry";
 import { getTxUrl } from "@/lib/explorer";
 import { createWalletClient, http, type WalletClient } from "viem";
 
+// Feature flag for LIFI execution path
+const ENABLE_LIFI_EXECUTION = process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
+
 export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   console.log("⚡ [Transfer Effect] Starting execution");
 
@@ -146,52 +149,141 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
     } else {
       // EOA execution using Privy's sendTransaction (has signing capability)
       const fromAddress = core.selectedWallet!.address as `0x${string}`;
-      
+
       console.log("🔄 [Transfer Effect] Using EOA send transaction");
 
-      if (norm.kind === "native-transfer") {
-        // Native transfer
-        const result = await core.eoaSendTransaction!(
-          {
-            to: norm.to,
-            value: norm.amountWei,
-          },
-          {
-            address: fromAddress,
-          }
-        );
-        txHash = result.hash;
-      } else {
-        // ERC-20 transfer
-        const { encodeFunctionData } = await import("viem");
-        const data = encodeFunctionData({
-          abi: [
-            {
-              name: "transfer",
-              type: "function",
-              stateMutability: "nonpayable",
-              inputs: [
-                { name: "to", type: "address" },
-                { name: "amount", type: "uint256" },
-              ],
-              outputs: [{ name: "", type: "bool" }],
-            },
-          ],
-          functionName: "transfer",
-          args: [norm.to, norm.amountWei],
+      if (ENABLE_LIFI_EXECUTION) {
+        // Use LIFI preparation API for EntryPoint routing
+        console.log("🔄 [Transfer Effect] Using LIFI preparation API");
+
+        const prepareRequest = {
+          fromChain: norm.chainId,
+          toChain: norm.chainId,
+          fromToken: norm.kind === "native-transfer"
+            ? "0x0000000000000000000000000000000000000000"
+            : norm.token.address,
+          toToken: norm.kind === "native-transfer"
+            ? "0x0000000000000000000000000000000000000000"
+            : norm.token.address,
+          amount: norm.amountWei.toString(),
+          fromAddress,
+          toAddress: norm.to,
+          slippage: 0.005,
+          routePreference: "recommended",
+          validateFreshness: true,
+        };
+
+        const response = await fetch("/api/lifi/prepare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(prepareRequest),
         });
 
-        const result = await core.eoaSendTransaction!(
+        if (!response.ok) {
+          throw new Error(`LIFI preparation failed: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.success || !result.transactionData) {
+          throw new Error(result.error?.message || "LIFI preparation failed");
+        }
+
+        // Handle approval if required (ERC-20)
+        if (result.requiresApproval) {
+          console.log("🔐 Approval required, executing approval transaction");
+
+          const { encodeFunctionData } = await import("viem");
+          const approvalData = encodeFunctionData({
+            abi: [
+              {
+                name: "approve",
+                type: "function",
+                inputs: [
+                  { name: "spender", type: "address" },
+                  { name: "amount", type: "uint256" },
+                ],
+                outputs: [{ name: "", type: "bool" }],
+                stateMutability: "nonpayable",
+              },
+            ],
+            functionName: "approve",
+            args: [result.requiresApproval.spender, BigInt(result.requiresApproval.amount)],
+          });
+
+          const approvalResult = await core.eoaSendTransaction!(
+            {
+              to: result.requiresApproval.token as `0x${string}`,
+              value: 0n,
+              data: approvalData,
+            },
+            { address: fromAddress }
+          );
+
+          console.log(`✅ Approval submitted: ${approvalResult.hash}`);
+
+          // Wait for approval confirmation
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+
+        // Execute main transaction
+        const txData = result.transactionData;
+        const txResult = await core.eoaSendTransaction!(
           {
-            to: norm.token.address,
-            value: 0n,
-            data,
+            to: txData.to as `0x${string}`,
+            value: BigInt(txData.value),
+            data: txData.data as `0x${string}` | undefined,
           },
-          {
-            address: fromAddress,
-          }
+          { address: fromAddress }
         );
-        txHash = result.hash;
+
+        txHash = txResult.hash;
+      } else {
+        // Direct execution (fallback when LIFI disabled)
+        if (norm.kind === "native-transfer") {
+          // Native transfer
+          const result = await core.eoaSendTransaction!(
+            {
+              to: norm.to,
+              value: norm.amountWei,
+            },
+            {
+              address: fromAddress,
+            }
+          );
+          txHash = result.hash;
+        } else {
+          // ERC-20 transfer
+          const { encodeFunctionData } = await import("viem");
+          const data = encodeFunctionData({
+            abi: [
+              {
+                name: "transfer",
+                type: "function",
+                stateMutability: "nonpayable",
+                inputs: [
+                  { name: "to", type: "address" },
+                  { name: "amount", type: "uint256" },
+                ],
+                outputs: [{ name: "", type: "bool" }],
+              },
+            ],
+            functionName: "transfer",
+            args: [norm.to, norm.amountWei],
+          });
+
+          const result = await core.eoaSendTransaction!(
+            {
+              to: norm.token.address,
+              value: 0n,
+              data,
+            },
+            {
+              address: fromAddress,
+            }
+          );
+          txHash = result.hash;
+        }
       }
 
       explorerUrl = getTxUrl(targetChainId, txHash);
