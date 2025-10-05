@@ -593,77 +593,55 @@ export async function executeSwap(
     );
   }
 
+  if (!route.steps || route.steps.length === 0) {
+    throw new ExecutionError(
+      "Route has no steps to execute",
+      "INVALID_ROUTE_DATA",
+    );
+  }
+
   try {
+    const totalSteps = route.steps.length;
+
     console.log("🔄 Executing swap via LI.FI...", {
       fromToken: norm.fromToken.symbol,
       toToken: norm.toToken.symbol,
       chain: norm.fromChainId,
+      totalSteps,
     });
 
-    // Extract transaction data from route (already prepared during planning phase)
-    const firstStep = route.steps?.[0];
-    if (!firstStep?.transactionRequest) {
-      throw new ExecutionError(
-        "Route missing transaction request data",
-        "INVALID_ROUTE_DATA",
-      );
-    }
+    const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
 
-    const txRequest = firstStep.transactionRequest;
-    console.log("✅ Extracted transaction data from route:", {
-      to: txRequest.to,
-      value: txRequest.value,
-      hasData: !!txRequest.data,
-    });
+    // Execute each step in sequence (swaps are typically on same chain, but can have multiple steps)
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
 
-    // Execute transaction
-    let txHash: string;
+      // Execute this step
+      const txHash = await executeStep(step, i, totalSteps, accountMode, clients);
+      executedSteps.push({ stepIndex: i, txHash, chainId: norm.fromChainId });
 
-    if (accountMode === "SMART_ACCOUNT") {
-      txHash = await clients.smartWalletClient!.sendTransaction({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      });
-    } else {
-      try {
-        const txResult = await clients.eoaSendTransaction!(
-          {
-            to: txRequest.to as `0x${string}`,
-            value: BigInt(txRequest.value || 0),
-            data: txRequest.data as `0x${string}`,
-          },
-          {
-            address: clients.selectedWallet!.address,
-          },
-        );
-        txHash = txResult.hash;
-      } catch (sendError: any) {
-        console.error("❌ EOA sendTransaction error:", sendError);
-
-        // Handle specific error types from viem/privy
-        if (
-          sendError.name === "EstimateGasExecutionError" ||
-          sendError.message?.includes("execution reverted")
-        ) {
-          throw new ExecutionError(
-            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED",
-          );
-        }
-
-        throw sendError; // Re-throw other errors to be caught by outer catch
+      // Wait for confirmation before proceeding to next step (if there are more steps)
+      if (i < route.steps.length - 1) {
+        await waitForTransactionConfirmation(txHash, norm.fromChainId, 10000); // 10s for same-chain swaps
       }
     }
 
     const chainConfig = getChainConfig(norm.fromChainId);
-    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    // Return the hash of the first step for tracking
+    const firstStepHash = executedSteps[0].txHash;
+    const firstStepExplorerUrl = getTxUrl(norm.fromChainId, firstStepHash);
+
+    if (totalSteps > 1) {
+      console.log(`✅ All ${totalSteps} swap steps executed successfully!`);
+      console.log(`   Executed steps:`, executedSteps);
+    }
 
     return {
       success: true,
-      txHash,
-      message: `✅ Swap initiated on ${chainConfig?.name}`,
-      explorerUrl,
+      txHash: firstStepHash,
+      message: `✅ Swap ${totalSteps > 1 ? `(${totalSteps} steps) ` : ""}completed on ${chainConfig?.name}`,
+      explorerUrl: firstStepExplorerUrl,
     };
   } catch (error: any) {
     console.error("❌ Swap execution error:", error);
@@ -727,77 +705,90 @@ export async function executeBridge(
     );
   }
 
+  if (!route.steps || route.steps.length === 0) {
+    throw new ExecutionError(
+      "Route has no steps to execute",
+      "INVALID_ROUTE_DATA",
+    );
+  }
+
   try {
+    const totalSteps = route.steps.length;
+
     console.log("🔄 Executing bridge via LI.FI...", {
       token: norm.token.symbol,
       fromChain: norm.fromChainId,
       toChain: norm.toChainId,
+      totalSteps,
     });
 
-    // Extract transaction data from route (already prepared during planning phase)
-    const firstStep = route.steps?.[0];
-    if (!firstStep?.transactionRequest) {
-      throw new ExecutionError(
-        "Route missing transaction request data",
-        "INVALID_ROUTE_DATA",
-      );
-    }
+    const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
+    let currentChainId = norm.fromChainId;
 
-    const txRequest = firstStep.transactionRequest;
-    console.log("✅ Extracted transaction data from route:", {
-      to: txRequest.to,
-      value: txRequest.value,
-      hasData: !!txRequest.data,
-    });
+    // Execute each step in sequence
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
+      const stepChainId = step.action.fromChainId;
 
-    // Execute transaction
-    let txHash: string;
+      // Check if we need to switch chains
+      if (stepChainId !== currentChainId) {
+        console.log(`🔄 Chain switch required: ${currentChainId} → ${stepChainId}`);
 
-    if (accountMode === "SMART_ACCOUNT") {
-      txHash = await clients.smartWalletClient!.sendTransaction({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      });
-    } else {
-      try {
-        const txResult = await clients.eoaSendTransaction!(
-          {
-            to: txRequest.to as `0x${string}`,
-            value: BigInt(txRequest.value || 0),
-            data: txRequest.data as `0x${string}`,
-          },
-          {
-            address: clients.selectedWallet!.address,
-          },
-        );
-        txHash = txResult.hash;
-      } catch (sendError: any) {
-        console.error("❌ EOA sendTransaction error:", sendError);
+        if (clients.selectedWallet?.switchChain) {
+          try {
+            console.log(`   Switching wallet to chain ${stepChainId}...`);
+            await clients.selectedWallet.switchChain(stepChainId);
+            console.log(`   ✅ Wallet switched to chain ${stepChainId}`);
 
-        if (
-          sendError.name === "EstimateGasExecutionError" ||
-          sendError.message?.includes("execution reverted")
-        ) {
+            // Wait for chain switch to propagate
+            await new Promise(resolve => setTimeout(resolve, 500));
+            currentChainId = stepChainId;
+          } catch (switchError: any) {
+            console.error(`   ❌ Chain switch failed:`, switchError);
+            throw new ExecutionError(
+              `Failed to switch to chain ${stepChainId} for step ${i + 1}. Please switch manually and retry.`,
+              "CHAIN_SWITCH_FAILED",
+            );
+          }
+        } else {
           throw new ExecutionError(
-            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED",
+            `Step ${i + 1} requires chain ${stepChainId}, but wallet doesn't support chain switching. Current chain: ${currentChainId}`,
+            "CHAIN_SWITCH_NOT_SUPPORTED",
           );
         }
+      }
 
-        throw sendError;
+      // Execute this step
+      const txHash = await executeStep(step, i, totalSteps, accountMode, clients);
+      executedSteps.push({ stepIndex: i, txHash, chainId: stepChainId });
+
+      // Wait for confirmation before proceeding to next step
+      if (i < route.steps.length - 1) {
+        // If this step is a cross-chain bridge, wait longer
+        const isCrossChain = step.action.fromChainId !== step.action.toChainId;
+        const waitTime = isCrossChain ? 30000 : 10000; // 30s for bridge, 10s for same-chain
+
+        await waitForTransactionConfirmation(txHash, stepChainId, waitTime);
       }
     }
 
     const fromChainConfig = getChainConfig(norm.fromChainId);
     const toChainConfig = getChainConfig(norm.toChainId);
-    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    // Return the hash of the first step for tracking
+    const firstStepHash = executedSteps[0].txHash;
+    const firstStepExplorerUrl = getTxUrl(executedSteps[0].chainId, firstStepHash);
+
+    if (totalSteps > 1) {
+      console.log(`✅ All ${totalSteps} bridge steps executed successfully!`);
+      console.log(`   Executed steps:`, executedSteps);
+    }
 
     return {
       success: true,
-      txHash,
-      message: `✅ Bridge initiated: ${fromChainConfig?.name} → ${toChainConfig?.name}`,
-      explorerUrl,
+      txHash: firstStepHash,
+      message: `✅ Bridge ${totalSteps > 1 ? `(${totalSteps} steps) ` : ""}initiated: ${fromChainConfig?.name} → ${toChainConfig?.name}`,
+      explorerUrl: firstStepExplorerUrl,
     };
   } catch (error: any) {
     console.error("❌ Bridge execution error:", error);
@@ -994,7 +985,6 @@ export async function executeBridgeSwap(
       totalSteps,
     });
 
-    console.log("Route to execute:", { route });
 
     const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
     let currentChainId = norm.fromChainId;

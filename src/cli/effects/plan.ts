@@ -153,17 +153,78 @@ export const planSwapFx: StepDef["onEnter"] = async (
       return;
     }
 
-    // Fetch transaction request for the first step
-    console.log("🔄 Fetching transaction request for route step 0...");
-    const transactionRequest = await getStepTransaction({
-      route,
-      stepIndex: 0,
-      userAddress: norm.recipient,
-    });
+    // 🔍 ENHANCED VALIDATION: Verify the actual final step delivers the expected token
+    // LiFi sometimes returns routes where route.toToken claims one thing but actual steps do another
+    const finalStep = route.steps[route.steps.length - 1];
+    const actualFinalToken = finalStep?.action?.toToken;
 
-    // Populate route with transaction request
-    route.steps[0].transactionRequest = transactionRequest;
-    console.log("✅ Route populated with transaction request");
+    if (actualFinalToken) {
+      const actualFinalTokenAddress = actualFinalToken.address.toLowerCase();
+      const expectedToTokenAddress = norm.toToken.address.toLowerCase();
+
+      if (actualFinalTokenAddress !== expectedToTokenAddress) {
+        console.error(
+          `❌ CRITICAL: LI.FI route metadata mismatch detected!`,
+          `\n  Route claims to deliver: ${route.toToken.symbol} (${route.toToken.address})`,
+          `\n  But final step actually delivers: ${actualFinalToken.symbol} (${actualFinalToken.address})`,
+          `\n  Expected: ${norm.toToken.symbol} (${norm.toToken.address})`
+        );
+
+        dispatch({
+          type: "OVERLAY.PUSH",
+          overlay: {
+            kind: "toast",
+            level: "error",
+            text: `Route validation failed: LI.FI cannot deliver ${norm.toToken.symbol}. The route would only deliver ${actualFinalToken.symbol}.`,
+            ttlMs: 6000,
+          },
+        });
+
+        dispatch({
+          type: "PLAN.FAIL",
+          error: {
+            code: "ROUTE_FINAL_TOKEN_MISMATCH",
+            message: `LI.FI route final step delivers ${actualFinalToken.symbol} instead of ${norm.toToken.symbol}. No valid routes available.`,
+            phase: "plan",
+          },
+        });
+        return;
+      }
+
+      console.log(`✅ Route validation passed: Final step delivers ${actualFinalToken.symbol} as expected`);
+    } else {
+      console.warn(`⚠️ Could not validate final step token - missing action data in route step`);
+    }
+
+    // 🔍 Multi-step route support
+    if (route.steps.length > 1) {
+      console.log(
+        `ℹ️ Swap route has ${route.steps.length} steps. Will execute all steps sequentially.`,
+        `\n  Steps:`,
+        route.steps.map((step: any, idx: number) =>
+          `\n    ${idx}: ${step.action.fromToken.symbol} → ${step.action.toToken.symbol}`
+        ).join('')
+      );
+    }
+
+    // Fetch transaction requests for ALL steps
+    console.log(
+      `🔄 Fetching transaction requests for all ${route.steps.length} steps...`,
+    );
+
+    for (let i = 0; i < route.steps.length; i++) {
+      console.log(`   Fetching transaction request for step ${i}...`);
+      const transactionRequest = await getStepTransaction({
+        route,
+        stepIndex: i,
+        userAddress: norm.recipient,
+      });
+
+      route.steps[i].transactionRequest = transactionRequest;
+      console.log(`   ✅ Step ${i} transaction request populated`);
+    }
+
+    console.log(`✅ All ${route.steps.length} steps populated with transaction requests`);
 
     // Extract route summary
     const fromChain = getChainConfig(norm.fromChainId);
@@ -364,17 +425,78 @@ export const planBridgeFx: StepDef["onEnter"] = async (
       return;
     }
 
-    // Fetch transaction request for the first step
-    console.log("🔄 Fetching transaction request for bridge route step 0...");
-    const transactionRequest = await getStepTransaction({
-      route,
-      stepIndex: 0,
-      userAddress: norm.recipient,
-    });
+    // 🔍 ENHANCED VALIDATION: Verify the actual final step delivers the expected token
+    // LiFi sometimes returns routes where route.toToken claims one thing but actual steps do another
+    const finalStep = route.steps[route.steps.length - 1];
+    const actualFinalToken = finalStep?.action?.toToken;
 
-    // Populate route with transaction request
-    route.steps[0].transactionRequest = transactionRequest;
-    console.log("✅ Bridge route populated with transaction request");
+    if (actualFinalToken) {
+      const actualFinalTokenAddress = actualFinalToken.address.toLowerCase();
+      const expectedToTokenAddress = norm.token.address.toLowerCase();
+
+      if (actualFinalTokenAddress !== expectedToTokenAddress) {
+        console.error(
+          `❌ CRITICAL: LI.FI route metadata mismatch detected!`,
+          `\n  Route claims to deliver: ${route.toToken.symbol} (${route.toToken.address})`,
+          `\n  But final step actually delivers: ${actualFinalToken.symbol} (${actualFinalToken.address})`,
+          `\n  Expected: ${norm.token.symbol} (${norm.token.address})`
+        );
+
+        dispatch({
+          type: "OVERLAY.PUSH",
+          overlay: {
+            kind: "toast",
+            level: "error",
+            text: `Route validation failed: LI.FI cannot deliver ${norm.token.symbol} on destination chain. The route would only deliver ${actualFinalToken.symbol}.`,
+            ttlMs: 6000,
+          },
+        });
+
+        dispatch({
+          type: "PLAN.FAIL",
+          error: {
+            code: "ROUTE_FINAL_TOKEN_MISMATCH",
+            message: `LI.FI route final step delivers ${actualFinalToken.symbol} instead of ${norm.token.symbol}. No valid routes available.`,
+            phase: "plan",
+          },
+        });
+        return;
+      }
+
+      console.log(`✅ Route validation passed: Final step delivers ${actualFinalToken.symbol} as expected`);
+    } else {
+      console.warn(`⚠️ Could not validate final step token - missing action data in route step`);
+    }
+
+    // 🔍 Multi-step route support
+    if (route.steps.length > 1) {
+      console.log(
+        `ℹ️ Bridge route has ${route.steps.length} steps. Will execute all steps sequentially.`,
+        `\n  Steps:`,
+        route.steps.map((step: any, idx: number) =>
+          `\n    ${idx}: ${step.action.fromToken.symbol} on ${step.action.fromChainId} → ${step.action.toToken.symbol} on ${step.action.toChainId}`
+        ).join('')
+      );
+    }
+
+    // Fetch transaction requests for ALL steps
+    console.log(
+      `🔄 Fetching transaction requests for all ${route.steps.length} steps...`,
+    );
+
+    for (let i = 0; i < route.steps.length; i++) {
+      console.log(`   Fetching transaction request for step ${i}...`);
+      const transactionRequest = await getStepTransaction({
+        route,
+        stepIndex: i,
+        userAddress: norm.recipient,
+      });
+
+      route.steps[i].transactionRequest = transactionRequest;
+      console.log(`   ✅ Step ${i} transaction request populated`);
+    }
+
+    console.log(`✅ All ${route.steps.length} steps populated with transaction requests`);
 
     // Extract route summary
     const fromChain = getChainConfig(norm.fromChainId);
@@ -519,7 +641,6 @@ export const planBridgeSwapFx: StepDef["onEnter"] = async (
 
     // Pick the best route (recommended route from advanced API)
     const route =
-      result?.data?.baseRoutes?.[1] ||
       result.data.recommended ||
       result.data.baseRoutes[0];
 

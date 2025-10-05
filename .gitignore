@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Prettier
+.prettierrc
+
 # ai agent
 AGENTS.md
 CLAUDE.md
