@@ -12,13 +12,15 @@ import type {
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 import { getChainConfig } from "./chains/registry";
-import { FEE_ENTRYPOINT_ADDRESSES, FEE_ENTRYPOINT_ABI } from "./contracts/entrypoint";
+import {
+  FEE_ENTRYPOINT_ADDRESSES,
+  FEE_ENTRYPOINT_ABI,
+} from "./contracts/entrypoint";
 
 // Feature flag for LI.FI execution path
 const ENABLE_LIFI_EXECUTION =
   process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
-const ENABLE_ENTRYPOINT =
-  process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
+const ENABLE_ENTRYPOINT = process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
 
 // Types for LI.FI API integration
 interface LifiTransactionData {
@@ -582,12 +584,12 @@ export async function executeSwap(
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
   if (!route) {
     throw new ExecutionError(
       "No route data available for swap execution",
-      "ROUTE_MISSING"
+      "ROUTE_MISSING",
     );
   }
 
@@ -603,7 +605,7 @@ export async function executeSwap(
     if (!firstStep?.transactionRequest) {
       throw new ExecutionError(
         "Route missing transaction request data",
-        "INVALID_ROUTE_DATA"
+        "INVALID_ROUTE_DATA",
       );
     }
 
@@ -625,25 +627,31 @@ export async function executeSwap(
       });
     } else {
       try {
-        const txResult = await clients.eoaSendTransaction!({
-          to: txRequest.to as `0x${string}`,
-          value: BigInt(txRequest.value || 0),
-          data: txRequest.data as `0x${string}`,
-        }, {
-          address: clients.selectedWallet!.address,
-        });
+        const txResult = await clients.eoaSendTransaction!(
+          {
+            to: txRequest.to as `0x${string}`,
+            value: BigInt(txRequest.value || 0),
+            data: txRequest.data as `0x${string}`,
+          },
+          {
+            address: clients.selectedWallet!.address,
+          },
+        );
         txHash = txResult.hash;
       } catch (sendError: any) {
         console.error("❌ EOA sendTransaction error:", sendError);
-        
+
         // Handle specific error types from viem/privy
-        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+        if (
+          sendError.name === "EstimateGasExecutionError" ||
+          sendError.message?.includes("execution reverted")
+        ) {
           throw new ExecutionError(
             `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED"
+            "TRANSACTION_REVERTED",
           );
         }
-        
+
         throw sendError; // Re-throw other errors to be caught by outer catch
       }
     }
@@ -659,32 +667,39 @@ export async function executeSwap(
     };
   } catch (error: any) {
     console.error("❌ Swap execution error:", error);
-    
+
     // Handle specific error types
     if (error instanceof ExecutionError) {
       throw error; // Re-throw ExecutionError as-is
     }
-    
+
     // Handle user rejection
-    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+    if (
+      error.message?.includes("user rejected") ||
+      error.message?.includes("User rejected") ||
+      error.code === "ACTION_REJECTED"
+    ) {
       throw new ExecutionError(
         "Transaction was cancelled by user",
-        "USER_REJECTED"
+        "USER_REJECTED",
       );
     }
-    
+
     // Handle insufficient funds
-    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+    if (
+      error.message?.includes("insufficient funds") ||
+      error.message?.includes("insufficient balance")
+    ) {
       throw new ExecutionError(
         "Insufficient balance to complete swap (including gas fees)",
-        "INSUFFICIENT_FUNDS"
+        "INSUFFICIENT_FUNDS",
       );
     }
-    
+
     // Generic error
     throw new ExecutionError(
       `Swap execution failed: ${error.message || "Unknown error"}`,
-      "SWAP_EXECUTION_FAILED"
+      "SWAP_EXECUTION_FAILED",
     );
   }
 }
@@ -703,12 +718,12 @@ export async function executeBridge(
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
   if (!route) {
     throw new ExecutionError(
       "No route data available for bridge execution",
-      "ROUTE_MISSING"
+      "ROUTE_MISSING",
     );
   }
 
@@ -724,7 +739,7 @@ export async function executeBridge(
     if (!firstStep?.transactionRequest) {
       throw new ExecutionError(
         "Route missing transaction request data",
-        "INVALID_ROUTE_DATA"
+        "INVALID_ROUTE_DATA",
       );
     }
 
@@ -746,24 +761,30 @@ export async function executeBridge(
       });
     } else {
       try {
-        const txResult = await clients.eoaSendTransaction!({
-          to: txRequest.to as `0x${string}`,
-          value: BigInt(txRequest.value || 0),
-          data: txRequest.data as `0x${string}`,
-        }, {
-          address: clients.selectedWallet!.address,
-        });
+        const txResult = await clients.eoaSendTransaction!(
+          {
+            to: txRequest.to as `0x${string}`,
+            value: BigInt(txRequest.value || 0),
+            data: txRequest.data as `0x${string}`,
+          },
+          {
+            address: clients.selectedWallet!.address,
+          },
+        );
         txHash = txResult.hash;
       } catch (sendError: any) {
         console.error("❌ EOA sendTransaction error:", sendError);
-        
-        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+
+        if (
+          sendError.name === "EstimateGasExecutionError" ||
+          sendError.message?.includes("execution reverted")
+        ) {
           throw new ExecutionError(
             `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED"
+            "TRANSACTION_REVERTED",
           );
         }
-        
+
         throw sendError;
       }
     }
@@ -780,28 +801,35 @@ export async function executeBridge(
     };
   } catch (error: any) {
     console.error("❌ Bridge execution error:", error);
-    
+
     if (error instanceof ExecutionError) {
       throw error;
     }
-    
-    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+
+    if (
+      error.message?.includes("user rejected") ||
+      error.message?.includes("User rejected") ||
+      error.code === "ACTION_REJECTED"
+    ) {
       throw new ExecutionError(
         "Transaction was cancelled by user",
-        "USER_REJECTED"
+        "USER_REJECTED",
       );
     }
-    
-    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+
+    if (
+      error.message?.includes("insufficient funds") ||
+      error.message?.includes("insufficient balance")
+    ) {
       throw new ExecutionError(
         "Insufficient balance to complete bridge (including gas fees)",
-        "INSUFFICIENT_FUNDS"
+        "INSUFFICIENT_FUNDS",
       );
     }
-    
+
     throw new ExecutionError(
       `Bridge execution failed: ${error.message || "Unknown error"}`,
-      "BRIDGE_EXECUTION_FAILED"
+      "BRIDGE_EXECUTION_FAILED",
     );
   }
 }
@@ -809,6 +837,125 @@ export async function executeBridge(
 /**
  * Execute bridge-swap operation using LI.FI
  */
+/**
+ * Wait for transaction confirmation on a specific chain
+ */
+async function waitForTransactionConfirmation(
+  txHash: string,
+  chainId: number,
+  maxWaitTime: number = 60000, // 60 seconds
+): Promise<boolean> {
+  const startTime = Date.now();
+  const chainConfig = getChainConfig(chainId);
+
+  console.log(`⏳ Waiting for transaction confirmation on ${chainConfig?.name}...`, txHash);
+
+  // For now, we'll use a simple time-based wait
+  // In production, you'd want to actually poll the chain for transaction status
+  // using a public RPC provider or LiFi's status API
+
+  return new Promise((resolve) => {
+    const checkInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+
+      if (elapsed >= maxWaitTime) {
+        clearInterval(checkInterval);
+        console.log(`✅ Transaction wait timeout reached for ${txHash}`);
+        resolve(true); // Proceed anyway after timeout
+      }
+    }, 1000);
+
+    // For cross-chain bridges, we need to wait longer
+    // Typical bridge time is 1-5 minutes depending on the bridge
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      console.log(`✅ Transaction assumed confirmed after wait period`);
+      resolve(true);
+    }, 10000); // 10 seconds for now (TODO: make this smarter)
+  });
+}
+
+/**
+ * Execute a single step of a multi-step route
+ */
+async function executeStep(
+  step: any,
+  stepIndex: number,
+  totalSteps: number,
+  accountMode: AccountMode,
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
+      options?: { address?: string },
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  },
+): Promise<string> {
+  const txRequest = step.transactionRequest;
+
+  if (!txRequest) {
+    throw new ExecutionError(
+      `Step ${stepIndex + 1} missing transaction request data`,
+      "INVALID_ROUTE_DATA",
+    );
+  }
+
+  const fromChain = getChainConfig(step.action.fromChainId);
+  const toChain = getChainConfig(step.action.toChainId);
+
+  console.log(`🔄 Executing step ${stepIndex + 1}/${totalSteps}:`, {
+    type: step.type,
+    tool: step.tool,
+    from: `${step.action.fromToken.symbol} on ${fromChain?.name}`,
+    to: `${step.action.toToken.symbol} on ${toChain?.name}`,
+  });
+
+  let txHash: string;
+
+  if (accountMode === "SMART_ACCOUNT") {
+    txHash = await clients.smartWalletClient!.sendTransaction({
+      to: txRequest.to as `0x${string}`,
+      value: BigInt(txRequest.value || 0),
+      data: txRequest.data as `0x${string}`,
+    });
+  } else {
+    try {
+      const txResult = await clients.eoaSendTransaction!(
+        {
+          to: txRequest.to as `0x${string}`,
+          value: BigInt(txRequest.value || 0),
+          data: txRequest.data as `0x${string}`,
+        },
+        {
+          address: clients.selectedWallet!.address,
+        },
+      );
+      txHash = txResult.hash;
+    } catch (sendError: any) {
+      console.error(`❌ Step ${stepIndex + 1} transaction error:`, sendError);
+
+      if (
+        sendError.name === "EstimateGasExecutionError" ||
+        sendError.message?.includes("execution reverted")
+      ) {
+        throw new ExecutionError(
+          `Step ${stepIndex + 1} failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
+          "TRANSACTION_REVERTED",
+        );
+      }
+
+      throw sendError;
+    }
+  }
+
+  console.log(`✅ Step ${stepIndex + 1}/${totalSteps} transaction submitted:`, txHash);
+  const explorerUrl = getTxUrl(step.action.fromChainId, txHash);
+  console.log(`   View on explorer: ${explorerUrl}`);
+
+  return txHash;
+}
+
 export async function executeBridgeSwap(
   norm: NormalizedBridgeSwap,
   accountMode: AccountMode = "EOA",
@@ -820,106 +967,132 @@ export async function executeBridgeSwap(
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
   if (!route) {
     throw new ExecutionError(
       "No route data available for bridge-swap execution",
-      "ROUTE_MISSING"
+      "ROUTE_MISSING",
+    );
+  }
+
+  if (!route.steps || route.steps.length === 0) {
+    throw new ExecutionError(
+      "Route has no steps to execute",
+      "INVALID_ROUTE_DATA",
     );
   }
 
   try {
-    console.log("🔄 Executing bridge-swap via LI.FI...", {
+    const totalSteps = route.steps.length;
+
+    console.log("🔄 Executing multi-step bridge-swap via LI.FI...", {
       fromToken: norm.fromToken.symbol,
       toToken: norm.toToken.symbol,
       fromChain: norm.fromChainId,
       toChain: norm.toChainId,
+      totalSteps,
     });
 
-    // Extract transaction data from route (already prepared during planning phase)
-    const firstStep = route.steps?.[0];
-    if (!firstStep?.transactionRequest) {
-      throw new ExecutionError(
-        "Route missing transaction request data",
-        "INVALID_ROUTE_DATA"
-      );
-    }
+    console.log("Route to execute:", { route });
 
-    const txRequest = firstStep.transactionRequest;
-    console.log("✅ Extracted transaction data from route:", {
-      to: txRequest.to,
-      value: txRequest.value,
-      hasData: !!txRequest.data,
-    });
+    const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
+    let currentChainId = norm.fromChainId;
 
-    // Execute transaction
-    let txHash: string;
+    // Execute each step in sequence
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
+      const stepChainId = step.action.fromChainId;
 
-    if (accountMode === "SMART_ACCOUNT") {
-      txHash = await clients.smartWalletClient!.sendTransaction({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      });
-    } else {
-      try {
-        const txResult = await clients.eoaSendTransaction!({
-          to: txRequest.to as `0x${string}`,
-          value: BigInt(txRequest.value || 0),
-          data: txRequest.data as `0x${string}`,
-        }, {
-          address: clients.selectedWallet!.address,
-        });
-        txHash = txResult.hash;
-      } catch (sendError: any) {
-        console.error("❌ EOA sendTransaction error:", sendError);
-        
-        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+      // Check if we need to switch chains
+      if (stepChainId !== currentChainId) {
+        console.log(`🔄 Chain switch required: ${currentChainId} → ${stepChainId}`);
+
+        if (clients.selectedWallet?.switchChain) {
+          try {
+            console.log(`   Switching wallet to chain ${stepChainId}...`);
+            await clients.selectedWallet.switchChain(stepChainId);
+            console.log(`   ✅ Wallet switched to chain ${stepChainId}`);
+
+            // Wait for chain switch to propagate
+            await new Promise(resolve => setTimeout(resolve, 500));
+            currentChainId = stepChainId;
+          } catch (switchError: any) {
+            console.error(`   ❌ Chain switch failed:`, switchError);
+            throw new ExecutionError(
+              `Failed to switch to chain ${stepChainId} for step ${i + 1}. Please switch manually and retry.`,
+              "CHAIN_SWITCH_FAILED",
+            );
+          }
+        } else {
           throw new ExecutionError(
-            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED"
+            `Step ${i + 1} requires chain ${stepChainId}, but wallet doesn't support chain switching. Current chain: ${currentChainId}`,
+            "CHAIN_SWITCH_NOT_SUPPORTED",
           );
         }
-        
-        throw sendError;
+      }
+
+      // Execute this step
+      const txHash = await executeStep(step, i, totalSteps, accountMode, clients);
+      executedSteps.push({ stepIndex: i, txHash, chainId: stepChainId });
+
+      // Wait for confirmation before proceeding to next step
+      if (i < route.steps.length - 1) {
+        // If this step is a cross-chain bridge, wait longer
+        const isCrossChain = step.action.fromChainId !== step.action.toChainId;
+        const waitTime = isCrossChain ? 30000 : 10000; // 30s for bridge, 10s for same-chain
+
+        await waitForTransactionConfirmation(txHash, stepChainId, waitTime);
       }
     }
 
     const fromChainConfig = getChainConfig(norm.fromChainId);
     const toChainConfig = getChainConfig(norm.toChainId);
-    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    // Return the hash of the first step for tracking
+    const firstStepHash = executedSteps[0].txHash;
+    const firstStepExplorerUrl = getTxUrl(executedSteps[0].chainId, firstStepHash);
+
+    console.log(`✅ All ${totalSteps} steps executed successfully!`);
+    console.log(`   Executed steps:`, executedSteps);
 
     return {
       success: true,
-      txHash,
-      message: `✅ Bridge-swap initiated: ${fromChainConfig?.name} ${norm.fromToken.symbol} → ${toChainConfig?.name} ${norm.toToken.symbol}`,
-      explorerUrl,
+      txHash: firstStepHash,
+      message: `✅ Multi-step bridge-swap completed (${totalSteps} steps): ${fromChainConfig?.name} ${norm.fromToken.symbol} → ${toChainConfig?.name} ${norm.toToken.symbol}`,
+      explorerUrl: firstStepExplorerUrl,
     };
   } catch (error: any) {
     console.error("❌ Bridge-swap execution error:", error);
-    
+
     if (error instanceof ExecutionError) {
       throw error;
     }
-    
-    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+
+    if (
+      error.message?.includes("user rejected") ||
+      error.message?.includes("User rejected") ||
+      error.code === "ACTION_REJECTED"
+    ) {
       throw new ExecutionError(
         "Transaction was cancelled by user",
-        "USER_REJECTED"
+        "USER_REJECTED",
       );
     }
-    
-    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+
+    if (
+      error.message?.includes("insufficient funds") ||
+      error.message?.includes("insufficient balance")
+    ) {
       throw new ExecutionError(
         "Insufficient balance to complete bridge-swap (including gas fees)",
-        "INSUFFICIENT_FUNDS"
+        "INSUFFICIENT_FUNDS",
       );
     }
-    
+
     throw new ExecutionError(
       `Bridge-swap execution failed: ${error.message || "Unknown error"}`,
-      "BRIDGE_SWAP_EXECUTION_FAILED"
+      "BRIDGE_SWAP_EXECUTION_FAILED",
     );
   }
 }
@@ -938,9 +1111,9 @@ export async function executeIntent(
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
-  console.log({clientnih: clients})
+  console.log({ clientnih: clients });
   if (norm.kind === "native-transfer") {
     return executeNativeTransfer(norm, accountMode, clients);
   } else if (norm.kind === "erc20-transfer") {

@@ -18,8 +18,12 @@ export async function lifiService(params: {
       fromAddress,
       toAddress,
       order = "CHEAPEST",
-      slippage = 0.005,
+      // slippage = 0.005,
     } = params;
+
+
+
+
 
     const integrator = process.env.INTEGRATOR_LIFI!;
   
@@ -32,11 +36,11 @@ export async function lifiService(params: {
       fromAddress,
       toAddress: toAddress ?? fromAddress,
       order,
-      slippage: String(slippage),
+      // slippage: String(slippage),
       integrator: integrator,
       fee: "0.01",
-    });
-  
+    }); 
+     
     const url = `https://li.quest/v1/quote?${query.toString()}`;
   
     try {
