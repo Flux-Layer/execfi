@@ -1,6 +1,6 @@
 // lib/execute.ts - Smart Account execution engine using Privy + LI.FI
 
-import { formatEther, formatUnits, encodeFunctionData } from "viem";
+import { formatEther, formatUnits, encodeFunctionData, createPublicClient, http, erc20Abi, getContract } from "viem";
 import type {
   NormalizedNativeTransfer,
   NormalizedERC20Transfer,
@@ -12,6 +12,12 @@ import type {
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 import { getChainConfig } from "./chains/registry";
+import { 
+  parseTransactionError, 
+  executeTransactionSafely, 
+  logTransactionError,
+  TransactionErrorType 
+} from "./errors/transaction-handler";
 
 // Feature flag for LI.FI execution path
 const ENABLE_LIFI_EXECUTION =
@@ -623,6 +629,166 @@ export async function executeERC20Transfer(
 }
 
 /**
+ * Create a public client for reading blockchain data
+ */
+function getPublicClientForChain(chainId: number) {
+  const chainConfig = getChainConfig(chainId);
+  if (!chainConfig) {
+    throw new ExecutionError(
+      `Unsupported chain ID: ${chainId}`,
+      "UNSUPPORTED_CHAIN"
+    );
+  }
+
+  return createPublicClient({
+    chain: chainConfig.wagmiChain,
+    transport: http(chainConfig.rpcUrl),
+  });
+}
+
+/**
+ * Check if a token has sufficient allowance for a spender
+ */
+async function checkTokenAllowance(
+  tokenAddress: `0x${string}`,
+  ownerAddress: `0x${string}`,
+  spenderAddress: `0x${string}`,
+  requiredAmount: bigint,
+  chainId: number
+): Promise<{ hasAllowance: boolean; currentAllowance: bigint }> {
+  // Skip allowance check for native tokens
+  if (tokenAddress === "0x0000000000000000000000000000000000000000") {
+    return { hasAllowance: true, currentAllowance: BigInt(0) };
+  }
+
+  const publicClient = getPublicClientForChain(chainId);
+
+  try {
+    const tokenContract = getContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      client: publicClient,
+    });
+
+    const currentAllowance = await tokenContract.read.allowance([
+      ownerAddress,
+      spenderAddress,
+    ]);
+
+    console.log("🔍 Token allowance check:", {
+      token: tokenAddress,
+      spender: spenderAddress,
+      currentAllowance: currentAllowance.toString(),
+      requiredAmount: requiredAmount.toString(),
+      hasAllowance: currentAllowance >= requiredAmount,
+    });
+
+    return {
+      hasAllowance: currentAllowance >= requiredAmount,
+      currentAllowance,
+    };
+  } catch (error: any) {
+    console.error("❌ Failed to check token allowance:", error);
+    throw new ExecutionError(
+      `Failed to check token allowance: ${error.message}`,
+      "ALLOWANCE_CHECK_FAILED"
+    );
+  }
+}
+
+/**
+ * Approve a token for spending by a spender contract
+ */
+async function approveToken(
+  tokenAddress: `0x${string}`,
+  spenderAddress: `0x${string}`,
+  amount: bigint,
+  chainId: number,
+  accountMode: AccountMode,
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
+      options?: { address?: string }
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  }
+): Promise<string> {
+  console.log("✍️ Approving token for spending...", {
+    token: tokenAddress,
+    spender: spenderAddress,
+    amount: amount.toString(),
+  });
+
+  // Encode the approve function call
+  const approveData = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: "approve",
+    args: [spenderAddress, amount],
+  });
+
+  // Wrap transaction execution with error handling
+  const result = await executeTransactionSafely(
+    async () => {
+      let txHash: string;
+
+      if (accountMode === "SMART_ACCOUNT") {
+        txHash = await clients.smartWalletClient!.sendTransaction({
+          to: tokenAddress,
+          value: BigInt(0),
+          data: approveData,
+        });
+      } else {
+        const txResult = await clients.eoaSendTransaction!(
+          {
+            to: tokenAddress,
+            value: BigInt(0),
+            data: approveData,
+          },
+          {
+            address: clients.selectedWallet!.address,
+          }
+        );
+        txHash = txResult.hash;
+      }
+
+      return txHash;
+    },
+    "Token Approval"
+  );
+
+  if (!result.success) {
+    logTransactionError(result.error, "Token Approval");
+    
+    // Convert to ExecutionError for backward compatibility
+    throw new ExecutionError(
+      result.error.userMessage,
+      result.error.type
+    );
+  }
+
+  const txHash = result.data;
+  console.log("✅ Token approval transaction submitted:", txHash);
+  const explorerUrl = getTxUrl(chainId, txHash);
+  console.log(`   View on explorer: ${explorerUrl}`);
+
+  // Wait for approval confirmation
+  try {
+    await waitForTransactionConfirmation(txHash, chainId, 30000); // 30s timeout
+    console.log("✅ Token approval confirmed");
+  } catch (error: any) {
+    const txError = parseTransactionError(error, "Approval Confirmation");
+    logTransactionError(txError);
+    throw new ExecutionError(
+      `Approval confirmation failed: ${txError.userMessage}`,
+      txError.type
+    );
+  }
+
+  return txHash;
+}
+
+/**
  * Execute swap operation using LI.FI
  */
 export async function executeSwap(
@@ -661,6 +827,64 @@ export async function executeSwap(
       chain: norm.fromChainId,
       totalSteps,
     });
+
+    // Get user address
+    const userAddress = (accountMode === "SMART_ACCOUNT" 
+      ? clients.smartWalletClient?.account?.address 
+      : clients.selectedWallet?.address) as `0x${string}`;
+
+    if (!userAddress) {
+      throw new ExecutionError(
+        "User address not available",
+        "MISSING_ADDRESS"
+      );
+    }
+
+    // Check token approvals for all steps before execution
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
+      const txRequest = step.transactionRequest;
+
+      // Skip approval check for native token transfers (ETH, MATIC, etc.)
+      if (
+        norm.fromToken.address &&
+        norm.fromToken.address !== "0x0000000000000000000000000000000000000000"
+      ) {
+        const spenderAddress = txRequest?.to as `0x${string}`;
+        
+        if (spenderAddress) {
+          console.log(`🔍 Checking token approval for step ${i + 1}/${totalSteps}...`);
+
+          const { hasAllowance } = await checkTokenAllowance(
+            norm.fromToken.address as `0x${string}`,
+            userAddress,
+            spenderAddress,
+            norm.fromAmount,
+            norm.fromChainId
+          );
+
+          if (!hasAllowance) {
+            console.log(`⚠️ Insufficient allowance for step ${i + 1}, requesting approval...`);
+            
+            // Use max uint256 for approval to avoid repeated approvals
+            const maxApproval = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+            
+            await approveToken(
+              norm.fromToken.address as `0x${string}`,
+              spenderAddress,
+              maxApproval,
+              norm.fromChainId,
+              accountMode,
+              clients
+            );
+
+            console.log(`✅ Token approval completed for step ${i + 1}`);
+          } else {
+            console.log(`✅ Sufficient allowance already exists for step ${i + 1}`);
+          }
+        }
+      }
+    }
 
     const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
 
@@ -954,43 +1178,51 @@ async function executeStep(
     to: `${step.action.toToken.symbol} on ${toChain?.name}`,
   });
 
-  let txHash: string;
-
-  if (accountMode === "SMART_ACCOUNT") {
-    txHash = await clients.smartWalletClient!.sendTransaction({
-      to: txRequest.to as `0x${string}`,
-      value: BigInt(txRequest.value || 0),
-      data: txRequest.data as `0x${string}`,
-    });
-  } else {
-    try {
-      const txResult = await clients.eoaSendTransaction!(
-        {
+  // Wrap transaction execution with error handling
+  const result = await executeTransactionSafely(
+    async () => {
+      if (accountMode === "SMART_ACCOUNT") {
+        return await clients.smartWalletClient!.sendTransaction({
           to: txRequest.to as `0x${string}`,
           value: BigInt(txRequest.value || 0),
           data: txRequest.data as `0x${string}`,
-        },
-        {
-          address: clients.selectedWallet!.address,
-        },
-      );
-      txHash = txResult.hash;
-    } catch (sendError: any) {
-      console.error(`❌ Step ${stepIndex + 1} transaction error:`, sendError);
-
-      if (
-        sendError.name === "EstimateGasExecutionError" ||
-        sendError.message?.includes("execution reverted")
-      ) {
-        throw new ExecutionError(
-          `Step ${stepIndex + 1} failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-          "TRANSACTION_REVERTED",
+        });
+      } else {
+        const txResult = await clients.eoaSendTransaction!(
+          {
+            to: txRequest.to as `0x${string}`,
+            value: BigInt(txRequest.value || 0),
+            data: txRequest.data as `0x${string}`,
+          },
+          {
+            address: clients.selectedWallet!.address,
+          }
         );
+        return txResult.hash;
       }
+    },
+    `Step ${stepIndex + 1}/${totalSteps} (${step.tool})`
+  );
 
-      throw sendError;
+  if (!result.success) {
+    logTransactionError(result.error, `Step ${stepIndex + 1}/${totalSteps}`);
+    
+    // Provide specific handling for approval errors
+    if (result.error.type === TransactionErrorType.APPROVAL_REQUIRED) {
+      throw new ExecutionError(
+        `Step ${stepIndex + 1} failed: ${result.error.userMessage}.\n\nThis should have been handled by automatic approval. Please try again.`,
+        result.error.type
+      );
     }
+
+    // Convert to ExecutionError for backward compatibility
+    throw new ExecutionError(
+      `Step ${stepIndex + 1} failed: ${result.error.userMessage}`,
+      result.error.type
+    );
   }
+
+  const txHash = result.data;
 
   console.log(`✅ Step ${stepIndex + 1}/${totalSteps} transaction submitted:`, txHash);
   const explorerUrl = getTxUrl(step.action.fromChainId, txHash);

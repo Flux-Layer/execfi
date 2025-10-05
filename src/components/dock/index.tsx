@@ -15,7 +15,7 @@ import HSMTerminalBody from "@/components/terminal/HSMTerminalBody";
 import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { useDock } from "@/context/DockContext";
 import ExecFiNotesWindow, { NotesApp } from "@/components/apps/ExecFiNotes";
-import ProfileAppWindow, { ProfilePreview } from "@/components/apps/Profile";
+import { ProfilePreview } from "@/components/apps/Profile";
 
 const DOCK_ITEMS = [
    { key: "home", label: "Home", href: "#home", icon: <FiHome /> },
@@ -244,9 +244,6 @@ export default function Dock() {
                )}
             </AnimatePresence>
          </nav>
-
-         {/* Ensure dependent windows stay mounted for dock interactions */}
-         <ProfileAppWindow />
       </div>
    );
 }

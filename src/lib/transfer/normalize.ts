@@ -1,6 +1,6 @@
 // lib/transfer/normalize.ts - Transfer-specific normalization (isolated from DeFi)
 
-import { parseUnits, isAddress, getAddress } from "viem";
+import { parseUnits, isAddress, getAddress, createPublicClient, http } from "viem";
 import type { TransferIntent, NormalizedTransfer } from "./types";
 import { TransferNormalizationError, TransferTokenSelectionError } from "./errors";
 import { resolveAddressOrEns, isEnsName } from "../ens";
@@ -9,6 +9,7 @@ import { TokenApiClient, type MultiProviderSearchRequest, type TokenSearchRespon
 import type { Token } from "../tokens";
 import { parseIntentUSDAmount, isUSDBasedIntent } from "../ai/schema";
 import { convertUSDToToken } from "../utils/usd-converter";
+import { verifyTokenDecimals } from "../utils/tokenDecimals";
 
 /**
  * Resolve chain name to chainId
@@ -293,17 +294,61 @@ export async function normalizeTransferIntent(
     // Check if we have pre-selected token (from token selection flow)
     if ((intent as any)._selectedToken) {
       const selectedToken = (intent as any)._selectedToken;
+      
+      // CRITICAL: Verify decimals on-chain before using
+      const chainConfig = getChainConfig(chainId);
+      if (!chainConfig) {
+        throw new TransferNormalizationError(
+          `Chain configuration not found for chain ${chainId}`,
+          "CHAIN_CONFIG_MISSING"
+        );
+      }
+      
+      const publicClient = createPublicClient({
+        chain: chainConfig.wagmiChain,
+        transport: http(chainConfig.rpcUrl),
+      });
+      
+      let verifiedDecimals: number;
+      if (selectedToken.decimals) {
+        // Verify provided decimals
+        const verification = await verifyTokenDecimals(
+          selectedToken.address as `0x${string}`,
+          selectedToken.decimals,
+          chainId,
+          publicClient
+        );
+        verifiedDecimals = verification.actualDecimals;
+        
+        if (verification.mismatch) {
+          console.warn(
+            `⚠️ [Transfer] Decimal mismatch for ${selectedToken.symbol}:`,
+            `Expected: ${selectedToken.decimals}, Actual: ${verification.actualDecimals}`
+          );
+        }
+      } else {
+        // No decimals provided, fetch from chain
+        const verification = await verifyTokenDecimals(
+          selectedToken.address as `0x${string}`,
+          18, // Default expectation
+          chainId,
+          publicClient
+        );
+        verifiedDecimals = verification.actualDecimals;
+        console.log(`🔍 [Transfer] Fetched decimals for ${selectedToken.symbol}: ${verifiedDecimals}`);
+      }
+      
       token = {
         id: selectedToken.id,
         chainId: selectedToken.chainId,
         address: selectedToken.address as `0x${string}`,
         name: selectedToken.name,
         symbol: selectedToken.symbol,
-        decimals: selectedToken.decimals || 18,
+        decimals: verifiedDecimals,
         logoURI: selectedToken.logoURI,
         verified: selectedToken.verified,
       };
-      console.log(`✅ [Transfer] Using pre-selected token:`, token);
+      console.log(`✅ [Transfer] Using pre-selected token with verified decimals:`, token);
     } else {
       // Resolve token on the intent chain
       const tokenResolution = await resolveTransferToken(intent.token.symbol, chainId);
@@ -336,18 +381,47 @@ export async function normalizeTransferIntent(
 
       // Single token found
       const foundToken = tokenResolution.tokens[0];
+      
+      // CRITICAL: Verify decimals on-chain
+      const chainConfig = getChainConfig(chainId);
+      if (!chainConfig) {
+        throw new TransferNormalizationError(
+          `Chain configuration not found for chain ${chainId}`,
+          "CHAIN_CONFIG_MISSING"
+        );
+      }
+      
+      const publicClient = createPublicClient({
+        chain: chainConfig.wagmiChain,
+        transport: http(chainConfig.rpcUrl),
+      });
+      
+      const verification = await verifyTokenDecimals(
+        foundToken.address as `0x${string}`,
+        foundToken.decimals,
+        chainId,
+        publicClient
+      );
+      
+      if (verification.mismatch) {
+        console.warn(
+          `⚠️ [Transfer] API decimal mismatch for ${foundToken.symbol}:`,
+          `API: ${foundToken.decimals}, Chain: ${verification.actualDecimals}`
+        );
+      }
+      
       token = {
         id: 1,
         chainId: foundToken.chainId,
         address: foundToken.address as `0x${string}`,
         name: foundToken.name,
         symbol: foundToken.symbol,
-        decimals: foundToken.decimals,
+        decimals: verification.actualDecimals,
         logoURI: foundToken.logoURI,
         verified: foundToken.verified || false,
       };
 
-      console.log(`✅ [Transfer] Resolved token:`, token);
+      console.log(`✅ [Transfer] Resolved token with verified decimals:`, token);
     }
 
     // Parse amount with token decimals

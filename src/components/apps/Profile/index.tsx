@@ -55,6 +55,7 @@ type WindowProps = {
 function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onToggleFullscreen }: WindowProps) {
   const windowRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const wasFullscreenRef = useRef(fullscreen);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [ready, setReady] = useState(false);
@@ -92,12 +93,12 @@ function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onTo
   }, [fullscreen]);
 
   useEffect(() => {
-    // Only reset ready when transitioning from fullscreen to windowed
-    // Don't reset on initial mount when fullscreen is already false
-    if (!fullscreen && ready) {
+    // Reset ready when transitioning from fullscreen to windowed
+    if (wasFullscreenRef.current && !fullscreen) {
       setReady(false);
     }
-  }, [fullscreen, ready]);
+    wasFullscreenRef.current = fullscreen;
+  }, [fullscreen]);
 
   const handleDragStart = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {

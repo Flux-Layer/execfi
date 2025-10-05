@@ -9,7 +9,11 @@ import { useTerminalStore } from "@/cli/hooks/useTerminalStore";
 import type { PolicyState } from "@/lib/policy/types";
 import { savePolicy, createDefaultPolicy } from "@/lib/policy/storage";
 import type { AppState } from "@/cli/state/types";
+import { useOnChainActivity } from "@/hooks/useOnChainActivity";
+import { mergeActivitySources, convertChatHistoryToActivity } from "@/lib/activity/aggregator";
+import type { OnChainActivity } from "@/lib/activity/types";
 
+// Legacy interface for backward compatibility
 export interface ProfileActivityEntry {
   id: string;
   status: "success" | "pending" | "failed";
@@ -45,49 +49,13 @@ export interface ProfileContextValue {
   policy: PolicyState;
   updatePolicy: (next: PolicyState) => void;
   resetPolicy: (preset?: Parameters<typeof createDefaultPolicy>[0]) => void;
-  activity: ProfileActivityEntry[];
+  activity: OnChainActivity[];
+  activityLoading: boolean;
+  activityError: Error | null;
+  refreshActivity: () => void;
 }
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
-
-function deriveActivity(state: AppState): ProfileActivityEntry[] {
-  const history = [...state.chatHistory].reverse();
-  const entries: ProfileActivityEntry[] = [];
-
-  for (let index = 0; index < history.length; index++) {
-    const item = history[index];
-    if (typeof item.content !== "string") continue;
-    const text = item.content.trim();
-    if (!text) continue;
-
-    const status = inferStatus(text, item.role);
-    const description = text.split("\n")[0];
-    const txHashMatch = text.match(/0x[a-fA-F0-9]{64}/);
-
-    entries.push({
-      id: `${item.timestamp}-${index}`,
-      status,
-      description,
-      timestamp: item.timestamp,
-      chainId: state.core.chainId,
-      txHash: txHashMatch ? (txHashMatch[0] as `0x${string}`) : undefined,
-    });
-
-    if (entries.length >= 12) break;
-  }
-
-  return entries;
-}
-
-function inferStatus(text: string, role: "user" | "assistant"): ProfileActivityEntry["status"] {
-  const normalized = text.toLowerCase();
-  if (role === "user") return "pending";
-  if (normalized.includes("success") || normalized.includes("🎉")) return "success";
-  if (normalized.includes("failed") || normalized.includes("error") || normalized.includes("❌") || normalized.includes("💥")) {
-    return "failed";
-  }
-  return "pending";
-}
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const privy = usePrivy();
@@ -95,6 +63,20 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const eoa = useEOA();
   const { selectedChain, selectedChainId } = useChainSelection();
   const { state, dispatch } = useTerminalStore();
+
+  // Fetch on-chain activity for selected EOA wallet
+  const selectedEoaAddress = eoa.selectedWallet?.address as `0x${string}` | undefined;
+  const {
+    activities: onChainActivities,
+    loading: activityLoading,
+    error: activityError,
+    refetch: refreshActivity,
+  } = useOnChainActivity({
+    address: selectedEoaAddress, // Use selected EOA address, not smart account
+    chainIds: [selectedChainId],
+    enabled: !!selectedEoaAddress,
+    limit: 50,
+  });
 
   const handlePolicyUpdate = useCallback(
     (next: PolicyState) => {
@@ -122,7 +104,11 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
     const policy = state.core.policy;
 
-    const activity = deriveActivity(state);
+    // Merge on-chain activity with chat history
+    const chatActivities = smartAccountAddress 
+      ? convertChatHistoryToActivity(state, smartAccountAddress)
+      : [];
+    const activity = mergeActivitySources(onChainActivities, chatActivities);
 
     return {
       loading: !privy.ready,
@@ -146,6 +132,9 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       updatePolicy: handlePolicyUpdate,
       resetPolicy: handlePolicyReset,
       activity,
+      activityLoading,
+      activityError,
+      refreshActivity,
     };
   }, [
     privy,
@@ -157,6 +146,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     state,
     handlePolicyUpdate,
     handlePolicyReset,
+    onChainActivities,
+    activityLoading,
+    activityError,
+    refreshActivity,
   ]);
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
