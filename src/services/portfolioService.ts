@@ -1,8 +1,9 @@
 // Portfolio service for multi-chain token balance fetching
-import { getWalletBalances, createConfig, EVM } from "@lifi/sdk";
+import { getWalletBalances, createConfig, EVM, getTokens } from "@lifi/sdk";
 import { formatUnits } from "viem";
 import { getSupportedChains } from "@/lib/chains/registry";
 import { formatUSDValue } from "@/lib/utils";
+import { getTokenPrices } from "./priceService";
 
 export type PortfolioToken = {
   chainId: number;
@@ -157,7 +158,129 @@ function normalizeTokenAmount(
 }
 
 /**
- * Fallback RPC balance fetcher using viem
+ * Discover all tokens owned by an address using Alchemy API
+ */
+async function discoverTokensWithAlchemy(
+  address: `0x${string}`,
+  chainId: number,
+  rpcUrl: string
+): Promise<Array<{
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: bigint;
+  logoURI?: string;
+}>> {
+  try {
+    // Check if this is an Alchemy RPC URL
+    if (!rpcUrl.includes('alchemy.com')) {
+      return [];
+    }
+
+    // Use Alchemy's getTokenBalances API with automatic token discovery
+    const response = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'alchemy_getTokenBalances',
+        params: [address, 'DEFAULT_TOKENS'], // DEFAULT_TOKENS discovers top tokens automatically
+      }),
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = await response.json();
+    const tokenBalances = data.result?.tokenBalances || [];
+
+    // Filter out zero balances and fetch metadata
+    const tokensWithBalance = tokenBalances.filter(
+      (t: any) => t.tokenBalance && t.tokenBalance !== '0x0'
+    );
+
+    if (tokensWithBalance.length === 0) {
+      return [];
+    }
+
+    // Fetch metadata for tokens with balance
+    const metadataPromises = tokensWithBalance.map(async (t: any) => {
+      try {
+        const metaResponse = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'alchemy_getTokenMetadata',
+            params: [t.contractAddress],
+          }),
+        });
+
+        const metaData = await metaResponse.json();
+        const meta = metaData.result;
+
+        return {
+          address: t.contractAddress,
+          symbol: meta?.symbol || 'UNKNOWN',
+          name: meta?.name || 'Unknown Token',
+          decimals: meta?.decimals || 18,
+          balance: BigInt(t.tokenBalance),
+          logoURI: meta?.logo,
+        };
+      } catch {
+        return null;
+      }
+    });
+
+    const tokens = await Promise.all(metadataPromises);
+    return tokens.filter((t): t is NonNullable<typeof t> => t !== null);
+  } catch (error) {
+    console.warn(`⚠️ Alchemy token discovery failed for chain ${chainId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Fetch comprehensive token list from LiFi for a chain (fallback method)
+ */
+async function getChainTokenList(chainId: number): Promise<Array<{
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  logoURI?: string;
+}>> {
+  try {
+    const response = await getTokens({ chains: [chainId] });
+    const chainTokens = response.tokens[chainId] || [];
+    
+    // Get all tokens with prices (more comprehensive than before)
+    return chainTokens
+      .filter(token => {
+        // Include if it has a price or is verified/well-known
+        return token.priceUSD || token.coinKey;
+      })
+      .map(token => ({
+        address: token.address,
+        symbol: token.symbol,
+        name: token.name,
+        decimals: token.decimals,
+        logoURI: token.logoURI,
+      }))
+      .slice(0, 500); // Increased limit to 500 tokens
+  } catch (error) {
+    console.warn(`⚠️ Failed to fetch token list for chain ${chainId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Fallback RPC balance fetcher using viem with price fetching
+ * Now fetches comprehensive token lists from LiFi instead of relying on registry
  */
 async function fallbackChainSnapshot(
   address: `0x${string}`,
@@ -167,6 +290,7 @@ async function fallbackChainSnapshot(
 
   const supportedChains = getSupportedChains();
   const tokens: PortfolioToken[] = [];
+  const tokenSymbols = new Set<string>();
 
   for (const chainId of chainIds) {
     const chainConfig = supportedChains.find(c => c.id === chainId);
@@ -184,22 +308,73 @@ async function fallbackChainSnapshot(
       const nativeBalance = await client.getBalance({ address });
       if (nativeBalance > 0n) {
         const { raw, formatted } = normalizeTokenAmount(nativeBalance, 18);
+        const symbol = chainConfig.nativeCurrency.symbol;
 
         tokens.push({
           chainId,
           chainName: chainConfig.name,
-          symbol: chainConfig.nativeCurrency.symbol,
+          symbol,
           name: chainConfig.nativeCurrency.name,
           decimals: chainConfig.nativeCurrency.decimals,
           rawAmount: raw,
           formattedAmount: formatted,
-          usdValue: 0, // No price data in fallback
+          usdValue: 0, // Will be updated with price data
           address: '0x0000000000000000000000000000000000000000',
         });
+
+        tokenSymbols.add(symbol);
       }
 
+      // Try Alchemy's automatic token discovery first (best method)
+      console.log(`🔄 Discovering tokens for chain ${chainId} (${chainConfig.name})...`);
+      const alchemyTokens = await discoverTokensWithAlchemy(address, chainId, chainConfig.rpcUrl);
+      
+      if (alchemyTokens.length > 0) {
+        console.log(`✅ Alchemy discovered ${alchemyTokens.length} tokens with balance on ${chainConfig.name}`);
+        
+        // Process Alchemy-discovered tokens (they already have balances)
+        for (const token of alchemyTokens) {
+          const { raw, formatted } = normalizeTokenAmount(token.balance, token.decimals);
+          
+          tokens.push({
+            chainId,
+            chainName: chainConfig.name,
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+            rawAmount: raw,
+            formattedAmount: formatted,
+            usdValue: 0, // Will be updated with price data
+            address: token.address as `0x${string}`,
+            logoURI: token.logoURI,
+          });
+          
+          tokenSymbols.add(token.symbol);
+        }
+        
+        continue; // Skip to next chain
+      }
+      
+      // Fallback: Fetch comprehensive token list from LiFi
+      console.log(`🔄 Fetching token list from LiFi for chain ${chainId}...`);
+      let tokenList = await getChainTokenList(chainId);
+      
+      // Fallback to registry tokens if LiFi token list is empty
+      if (tokenList.length === 0 && chainConfig.tokens && chainConfig.tokens.length > 0) {
+        console.log(`⚠️ Using registry tokens as fallback for chain ${chainId}`);
+        tokenList = chainConfig.tokens.map(token => ({
+          address: token.address,
+          symbol: token.symbol,
+          name: token.name,
+          decimals: token.decimals,
+          logoURI: token.logoURI,
+        }));
+      }
+      
+      console.log(`✅ Will check ${tokenList.length} tokens for chain ${chainId}`);
+
       // Fetch ERC-20 token balances using multicall
-      if (chainConfig.tokens && chainConfig.tokens.length > 0) {
+      if (tokenList.length > 0) {
         const erc20Abi = [
           {
             name: 'balanceOf',
@@ -210,7 +385,7 @@ async function fallbackChainSnapshot(
           },
         ] as const;
 
-        const contracts = chainConfig.tokens.map(token => ({
+        const contracts = tokenList.map(token => ({
           address: token.address as `0x${string}`,
           abi: erc20Abi,
           functionName: 'balanceOf',
@@ -222,7 +397,7 @@ async function fallbackChainSnapshot(
 
           for (let i = 0; i < balances.length; i++) {
             const result = balances[i];
-            const token = chainConfig.tokens[i];
+            const token = tokenList[i];
 
             if (result.status === 'success' && result.result > 0n) {
               const { raw, formatted } = normalizeTokenAmount(result.result, token.decimals);
@@ -235,12 +410,16 @@ async function fallbackChainSnapshot(
                 decimals: token.decimals,
                 rawAmount: raw,
                 formattedAmount: formatted,
-                usdValue: 0, // No price data in fallback
+                usdValue: 0, // Will be updated with price data
                 address: token.address as `0x${string}`,
                 logoURI: token.logoURI,
               });
+
+              tokenSymbols.add(token.symbol);
             }
           }
+          
+          console.log(`✅ Found ${tokens.filter(t => t.chainId === chainId).length} tokens with balance on ${chainConfig.name}`);
         } catch (multicallError) {
           console.warn(`⚠️ Multicall failed for chain ${chainId}:`, multicallError);
         }
@@ -250,8 +429,48 @@ async function fallbackChainSnapshot(
     }
   }
 
-  console.log(`✅ Fallback fetched ${tokens.length} tokens across ${chainIds.length} chains`);
-  return tokens;
+  // Fetch prices for all collected tokens
+  if (tokenSymbols.size > 0) {
+    console.log(`🔄 Fetching prices for ${tokenSymbols.size} unique tokens...`);
+    try {
+      const prices = await getTokenPrices(Array.from(tokenSymbols));
+
+      // Update tokens with price data
+      for (const token of tokens) {
+        const price = prices[token.symbol.toUpperCase()];
+        if (price !== undefined) {
+          token.priceUsd = price;
+          token.usdValue = price * parseFloat(token.formattedAmount);
+        }
+      }
+
+      const priceCount = Object.keys(prices).length;
+      console.log(`✅ Fetched ${priceCount} prices for fallback tokens`);
+    } catch (priceError) {
+      console.warn('⚠️ Failed to fetch prices for fallback tokens:', priceError);
+      // Continue without prices - tokens will show as price unavailable
+    }
+  }
+
+  // Filter out tokens below minimum USD value ($0.01)
+  const MIN_USD_VALUE = 0.01;
+  const beforeFilter = tokens.length;
+  const filteredTokens = tokens.filter(token => {
+    // Keep tokens without price data (can't filter them)
+    if (token.priceUsd === undefined) {
+      return parseFloat(token.formattedAmount) > 0;
+    }
+    // Filter by USD value
+    return token.usdValue >= MIN_USD_VALUE;
+  });
+
+  const filtered = beforeFilter - filteredTokens.length;
+  if (filtered > 0) {
+    console.log(`🔽 Filtered out ${filtered} tokens below $${MIN_USD_VALUE} threshold`);
+  }
+
+  console.log(`✅ Fallback found ${filteredTokens.length} tokens across ${chainIds.length} chains`);
+  return filteredTokens;
 }
 
 /**
@@ -381,9 +600,20 @@ export async function fetchPortfolioSnapshot(params: {
     return snapshot;
 
   } catch (lifiError) {
-    console.warn('⚠️ LiFi SDK failed, falling back to RPC:', lifiError);
+    const errorMessage = lifiError instanceof Error ? lifiError.message : String(lifiError);
+    console.warn('⚠️ LiFi SDK failed, falling back to RPC:', errorMessage);
 
-    // Fallback to direct RPC calls
+    // Log additional error details for debugging
+    if (lifiError instanceof Error && 'response' in lifiError) {
+      const response = (lifiError as any).response;
+      console.warn('⚠️ LiFi API Response:', {
+        status: response?.status,
+        statusText: response?.statusText,
+        data: response?.data,
+      });
+    }
+
+    // Fallback to direct RPC calls with price fetching
     try {
       const fallbackTokens = await fallbackChainSnapshot(address, chainIds);
 

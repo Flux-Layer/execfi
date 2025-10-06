@@ -93,6 +93,8 @@ function getRpcUrl(chainId: number, fallbackUrl?: string): string {
 
 /**
  * Base tokens for Base mainnet
+ * Note: The RPC fallback now fetches a comprehensive token list from LiFi,
+ * so this registry is only used as a last resort fallback.
  */
 const BASE_MAINNET_TOKENS: Token[] = [
   {
