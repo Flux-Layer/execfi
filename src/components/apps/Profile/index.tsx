@@ -10,6 +10,7 @@ import { PoliciesTab } from "./tabs/PoliciesTab";
 import { ActivityTab } from "./tabs/ActivityTab";
 import { SecurityTab } from "./tabs/SecurityTab";
 import { PreferencesTab } from "./tabs/PreferencesTab";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const TABS = [
   { key: "overview", label: "Overview", component: OverviewTab },
@@ -53,6 +54,7 @@ type WindowProps = {
 };
 
 function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onToggleFullscreen }: WindowProps) {
+  const { isMobile } = useResponsive();
   const windowRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wasFullscreenRef = useRef(fullscreen);
@@ -60,16 +62,19 @@ function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onTo
   const [dragging, setDragging] = useState(false);
   const [ready, setReady] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTabKey>("overview");
+  
+  // On mobile, always treat as fullscreen
+  const effectiveFullscreen = fullscreen || isMobile;
 
   const initializePosition = useCallback(() => {
-    if (typeof window === "undefined" || fullscreen) return;
+    if (typeof window === "undefined" || effectiveFullscreen) return;
     const node = windowRef.current;
     if (!node) return;
     const w = node.offsetWidth;
     const h = node.offsetHeight;
     setPos({ x: Math.max((window.innerWidth - w) / 2, 0), y: Math.max((window.innerHeight - h) / 2, 0) });
     setReady(true);
-  }, [fullscreen]);
+  }, [effectiveFullscreen]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(initializePosition);
@@ -79,7 +84,7 @@ function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onTo
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleResize = () => {
-      if (fullscreen) return;
+      if (effectiveFullscreen) return;
       const node = windowRef.current;
       if (!node) return;
       const w = node.offsetWidth;
@@ -90,19 +95,37 @@ function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onTo
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [fullscreen]);
+  }, [effectiveFullscreen]);
 
   useEffect(() => {
     // Reset ready when transitioning from fullscreen to windowed
-    if (wasFullscreenRef.current && !fullscreen) {
+    if (wasFullscreenRef.current && !effectiveFullscreen) {
       setReady(false);
     }
-    wasFullscreenRef.current = fullscreen;
-  }, [fullscreen]);
+    wasFullscreenRef.current = effectiveFullscreen;
+  }, [effectiveFullscreen]);
+
+  // Auto-scroll to bottom when entering fullscreen
+  useEffect(() => {
+    if (effectiveFullscreen && containerRef.current) {
+      const scrollToBottom = () => {
+        const scrollable = containerRef.current?.querySelector('[class*="overflow"]');
+        if (scrollable) {
+          scrollable.scrollTop = scrollable.scrollHeight;
+        }
+      };
+
+      requestAnimationFrame(() => {
+        scrollToBottom();
+        setTimeout(scrollToBottom, 50);
+        setTimeout(scrollToBottom, 150);
+      });
+    }
+  }, [effectiveFullscreen]);
 
   const handleDragStart = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (fullscreen) return;
+      if (effectiveFullscreen) return;
       const node = windowRef.current;
       if (!node) return;
       const rect = node.getBoundingClientRect();
@@ -122,7 +145,7 @@ function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onTo
       window.addEventListener("pointermove", handleMove, { passive: true });
       window.addEventListener("pointerup", handleUp, { passive: true });
     },
-    [fullscreen],
+    [effectiveFullscreen],
   );
 
   if (minimized) return null;
@@ -131,28 +154,28 @@ function ProfileWindowContent({ minimized, fullscreen, onClose, onMinimize, onTo
     <div className="pointer-events-none">
       <div
         ref={windowRef}
-        className={fullscreen ? "fixed inset-0 pb-24 z-40 flex items-center justify-center" : "fixed px-4 z-40"}
-        style={fullscreen ? undefined : { left: pos.x, top: pos.y, visibility: ready ? "visible" : "hidden" }}
+        className={effectiveFullscreen ? "fixed inset-0 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-[calc(7rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-center pt-safe" : "fixed px-4 z-40"}
+        style={effectiveFullscreen ? undefined : { left: pos.x, top: pos.y, visibility: ready ? "visible" : "hidden" }}
       >
         <div
           ref={containerRef}
           className={
-            fullscreen
-              ? "relative flex h-[calc(95vh-4rem)] w-[calc(100vw-4rem)] flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 text-slate-100 shadow-2xl pointer-events-auto"
+            effectiveFullscreen
+              ? "relative flex h-full w-full md:h-[calc(95vh-4rem)] md:w-[calc(100vw-4rem)] flex-col overflow-hidden md:rounded-2xl border-0 md:border md:border-slate-800 bg-slate-950/95 text-slate-100 shadow-2xl pointer-events-auto"
               : "mx-auto flex h-[32rem] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 text-slate-100 shadow-xl pointer-events-auto"
           }
         >
           <TerminalHeader
-            onDragHandle={handleDragStart}
+            onDragHandle={effectiveFullscreen ? undefined : handleDragStart}
             isDragging={dragging}
             onClose={onClose}
-            onMinimize={onMinimize}
-            onToggleFullscreen={onToggleFullscreen}
+            onMinimize={isMobile ? undefined : onMinimize}
+            onToggleFullscreen={isMobile ? undefined : onToggleFullscreen}
             isFullscreen={fullscreen}
             showClock={false}
           />
           <ProfileProvider>
-            <ProfileLayout activeTab={activeTab} onChangeTab={setActiveTab} fullscreen={fullscreen} />
+            <ProfileLayout activeTab={activeTab} onChangeTab={setActiveTab} fullscreen={effectiveFullscreen} />
           </ProfileProvider>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { useDock } from "@/context/DockContext";
+import { useResponsive } from "@/hooks/useResponsive";
 
 export default function ExecFiNotesWindow() {
   const {
@@ -35,21 +36,25 @@ type Props = {
 };
 
 function ExecFiNotesContent({ minimized, fullscreen, onClose, onMinimize, onToggleFullscreen }: Props) {
+  const { isMobile } = useResponsive();
   const windowRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  
+  // On mobile, always treat as fullscreen
+  const effectiveFullscreen = fullscreen || isMobile;
 
   const initPos = useCallback(() => {
-    if (typeof window === "undefined" || fullscreen) return;
+    if (typeof window === "undefined" || effectiveFullscreen) return;
     const node = windowRef.current;
     if (!node) return;
     const w = node.offsetWidth;
     const h = node.offsetHeight;
     setPos({ x: Math.max((window.innerWidth - w) / 2, 0), y: Math.max((window.innerHeight - h) / 2, 0) });
     setIsReady(true);
-  }, [fullscreen]);
+  }, [effectiveFullscreen]);
 
   useEffect(() => {
     const r = requestAnimationFrame(initPos);
@@ -60,7 +65,7 @@ function ExecFiNotesContent({ minimized, fullscreen, onClose, onMinimize, onTogg
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onResize = () => {
-      if (fullscreen) return;
+      if (effectiveFullscreen) return;
       const node = windowRef.current;
       if (!node) return;
       const w = node.offsetWidth;
@@ -71,12 +76,30 @@ function ExecFiNotesContent({ minimized, fullscreen, onClose, onMinimize, onTogg
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [fullscreen]);
+  }, [effectiveFullscreen]);
 
   // When leaving fullscreen, re-init position smoothly
   useEffect(() => {
-    if (!fullscreen) setIsReady(false);
-  }, [fullscreen]);
+    if (!effectiveFullscreen) setIsReady(false);
+  }, [effectiveFullscreen]);
+
+  // Auto-scroll to bottom when entering fullscreen
+  useEffect(() => {
+    if (effectiveFullscreen && containerRef.current) {
+      const scrollToBottom = () => {
+        const scrollable = containerRef.current?.querySelector('[class*="overflow"]');
+        if (scrollable) {
+          scrollable.scrollTop = scrollable.scrollHeight;
+        }
+      };
+
+      requestAnimationFrame(() => {
+        scrollToBottom();
+        setTimeout(scrollToBottom, 50);
+        setTimeout(scrollToBottom, 150);
+      });
+    }
+  }, [effectiveFullscreen]);
 
   if (minimized) return null;
 
@@ -84,20 +107,20 @@ function ExecFiNotesContent({ minimized, fullscreen, onClose, onMinimize, onTogg
     <div className="pointer-events-none">
       <div
         ref={windowRef}
-        className={fullscreen ? "fixed inset-0 pb-24 z-40 flex items-center justify-center" : "fixed px-4 z-40"}
-        style={fullscreen ? undefined : { left: pos.x, top: pos.y, visibility: isReady ? "visible" : "hidden" }}
+        className={effectiveFullscreen ? "fixed inset-0 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-[calc(7rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-center pt-safe" : "fixed px-4 z-40"}
+        style={effectiveFullscreen ? undefined : { left: pos.x, top: pos.y, visibility: isReady ? "visible" : "hidden" }}
       >
         <div
           ref={containerRef}
           className={
-            fullscreen
-              ? "relative flex flex-col h-[calc(95vh-4rem)] w-[calc(100vw-4rem)] cursor-default overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono pointer-events-auto"
+            effectiveFullscreen
+              ? "relative flex flex-col h-full w-full md:h-[calc(95vh-4rem)] md:w-[calc(100vw-4rem)] cursor-default overflow-hidden md:rounded-2xl border-0 md:border md:border-slate-800 bg-slate-900/95 shadow-2xl font-mono pointer-events-auto"
               : "mx-auto h-[28rem] w-full max-w-3xl cursor-default overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-xl font-mono pointer-events-auto"
           }
         >
           <TerminalHeader
             onDragHandle={(e) => {
-              if (fullscreen) return;
+              if (effectiveFullscreen) return;
               const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
               const offsetX = e.clientX - rect.left;
               const offsetY = e.clientY - rect.top;
@@ -115,12 +138,12 @@ function ExecFiNotesContent({ minimized, fullscreen, onClose, onMinimize, onTogg
             }}
             isDragging={dragging}
             onClose={onClose}
-            onMinimize={onMinimize}
-            onToggleFullscreen={onToggleFullscreen}
+            onMinimize={isMobile ? undefined : onMinimize}
+            onToggleFullscreen={isMobile ? undefined : onToggleFullscreen}
             isFullscreen={fullscreen}
             showClock={false}
           />
-          <div className={fullscreen ? "h-[calc(100%-3rem)] overflow-hidden" : "h-[calc(100%-3rem)] overflow-hidden"}>
+          <div className={effectiveFullscreen ? "h-[calc(100%-3rem)] overflow-hidden" : "h-[calc(100%-3rem)] overflow-hidden"}>
             <NotesApp />
           </div>
         </div>

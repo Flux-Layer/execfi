@@ -16,6 +16,7 @@ import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { useDock } from "@/context/DockContext";
 import ExecFiNotesWindow, { NotesApp } from "@/components/apps/ExecFiNotes";
 import { ProfilePreview } from "@/components/apps/Profile";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const DOCK_ITEMS = [
    { key: "home", label: "Home", href: "#home", icon: <FiHome /> },
@@ -48,33 +49,43 @@ export default function Dock() {
       minimizeDocs,
       minimizeProfile,
    } = useDock();
+   const { isMobile } = useResponsive();
    const [hovered, setHovered] = useState<string | null>(null);
    const previewContainerRef = useRef<HTMLDivElement | null>(null);
    const previewInputRef = useRef<HTMLInputElement | null>(null);
    const router = useRouter();
 
    return (
-      <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
-         <nav className="pointer-events-auto flex items-end gap-4 rounded-3xl border border-white/10 bg-slate-900/70 px-6 py-3 shadow-2xl shadow-black/40 backdrop-blur-xl relative">
+      <div className="pointer-events-none fixed bottom-0 md:bottom-6 left-0 md:left-1/2 right-0 md:right-auto z-40 md:-translate-x-1/2">
+         <nav className="pointer-events-auto flex items-end md:gap-4 
+                         md:rounded-3xl md:border md:border-white/10 md:bg-slate-900/70 md:px-6 md:py-3 
+                         bg-slate-950/95 border-t border-white/10 md:border-t-0
+                         md:shadow-2xl md:shadow-black/40 backdrop-blur-xl relative
+                         justify-around md:justify-start py-2 md:py-3
+                         safe-area-inset-bottom">
             {DOCK_ITEMS.map((item) => {
-               const isHover = hovered === item.key;
+               const isHover = hovered === item.key && !isMobile;
                const isTerminal = item.key === "terminal";
                const terminalMinimized = isTerminal && terminalState.minimized;
+               const terminalActive = isTerminal && terminalState.open && !terminalState.minimized;
                const isDocs = item.key === "pricing";
                const docsMinimized = isDocs && docsState.minimized;
+               const docsActive = isDocs && docsState.open && !docsState.minimized;
                const isProfile = item.key === "profile";
                const profileMinimized = isProfile && profileState.minimized;
+               const profileActive = isProfile && profileState.open && !profileState.minimized;
+               const isActive = terminalActive || docsActive || profileActive;
 
                return (
                   <div
                      role="button"
                      tabIndex={0}
                      key={item.key}
-                     className="relative flex items-center justify-center text-slate-200 focus:outline-none"
-                     onMouseEnter={() => setHovered(item.key)}
-                     onMouseLeave={() => setHovered(null)}
-                     onFocus={() => setHovered(item.key)}
-                     onBlur={() => setHovered(null)}
+                     className="relative flex flex-col items-center justify-center text-slate-200 focus:outline-none min-w-[44px] md:min-w-0"
+                     onMouseEnter={() => !isMobile && setHovered(item.key)}
+                     onMouseLeave={() => !isMobile && setHovered(null)}
+                     onFocus={() => !isMobile && setHovered(item.key)}
+                     onBlur={() => !isMobile && setHovered(null)}
                      aria-label={item.label}
                      onClick={() => {
                         if (isTerminal) {
@@ -133,51 +144,74 @@ export default function Dock() {
                                        (isProfile && profileState.open)
                                        ? 1.05
                                        : 1,
-                           y: isHover
+                           y: !isMobile && isHover
                               ? -6
-                              : terminalMinimized || docsMinimized || profileMinimized
+                              : !isMobile && (terminalMinimized || docsMinimized || profileMinimized)
                                  ? -3
                                  : 0,
                         }}
                         transition={{ type: "spring", stiffness: 260, damping: 20 }}
-                        className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800/85 text-xl shadow-inner"
+                        className="flex h-11 w-11 md:h-12 md:w-12 items-center justify-center rounded-2xl bg-slate-800/85 text-lg md:text-xl shadow-inner"
                      >
                         {item.icon}
                      </motion.span>
+                     
+                     {/* Mobile: Active indicator */}
+                     {isMobile && isActive && (
+                        <motion.div
+                           layoutId="activeTab"
+                           className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500"
+                           initial={{ opacity: 0 }}
+                           animate={{ opacity: 1 }}
+                           exit={{ opacity: 0 }}
+                        />
+                     )}
+                     
+                     {/* Mobile: Label below icon */}
+                     {isMobile && (
+                        <span className="text-[10px] text-slate-400 mt-1 font-medium">
+                           {item.label}
+                        </span>
+                     )}
 
-                     <AnimatePresence>
-                        {isHover &&
-                           !(
-                              (isTerminal && terminalMinimized) ||
-                              (isDocs && docsMinimized)
-                           ) && (
-                              <motion.div
-                                 initial={{ opacity: 0, y: 6 }}
-                                 animate={{ opacity: 1, y: 0 }}
-                                 exit={{ opacity: 0, y: 6 }}
-                                 transition={{
-                                    type: "spring",
-                                    stiffness: 260,
-                                    damping: 20,
-                                 }}
-                                 className="pointer-events-none absolute -top-14 left-1/2 flex -translate-x-1/2 flex-col items-center"
-                              >
-                                 <div className="rounded-full border border-white/15 bg-slate-900/90 px-3 py-1 text-xs font-medium text-slate-100 shadow-lg">
-                                    {item.label}
-                                 </div>
-                                 <div
-                                    className="mt-1 h-2 w-3 border border-white/15 bg-slate-900/90"
-                                    style={{ clipPath: "polygon(50% 100%, 0 0, 100% 0)" }}
-                                 />
-                              </motion.div>
-                           )}
-                     </AnimatePresence>
+                     {/* Desktop: Hover tooltip */}
+                     {!isMobile && (
+                        <AnimatePresence>
+                           {isHover &&
+                              !(
+                                 (isTerminal && terminalMinimized) ||
+                                 (isDocs && docsMinimized)
+                              ) && (
+                                 <motion.div
+                                    initial={{ opacity: 0, y: 6 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 6 }}
+                                    transition={{
+                                       type: "spring",
+                                       stiffness: 260,
+                                       damping: 20,
+                                    }}
+                                    className="pointer-events-none absolute -top-14 left-1/2 flex -translate-x-1/2 flex-col items-center"
+                                 >
+                                    <div className="rounded-full border border-white/15 bg-slate-900/90 px-3 py-1 text-xs font-medium text-slate-100 shadow-lg">
+                                       {item.label}
+                                    </div>
+                                    <div
+                                       className="mt-1 h-2 w-3 border border-white/15 bg-slate-900/90"
+                                       style={{ clipPath: "polygon(50% 100%, 0 0, 100% 0)" }}
+                                    />
+                                 </motion.div>
+                              )}
+                        </AnimatePresence>
+                     )}
 
                      {/* Previews moved outside item wrapper to only appear when icon is hovered, not the preview itself */}
                   </div>
                );
             })}
-            {/* Global hover previews anchored to dock center */}
+            {/* Desktop: Global hover previews anchored to dock center */}
+            {!isMobile && (
+            <>
             <AnimatePresence>
                {terminalState.minimized && hovered === "terminal" && (
                   <motion.div
@@ -270,6 +304,8 @@ export default function Dock() {
                   </motion.div>
                )}
             </AnimatePresence>
+            </>
+            )}
          </nav>
       </div>
    );

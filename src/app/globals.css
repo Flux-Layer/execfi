@@ -51,3 +51,22 @@ html{
   font-size: 0.75rem !important; /* ~12px */
   line-height: 1.2 !important;
 }
+
+/* Safe area insets for iOS notch and home indicator */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .pb-safe {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+  
+  .pt-safe {
+    padding-top: calc(1rem + env(safe-area-inset-top));
+  }
+}

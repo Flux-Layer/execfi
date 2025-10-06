@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, ReactNode, useEffect } from "react";
 
 type WindowState = {
    open: boolean;
@@ -31,6 +31,15 @@ type DockContextValue = {
 const DockContext = createContext<DockContextValue | undefined>(undefined);
 
 export function DockProvider({ children }: { children: ReactNode }) {
+   const [isMobile, setIsMobile] = useState(false);
+   
+   useEffect(() => {
+      const checkMobile = () => setIsMobile(window.innerWidth < 768);
+      checkMobile();
+      window.addEventListener("resize", checkMobile);
+      return () => window.removeEventListener("resize", checkMobile);
+   }, []);
+
    const [terminalState, setTerminalState] = useState<WindowState>({
       open: false,
       minimized: false,
@@ -58,13 +67,19 @@ export function DockProvider({ children }: { children: ReactNode }) {
          terminalState,
          docsState,
          profileState,
-         openTerminal: () =>
+         openTerminal: () => {
+            // On mobile, minimize other apps
+            if (isMobile) {
+               setDocsState((prev) => ({ ...prev, minimized: true }));
+               setProfileState((prev) => ({ ...prev, minimized: true }));
+            }
             setTerminalState((prev) => ({
                ...prev,
                open: true,
                minimized: false,
                fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
-            })),
+            }));
+         },
          closeTerminal: () =>
             setTerminalState((prev) => ({
                open: false,
@@ -96,13 +111,19 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   lastFullscreen: nextFullscreen,
                };
             }),
-         openDocs: () =>
+         openDocs: () => {
+            // On mobile, minimize other apps
+            if (isMobile) {
+               setTerminalState((prev) => ({ ...prev, minimized: true }));
+               setProfileState((prev) => ({ ...prev, minimized: true }));
+            }
             setDocsState((prev) => ({
                ...prev,
                open: true,
                minimized: false,
                fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
-            })),
+            }));
+         },
          closeDocs: () =>
             setDocsState((prev) => ({
                open: false,
@@ -133,13 +154,19 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   lastFullscreen: nextFullscreen,
                };
             }),
-         openProfile: () =>
+         openProfile: () => {
+            // On mobile, minimize other apps
+            if (isMobile) {
+               setTerminalState((prev) => ({ ...prev, minimized: true }));
+               setDocsState((prev) => ({ ...prev, minimized: true }));
+            }
             setProfileState((prev) => ({
                ...prev,
                open: true,
                minimized: false,
                fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
-            })),
+            }));
+         },
          closeProfile: () =>
             setProfileState((prev) => ({
                open: false,
@@ -172,7 +199,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                };
             }),
       }),
-      [terminalState, docsState, profileState],
+      [terminalState, docsState, profileState, isMobile],
    );
 
    return <DockContext.Provider value={value}>{children}</DockContext.Provider>;
