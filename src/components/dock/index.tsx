@@ -44,6 +44,9 @@ export default function Dock() {
       openTerminal,
       openDocs,
       openProfile,
+      minimizeTerminal,
+      minimizeDocs,
+      minimizeProfile,
    } = useDock();
    const [hovered, setHovered] = useState<string | null>(null);
    const previewContainerRef = useRef<HTMLDivElement | null>(null);
@@ -75,22 +78,46 @@ export default function Dock() {
                      aria-label={item.label}
                      onClick={() => {
                         if (isTerminal) {
-                           openTerminal();
+                           if (terminalState.open && !terminalState.minimized) {
+                              minimizeTerminal();
+                           } else {
+                              openTerminal();
+                           }
                         } else if (item.key === "pricing") {
-                           openDocs();
+                           if (docsState.open && !docsState.minimized) {
+                              minimizeDocs();
+                           } else {
+                              openDocs();
+                           }
                         } else if (isProfile) {
-                           openProfile();
+                           if (profileState.open && !profileState.minimized) {
+                              minimizeProfile();
+                           } else {
+                              openProfile();
+                           }
                         }
                      }}
                      onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                            e.preventDefault();
                            if (isTerminal) {
-                              openTerminal();
+                              if (terminalState.open && !terminalState.minimized) {
+                                 minimizeTerminal();
+                              } else {
+                                 openTerminal();
+                              }
                            } else if (item.key === "pricing") {
-                              openDocs();
+                              if (docsState.open && !docsState.minimized) {
+                                 minimizeDocs();
+                              } else {
+                                 openDocs();
+                              }
                            } else if (isProfile) {
-                              openProfile();
+                              if (profileState.open && !profileState.minimized) {
+                                 minimizeProfile();
+                              } else {
+                                 openProfile();
+                              }
                            }
                         }
                      }}
