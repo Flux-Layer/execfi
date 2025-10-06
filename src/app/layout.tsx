@@ -39,6 +39,12 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'ExecFi',
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
