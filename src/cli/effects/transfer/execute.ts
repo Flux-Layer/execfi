@@ -18,9 +18,13 @@ import {
   FEE_ENTRYPOINT_ADDRESSES,
 } from "@/lib/contracts/entrypoint";
 
+function parseEnvFlag(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "true";
+}
+
 // Feature flag for LIFI execution path
-const ENABLE_LIFI_EXECUTION = process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
-const ENABLE_ENTRYPOINT = process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
+const ENABLE_LIFI_EXECUTION = parseEnvFlag(process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION);
+const ENABLE_ENTRYPOINT = parseEnvFlag(process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT);
 
 export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   console.log("⚡ [Transfer Effect] Starting execution");
