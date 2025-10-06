@@ -314,6 +314,16 @@ export const confirmSwapFx: StepDef["onEnter"] = async (ctx, core, dispatch, sig
       summary += `\nRate: 1 ${fromSymbol} = ${rate.toFixed(6)} ${toSymbol}\n`;
     }
     
+    // Add slippage and minimum received
+    const slippage = ctx.slippage ?? core.defaultSlippage ?? 0.005;
+    const slippagePercent = (slippage * 100).toFixed(2);
+    summary += `Slippage Tolerance: ${slippagePercent}%\n`;
+    
+    if (toAmount > 0) {
+      const minAmount = toAmount * (1 - slippage);
+      summary += `Minimum Received: ~${minAmount.toFixed(6)} ${toSymbol} (worst case)\n`;
+    }
+    
     // Add slippage info if available
     if (ctx.plan?.route?.steps?.[0]?.estimate) {
       const estimate = ctx.plan.route.steps[0].estimate;
@@ -407,6 +417,16 @@ export const confirmBridgeFx: StepDef["onEnter"] = async (ctx, core, dispatch, s
       summary += `Value: ${formatUSDValue(usdValue, 'medium')}\n`;
     } catch (error) {
       console.warn("[Bridge Confirm] Could not fetch USD price");
+    }
+    
+    // Add slippage and minimum received
+    const slippage = ctx.slippage ?? core.defaultSlippage ?? 0.005;
+    const slippagePercent = (slippage * 100).toFixed(2);
+    summary += `\nSlippage Tolerance: ${slippagePercent}%\n`;
+    
+    if (amount > 0) {
+      const minAmount = amount * (1 - slippage);
+      summary += `Minimum Received: ~${minAmount.toFixed(6)} ${tokenSymbol} (worst case)\n`;
     }
     
     // Add bridge info if available
@@ -522,6 +542,16 @@ export const confirmBridgeSwapFx: StepDef["onEnter"] = async (ctx, core, dispatc
       summary += `To Value: ~${formatUSDValue(toUsdValue, 'medium')}\n`;
     } catch (error) {
       console.warn("[Bridge-Swap Confirm] Could not fetch to token USD price");
+    }
+    
+    // Add slippage and minimum received
+    const slippage = ctx.slippage ?? core.defaultSlippage ?? 0.005;
+    const slippagePercent = (slippage * 100).toFixed(2);
+    summary += `\nSlippage Tolerance: ${slippagePercent}%\n`;
+    
+    if (toAmount > 0) {
+      const minAmount = toAmount * (1 - slippage);
+      summary += `Minimum Received: ~${minAmount.toFixed(6)} ${toSymbol} (worst case)\n`;
     }
     
     // Add route info if available

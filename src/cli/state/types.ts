@@ -69,6 +69,10 @@ export type CoreContext = {
 
   // Policy state
   policy: PolicyState;
+
+  // Slippage settings
+  defaultSlippage: number; // Global default slippage tolerance as decimal (0.0005 = 0.05%)
+  pendingSlippage?: number; // Temporary slippage override for next transaction (cleared after use)
 };
 
 export type AppError = {
@@ -108,6 +112,8 @@ export type FlowContext = {
     }>;
   };
   selectedTokenIndex?: number;
+  // Per-transaction slippage override (overrides defaultSlippage from CoreContext)
+  slippage?: number;
 };
 
 export type AppState = {
@@ -180,7 +186,8 @@ export type AppEvent =
   | { type: "POLICY.UPDATE"; policy: PolicyState }
   | { type: "POLICY.RESET"; preset?: string }
   | { type: "POLICY.VIOLATION"; violations: PolicyViolation[] }
-  | { type: "POLICY.TX_TRACKED"; amountETH: number };
+  | { type: "POLICY.TX_TRACKED"; amountETH: number }
+  | { type: "SLIPPAGE.SET_PENDING"; slippage: number };
 
 // Helper types for effect definitions
 export type Dispatch = (e: AppEvent) => void;

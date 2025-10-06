@@ -62,7 +62,7 @@ export default function Dock() {
                          bg-slate-950/95 border-t border-white/10 md:border-t-0
                          md:shadow-2xl md:shadow-black/40 backdrop-blur-xl relative
                          justify-around md:justify-start py-2 md:py-3
-                         safe-area-inset-bottom">
+                         safe-area-inset-bottom ">
             {DOCK_ITEMS.map((item) => {
                const isHover = hovered === item.key && !isMobile;
                const isTerminal = item.key === "terminal";
@@ -81,7 +81,7 @@ export default function Dock() {
                      role="button"
                      tabIndex={0}
                      key={item.key}
-                     className="relative flex flex-col items-center justify-center text-slate-200 focus:outline-none min-w-[44px] md:min-w-0"
+                     className="mb-2 relative flex flex-col items-center justify-center text-slate-200 focus:outline-none min-w-[44px] md:min-w-0"
                      onMouseEnter={() => !isMobile && setHovered(item.key)}
                      onMouseLeave={() => !isMobile && setHovered(null)}
                      onFocus={() => !isMobile && setHovered(item.key)}
@@ -253,11 +253,11 @@ export default function Dock() {
                      animate={{ opacity: 1, y: 0, scale: 1 }}
                      exit={{ opacity: 0, y: 12, scale: 0.96 }}
                      transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                     className="absolute -top-[20rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
                   >
-                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                     <div className="w-[420px] h-[300px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
                         <div
-                           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                           className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
                            style={{
                               width: 768,
                               height: 448,

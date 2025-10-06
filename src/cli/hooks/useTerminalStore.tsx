@@ -67,11 +67,26 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
       // Load or create policy state
       const policy = loadPolicy() || createDefaultPolicy("moderate");
 
+      // Load slippage from localStorage (default: 0.005 = 0.5%)
+      let defaultSlippage = 0.005;
+      try {
+        const stored = typeof window !== "undefined" ? localStorage.getItem("execfi_slippage_default") : null;
+        if (stored) {
+          const parsed = parseFloat(stored);
+          if (!isNaN(parsed) && parsed >= 0.0001 && parsed <= 0.99) {
+            defaultSlippage = parsed;
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to load slippage from localStorage:", error);
+      }
+
       const coreContext = {
         chainId: selectedChainId, // Use selected chain from chain selection context
         idempotency: new Map(),
         accountMode: "EOA" as const, // Default to EOA mode
         policy, // Add policy state
+        defaultSlippage, // Add default slippage tolerance
 
         // Auth-specific fields only when authenticated
         ...(authenticated && user && smartWalletReady

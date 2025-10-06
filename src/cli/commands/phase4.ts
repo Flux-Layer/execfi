@@ -52,7 +52,19 @@ export const swapCmd: CommandDef = {
     return { ok: true, args: { fromToken, toToken, amount, simulate, slippage, chain } };
   },
 
-  run: async ({ fromToken, toToken, amount, chain }, _ctx, dispatch) => {
+  run: async ({ fromToken, toToken, amount, chain, slippage }, _ctx, dispatch) => {
+    // Set pending slippage if specified
+    if (slippage) {
+      const slippageNum = parseFloat(slippage);
+      if (!isNaN(slippageNum)) {
+        // Convert percentage to decimal
+        dispatch({
+          type: "SLIPPAGE.SET_PENDING",
+          slippage: slippageNum / 100,
+        });
+      }
+    }
+
     // Convert command to natural language and trigger existing swap flow
     const naturalLanguage = chain
       ? `swap ${amount} ${fromToken} to ${toToken} on ${chain}`

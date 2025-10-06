@@ -58,10 +58,17 @@ ADVANCED FEATURES:
   /contact - Add new contacts
 
 DEFI INTEGRATION (Powered by LI.FI):
-  /swap <from> <to> <amount> [--chain <name>] - Execute token swaps
+  /swap <from> <to> <amount> [--chain <name>] [--slippage <percent>] - Execute token swaps
   /bridge <token> <amount> <to-chain> [--from-chain <name>] - Cross-chain transfers
   /quote <from> <to> <amount> [--chain <name>] - Get real-time swap quotes
   /ens <name|address> [--reverse] - Resolve ENS names to addresses
+
+TRANSACTION SETTINGS:
+  /slippage [value] [--reset] - View or set global slippage tolerance (0.01% - 99%)
+    Examples:
+      /slippage          → View current slippage
+      /slippage 1.0      → Set to 1%
+      /slippage --reset  → Reset to default (0.5%)
 
 CHAIN MANAGEMENT:
   /chain list - Show all supported chains

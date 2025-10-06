@@ -35,11 +35,15 @@ export const planSwapFx: StepDef["onEnter"] = async (
   const norm = ctx.norm as NormalizedSwap;
 
   try {
+    // Get slippage: per-transaction override > user default > fallback
+    const slippage = ctx.slippage ?? core.defaultSlippage ?? 0.005;
+
     console.log("🔄 Planning swap operation...", {
       fromToken: norm.fromToken.symbol,
       toToken: norm.toToken.symbol,
       amount: formatUnits(norm.fromAmount, norm.fromToken.decimals),
       chain: norm.fromChainId,
+      slippage: `${(slippage * 100).toFixed(2)}%`,
     });
 
     // Call LI.FI routes API (POST expects nested structure with "route" key)
@@ -55,7 +59,7 @@ export const planSwapFx: StepDef["onEnter"] = async (
           fromAmount: norm.fromAmount.toString(),
           fromAddress: norm.recipient, // Use recipient as fromAddress
           toAddress: norm.recipient,
-          slippage: 0.005, // 0.5% default slippage
+          slippage: slippage,
           order: "RECOMMENDED",
         },
       }),
@@ -308,11 +312,15 @@ export const planBridgeFx: StepDef["onEnter"] = async (
   const norm = ctx.norm as NormalizedBridge;
 
   try {
+    // Get slippage: per-transaction override > user default > fallback
+    const slippage = ctx.slippage ?? core.defaultSlippage ?? 0.005;
+
     console.log("🔄 Planning bridge operation...", {
       token: norm.token.symbol,
       amount: formatUnits(norm.amount, norm.token.decimals),
       fromChain: norm.fromChainId,
       toChain: norm.toChainId,
+      slippage: `${(slippage * 100).toFixed(2)}%`,
     });
 
     // Call LI.FI routes API (POST expects nested structure with "route" key)
@@ -328,7 +336,7 @@ export const planBridgeFx: StepDef["onEnter"] = async (
           fromAmount: norm.amount.toString(),
           fromAddress: norm.recipient, // Assuming sender is recipient
           toAddress: norm.recipient,
-          slippage: 0.005,
+          slippage: slippage,
           order: "RECOMMENDED",
         },
       }),
@@ -576,12 +584,16 @@ export const planBridgeSwapFx: StepDef["onEnter"] = async (
   const norm = ctx.norm as NormalizedBridgeSwap;
 
   try {
+    // Get slippage: per-transaction override > user default > fallback
+    const slippage = ctx.slippage ?? core.defaultSlippage ?? 0.005;
+
     console.log("🔄 Planning bridge-swap operation...", {
       fromToken: norm.fromToken.symbol,
       toToken: norm.toToken.symbol,
       amount: formatUnits(norm.fromAmount, norm.fromToken.decimals),
       fromChain: norm.fromChainId,
       toChain: norm.toChainId,
+      slippage: `${(slippage * 100).toFixed(2)}%`,
     });
 
     // Call LI.FI routes API (POST expects nested structure with "route" key)
@@ -597,7 +609,7 @@ export const planBridgeSwapFx: StepDef["onEnter"] = async (
           fromAmount: norm.fromAmount.toString(),
           fromAddress: norm.recipient, // Assuming sender is recipient
           toAddress: norm.recipient,
-          slippage: 0.005,
+          slippage: slippage,
           order: "RECOMMENDED",
           preferBridges: ["relay"],
         },
