@@ -163,10 +163,18 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
       const entrypoint = ENABLE_ENTRYPOINT
         ? FEE_ENTRYPOINT_ADDRESSES[norm.chainId]
         : undefined;
+      if (ENABLE_ENTRYPOINT && !entrypoint) {
+        console.warn(
+          `⚠️ [Transfer Effect] EntryPoint enabled but no address configured for chain ${norm.chainId}`
+        );
+      }
+
+      const shouldUseEntrypoint = Boolean(entrypoint);
+      const shouldUseLifi = ENABLE_LIFI_EXECUTION && !shouldUseEntrypoint;
 
       console.log("🔄 [Transfer Effect] Using EOA send transaction");
 
-      if (ENABLE_LIFI_EXECUTION) {
+      if (shouldUseLifi) {
         // Use LIFI preparation API for EntryPoint routing
         console.log("🔄 [Transfer Effect] Using LIFI preparation API");
 
