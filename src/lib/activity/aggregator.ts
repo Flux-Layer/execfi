@@ -1,11 +1,13 @@
 // lib/activity/aggregator.ts - Aggregate activity from multiple sources
 
 import { fetchTransactions, fetchTokenTransfers, transformBlockscoutTx } from './blockscout';
+import { fetchAlchemyActivity, isAlchemySupported } from './alchemy';
 import type { OnChainActivity } from './types';
 import type { AppState } from '@/cli/state/types';
 
 /**
  * Fetch all on-chain activity for an address across all chains
+ * Uses Alchemy for supported chains, falls back to Etherscan for others
  */
 export async function fetchAllChainActivity(
   address: `0x${string}`,
@@ -21,6 +23,16 @@ export async function fetchAllChainActivity(
   // Fetch from all chains in parallel
   const chainPromises = chainIds.map(async (chainId) => {
     try {
+      // Prefer Alchemy for supported chains
+      if (isAlchemySupported(chainId) && process.env.NEXT_PUBLIC_ALCHEMY_KEY) {
+        console.log(`[Activity] Using Alchemy for chain ${chainId}`);
+        return await fetchAlchemyActivity(chainId, address, {
+          maxCount: perChainLimit,
+        });
+      }
+
+      // Fallback to Etherscan API
+      console.log(`[Activity] Using Etherscan for chain ${chainId}`);
       const [normalTxs, tokenTxs] = await Promise.all([
         fetchTransactions(chainId, address, { offset: perChainLimit }),
         options?.includeTokenTransfers
