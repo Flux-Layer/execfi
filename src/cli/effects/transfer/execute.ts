@@ -6,10 +6,21 @@ import type { NormalizedTransfer } from "@/lib/transfer/types";
 import { validateNoDuplicate, updateTransactionStatus } from "@/lib/idempotency";
 import { getChainConfig } from "@/lib/chains/registry";
 import { getTxUrl } from "@/lib/explorer";
-import { createWalletClient, http, type WalletClient } from "viem";
+import {
+  createPublicClient,
+  encodeFunctionData,
+  erc20Abi,
+  http,
+  type WalletClient,
+} from "viem";
+import {
+  FEE_ENTRYPOINT_ABI,
+  FEE_ENTRYPOINT_ADDRESSES,
+} from "@/lib/contracts/entrypoint";
 
 // Feature flag for LIFI execution path
 const ENABLE_LIFI_EXECUTION = process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
+const ENABLE_ENTRYPOINT = process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
 
 export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   console.log("⚡ [Transfer Effect] Starting execution");
@@ -149,6 +160,9 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
     } else {
       // EOA execution using Privy's sendTransaction (has signing capability)
       const fromAddress = core.selectedWallet!.address as `0x${string}`;
+      const entrypoint = ENABLE_ENTRYPOINT
+        ? FEE_ENTRYPOINT_ADDRESSES[norm.chainId]
+        : undefined;
 
       console.log("🔄 [Transfer Effect] Using EOA send transaction");
 
@@ -193,7 +207,6 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
         if (result.requiresApproval) {
           console.log("🔐 Approval required, executing approval transaction");
 
-          const { encodeFunctionData } = await import("viem");
           const approvalData = encodeFunctionData({
             abi: [
               {
@@ -241,48 +254,175 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
       } else {
         // Direct execution (fallback when LIFI disabled)
         if (norm.kind === "native-transfer") {
-          // Native transfer
-          const result = await core.eoaSendTransaction!(
-            {
-              to: norm.to,
-              value: norm.amountWei,
-            },
-            {
-              address: fromAddress,
-            }
-          );
-          txHash = result.hash;
+          if (entrypoint) {
+            console.log(
+              `🔄 [Transfer Effect] Routing native transfer through EntryPoint ${entrypoint}`
+            );
+
+            const data = encodeFunctionData({
+              abi: FEE_ENTRYPOINT_ABI,
+              functionName: "transferETH",
+              args: [norm.to],
+            });
+
+            const result = await core.eoaSendTransaction!(
+              {
+                to: entrypoint,
+                value: norm.amountWei,
+                data,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          } else {
+            // Native transfer directly
+            const result = await core.eoaSendTransaction!(
+              {
+                to: norm.to,
+                value: norm.amountWei,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          }
         } else {
           // ERC-20 transfer
-          const { encodeFunctionData } = await import("viem");
-          const data = encodeFunctionData({
-            abi: [
-              {
-                name: "transfer",
-                type: "function",
-                stateMutability: "nonpayable",
-                inputs: [
-                  { name: "to", type: "address" },
-                  { name: "amount", type: "uint256" },
-                ],
-                outputs: [{ name: "", type: "bool" }],
-              },
-            ],
-            functionName: "transfer",
-            args: [norm.to, norm.amountWei],
-          });
+          if (entrypoint) {
+            console.log(
+              `🔄 [Transfer Effect] Routing ERC-20 transfer through EntryPoint ${entrypoint}`
+            );
 
-          const result = await core.eoaSendTransaction!(
-            {
-              to: norm.token.address,
-              value: 0n,
-              data,
-            },
-            {
-              address: fromAddress,
+            let needsApproval = true;
+            let previousAllowance: bigint | undefined;
+
+            try {
+              const publicClient = createPublicClient({
+                chain: targetChainConfig.wagmiChain,
+                transport: http(targetChainConfig.rpcUrl),
+              });
+
+              const currentAllowance = (await publicClient.readContract({
+                address: norm.token.address,
+                abi: erc20Abi,
+                functionName: "allowance",
+                args: [fromAddress, entrypoint],
+              })) as bigint;
+
+              previousAllowance = currentAllowance;
+              needsApproval = currentAllowance < norm.amountWei;
+
+              if (!needsApproval) {
+                console.log(
+                  `✅ Existing allowance ${currentAllowance} sufficient for EntryPoint transfer`
+                );
+              } else {
+                console.log(
+                  `🔐 Current allowance ${currentAllowance} too low, approving EntryPoint`
+                );
+              }
+            } catch (allowanceError) {
+              console.warn(
+                "⚠️ [Transfer Effect] Failed to verify allowance, defaulting to approval",
+                allowanceError
+              );
+              needsApproval = true;
             }
-          );
-          txHash = result.hash;
+
+            if (needsApproval) {
+              if (previousAllowance && previousAllowance > 0n) {
+                console.log(
+                  `🔄 Resetting existing allowance ${previousAllowance} before new approval`
+                );
+
+                const resetApprovalData = encodeFunctionData({
+                  abi: erc20Abi,
+                  functionName: "approve",
+                  args: [entrypoint, 0n],
+                });
+
+                await core.eoaSendTransaction!(
+                  {
+                    to: norm.token.address,
+                    value: 0n,
+                    data: resetApprovalData,
+                  },
+                  { address: fromAddress }
+                );
+
+                await new Promise(resolve => setTimeout(resolve, 1500));
+              }
+
+              const approvalData = encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [entrypoint, norm.amountWei],
+              });
+
+              const approvalResult = await core.eoaSendTransaction!(
+                {
+                  to: norm.token.address,
+                  value: 0n,
+                  data: approvalData,
+                },
+                { address: fromAddress }
+              );
+
+              console.log(`✅ Approval submitted: ${approvalResult.hash}`);
+
+              await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+
+            const entrypointData = encodeFunctionData({
+              abi: FEE_ENTRYPOINT_ABI,
+              functionName: "transferERC20",
+              args: [norm.token.address, norm.to, norm.amountWei],
+            });
+
+            const result = await core.eoaSendTransaction!(
+              {
+                to: entrypoint,
+                value: 0n,
+                data: entrypointData,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          } else {
+            const data = encodeFunctionData({
+              abi: [
+                {
+                  name: "transfer",
+                  type: "function",
+                  stateMutability: "nonpayable",
+                  inputs: [
+                    { name: "to", type: "address" },
+                    { name: "amount", type: "uint256" },
+                  ],
+                  outputs: [{ name: "", type: "bool" }],
+                },
+              ],
+              functionName: "transfer",
+              args: [norm.to, norm.amountWei],
+            });
+
+            const result = await core.eoaSendTransaction!(
+              {
+                to: norm.token.address,
+                value: 0n,
+                data,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          }
         }
       }
 

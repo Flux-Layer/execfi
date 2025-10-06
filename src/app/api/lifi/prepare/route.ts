@@ -16,6 +16,11 @@ import {
 
 // EntryPoint feature flag
 const ENABLE_ENTRYPOINT = process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+function isZeroAddress(address: string): boolean {
+  return address.trim().toLowerCase() === ZERO_ADDRESS;
+}
 
 // Request/Response schemas for API type safety
 const PrepareRequestSchema = z.object({
@@ -136,14 +141,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Validate request body
     const params = PrepareRequestSchema.parse(body);
 
+    const isSameChain = params.fromChain === params.toChain;
+    const isNativeTransfer =
+      isSameChain &&
+      isZeroAddress(params.fromToken) &&
+      isZeroAddress(params.toToken);
+
     // Handle native transfers (same-chain ETH to ETH)
-    if (
-      (params.fromToken === params.toToken &&
-        params.fromToken === "0x0000000000000000000000000000000000000000" &&
-        params.fromChain === params.toChain) ||
-      (params?.fromChain === params?.toChain &&
-        params?.fromToken === params?.toToken)
-    ) {
+    if (isNativeTransfer) {
       console.log(
         `🔄 Native transfer detected - creating direct transaction data...`,
       );
