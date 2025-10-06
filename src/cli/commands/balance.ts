@@ -417,7 +417,7 @@ ${chainSummary}
   }).join('\n\n');
 
   // Chain Distribution Section
-  const chainHeader = `\n📊 CHAIN DISTRIBUTION\n`;
+  const chainHeader = `\n\n📊 CHAIN DISTRIBUTION\n`;
   const chainRows = summary.chainDistribution.map(chain => {
     const percentage = chain.percentage.toFixed(1);
     return `  • ${chain.chainName}: ${formatUSDValue(chain.usdValue, 'low')} (${percentage}%) - ${chain.tokenCount} token${chain.tokenCount !== 1 ? 's' : ''}`;
@@ -435,7 +435,7 @@ ${chainSummary}
   }
 
   // Quick Actions Section
-  const quickActions = `\n💡 **QUICK ACTIONS:**\n`;
+  const quickActions = `\n\n💡 **QUICK ACTIONS:**\n`;
   const actionItems = [
     '• Use `/send <amount> <token> to <address>` to transfer tokens',
     '• Use `/balances --detailed` for per-token breakdown',
@@ -447,7 +447,7 @@ ${chainSummary}
   // Data freshness note
   const hasUnpricedTokens = filteredHoldings.some(token => token.priceUsd === undefined);
   const priceNote = hasUnpricedTokens
-    ? `⚠️  Some tokens show "(price unavailable)" - total may be incomplete\n`
+    ? `\n⚠️  Some tokens show "(price unavailable)" - total may be incomplete\n`
     : '';
 
   const footer = `\n${priceNote}✅ **Live Data:** Aggregated portfolio with 20s cache`;
