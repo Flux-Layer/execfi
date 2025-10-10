@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import PrivyAppProvider from "@providers/privy-provider";
+import { BaseAccountProvider } from "@providers/base-account-context";
 import { WagmiAppProvider } from "@providers/wagmi-provider";
 import { QCProvider } from "@providers/query-client.provider";
 import { EOAProvider } from "@providers/EOAProvider";
@@ -11,6 +12,7 @@ import { TerminalStoreProvider } from "@/cli/hooks/useTerminalStore";
 import { Toaster } from "react-hot-toast";
 import Dock from "@components/dock";
 import PathFinderLoader from "@/components/loader/path-finder";
+import BaseAccountStatus from "@/components/auth/BaseAccountStatus";
 
 interface ClientShellProps {
   children: React.ReactNode;
@@ -34,12 +36,13 @@ export default function ClientShell({ children }: ClientShellProps) {
 
   return (
     <PrivyAppProvider>
-      <EOAProvider>
-        <DockProvider>
-          <ChainSelectionProvider>
-            <WagmiAppProvider>
-              <QCProvider>
-                <TerminalStoreProvider>
+      <BaseAccountProvider>
+        <EOAProvider>
+          <DockProvider>
+            <ChainSelectionProvider>
+              <WagmiAppProvider>
+                <QCProvider>
+                  <TerminalStoreProvider>
                   {/* Intro loader overlay for first 5s with smooth fade */}
                   {introMounted && (
                     <div
@@ -51,6 +54,7 @@ export default function ClientShell({ children }: ClientShellProps) {
 
                   {children}
                   <Dock />
+                  <BaseAccountStatus />
                   <Toaster
                     position="top-right"
                     toastOptions={{
@@ -74,12 +78,13 @@ export default function ClientShell({ children }: ClientShellProps) {
                       },
                     }}
                   />
-                </TerminalStoreProvider>
-              </QCProvider>
-            </WagmiAppProvider>
-          </ChainSelectionProvider>
-        </DockProvider>
-      </EOAProvider>
+                  </TerminalStoreProvider>
+                </QCProvider>
+              </WagmiAppProvider>
+            </ChainSelectionProvider>
+          </DockProvider>
+        </EOAProvider>
+      </BaseAccountProvider>
     </PrivyAppProvider>
   );
 }

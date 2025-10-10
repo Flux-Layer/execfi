@@ -1056,6 +1056,23 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         },
       };
 
+    case "ACCOUNT_MODE.UPDATE":
+      // Update account mode and persist to localStorage
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("execfi_account_mode", event.accountMode);
+        } catch (error) {
+          console.warn("Failed to save account mode to localStorage:", error);
+        }
+      }
+      return {
+        ...state,
+        core: {
+          ...state.core,
+          accountMode: event.accountMode,
+        },
+      };
+
     case "POLICY.UPDATE":
       return {
         ...state,

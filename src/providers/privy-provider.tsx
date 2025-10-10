@@ -37,7 +37,12 @@ export default function PrivyAppProvider({
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
         },
-        appearance: { theme: "dark" },
+        appearance: { 
+          theme: "dark",
+          walletList: ['base_account'], // Base Account as primary wallet option
+          showWalletLoginFirst: true, // Show wallet options first
+        },
+        defaultChain: base, // Set Base as default chain
         supportedChains: [
           base,
           baseSepolia,

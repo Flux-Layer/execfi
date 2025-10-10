@@ -48,7 +48,18 @@ export type ViewPage =
 /**
  * Account mode for transaction execution
  */
-export type AccountMode = "EOA" | "SMART_ACCOUNT";
+export type AccountMode = "EOA" | "SMART_ACCOUNT" | "BASE_ACCOUNT";
+
+/**
+ * Base Account client state
+ */
+export interface BaseAccountClients {
+  sdk: any; // Base Account SDK instance
+  provider: any; // EIP-1193 provider
+  address?: `0x${string}`; // Universal Base Account address
+  subAccountAddress?: `0x${string}`; // Sub Account address (private key-based)
+  isConnected: boolean;
+}
 
 export type CoreContext = {
   userId?: string; // undefined when not authenticated
@@ -63,6 +74,9 @@ export type CoreContext = {
     transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
     options?: { address?: string }
   ) => Promise<{ hash: `0x${string}` }>; // EOA transaction method from useSendTransaction
+
+  // Base Account support
+  baseAccountClients?: BaseAccountClients;
 
   // Transaction mode (defaults to "EOA")
   accountMode?: AccountMode;
@@ -183,6 +197,7 @@ export type AppEvent =
   | { type: "BALANCE.FETCH"; chainId?: number; chainName?: string }
   | { type: "TERMINAL.CLEAR" }
   | { type: "CHAIN.UPDATE"; chainId: number }
+  | { type: "ACCOUNT_MODE.UPDATE"; accountMode: AccountMode }
   | { type: "POLICY.UPDATE"; policy: PolicyState }
   | { type: "POLICY.RESET"; preset?: string }
   | { type: "POLICY.VIOLATION"; violations: PolicyViolation[] }

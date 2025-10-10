@@ -1,6 +1,7 @@
 // lib/execute.ts - Smart Account execution engine using Privy + LI.FI
 
 import { formatEther, formatUnits, encodeFunctionData, createPublicClient, http, erc20Abi, getContract } from "viem";
+import { executeIntentWithBaseAccount } from './execute-base-account';
 import type {
   NormalizedNativeTransfer,
   NormalizedERC20Transfer,
@@ -1384,9 +1385,28 @@ export async function executeIntent(
       options?: { address?: string },
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
+    baseAccountProvider?: any;
+    baseAccountAddress?: `0x${string}`;
   },
   route?: any,
 ): Promise<ExecutionResult> {
+  // Base Account execution path
+  if (accountMode === "BASE_ACCOUNT") {
+    if (!clients.baseAccountProvider || !clients.baseAccountAddress) {
+      throw new ExecutionError(
+        'Base Account not connected',
+        'BASE_ACCOUNT_NOT_CONNECTED',
+      );
+    }
+
+    return executeIntentWithBaseAccount(
+      norm,
+      clients.baseAccountProvider,
+      clients.baseAccountAddress,
+    );
+  }
+
+  // Existing Privy paths
   console.log({ clientnih: clients });
   if (norm.kind === "native-transfer") {
     return executeNativeTransfer(norm, accountMode, clients);

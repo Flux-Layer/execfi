@@ -10,6 +10,7 @@ export function AccountInfoView({ core }: AccountInfoViewProps) {
   const accountMode = core.accountMode || "EOA";
   const hasEOA = !!core.selectedWallet?.address;
   const hasSA = !!core.saAddress;
+  const hasBaseAccount = !!core.baseAccountClients?.address;
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string) => {
@@ -145,6 +146,56 @@ export function AccountInfoView({ core }: AccountInfoViewProps) {
               </>
             ) : (
               <div className="text-slate-400">No Smart Account available</div>
+            )}
+          </div>
+        </div>
+
+        {/* Base Account Info */}
+        <div className="bg-slate-800/50 p-3 rounded border border-white/10">
+          <h3 className="font-semibold text-slate-200 mb-2">
+            Base Account {accountMode === 'BASE_ACCOUNT' && <span className="text-purple-400 text-xs">(Active)</span>}
+          </h3>
+          <div className="text-xs space-y-1">
+            {hasBaseAccount && core.baseAccountClients?.address ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">Address:</span>{' '}
+                  <code 
+                    className="text-emerald-400 cursor-pointer hover:text-emerald-300 hover:underline transition-colors"
+                    onClick={() => copyToClipboard(core.baseAccountClients?.address || '')}
+                    title="Click to copy address"
+                  >
+                    {core.baseAccountClients.address}
+                  </code>
+                  {copiedAddress === core.baseAccountClients.address && (
+                    <span className="text-xs text-blue-400 animate-fade-in">
+                      ✓ Copied!
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-slate-400">Type:</span>{' '}
+                  <span className="text-slate-300">Base Account (Passkey Wallet)</span>
+                </div>
+                <div>
+                  <span className="text-slate-400">SDK:</span>{' '}
+                  {core.baseAccountClients.sdk ? (
+                    <span className="text-emerald-400">✅ Available</span>
+                  ) : (
+                    <span className="text-red-400">❌ Not available</span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-slate-400">Provider:</span>{' '}
+                  {core.baseAccountClients.provider ? (
+                    <span className="text-emerald-400">✅ Available</span>
+                  ) : (
+                    <span className="text-red-400">❌ Not available</span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-slate-400">No Base Account connected</div>
             )}
           </div>
         </div>
