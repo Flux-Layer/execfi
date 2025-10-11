@@ -1,9 +1,13 @@
 // Portfolio service for multi-chain token balance fetching
 import { getWalletBalances, createConfig, EVM, getTokens } from "@lifi/sdk";
 import { formatUnits } from "viem";
-import { getSupportedChains } from "@/lib/chains/registry";
+import { getSupportedChains, getChainConfig } from "@/lib/chains/registry";
 import { formatUSDValue } from "@/lib/utils";
 import { getTokenPrices } from "./priceService";
+import {
+  fetchMultiChainNativeBalances,
+  convertRpcBalanceToPortfolioToken,
+} from "./rpcBalanceFetcher";
 
 export type PortfolioToken = {
   chainId: number;
@@ -474,41 +478,21 @@ async function fallbackChainSnapshot(
 }
 
 /**
- * Fetch portfolio snapshot using LiFi SDK with fallback
+ * Fetch mainnet balances using LiFi SDK
  */
-export async function fetchPortfolioSnapshot(params: {
-  address: `0x${string}`;
-  chainIds?: number[];
-  abortSignal?: AbortSignal;
-}): Promise<PortfolioSnapshot> {
-  const { address, chainIds: requestedChainIds } = params;
-
-  // Default to supported chains or use provided ones
-  const supportedChains = getSupportedChains().filter(c => c.supported && !c.isTestnet);
-  const chainIds = requestedChainIds || [supportedChains[0]?.id || 8453]; // Default to Base
-
-  // Check cache first
-  cleanCache();
-  const cacheKey = getCacheKey(address, chainIds);
-  const cached = cache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    console.log('✅ Returning cached portfolio snapshot');
-    return cached.snapshot;
-  }
-
-  console.log(`🔄 Fetching portfolio for ${address} on chains: ${chainIds.join(', ')}`);
-
+async function fetchMainnetBalancesViaLifi(
+  address: `0x${string}`,
+  chainIds: number[],
+  abortSignal?: AbortSignal
+): Promise<PortfolioToken[]> {
+  const tokens: PortfolioToken[] = [];
+  const supportedChains = getSupportedChains().filter(c => c.supported);
+  
   try {
-    // Ensure LiFi is configured
     ensureLifiConfigured();
-
-    // Try LiFi SDK first (extended is automatically enabled in SDK)
     const balanceResults = await getWalletBalances(address);
 
-    const tokens: PortfolioToken[] = [];
-
     if (balanceResults && typeof balanceResults === 'object') {
-      // Process LiFi balance results
       for (const [chainIdStr, chainBalances] of Object.entries(balanceResults)) {
         const chainId = parseInt(chainIdStr);
 
@@ -521,38 +505,21 @@ export async function fetchPortfolioSnapshot(params: {
         for (const tokenData of chainBalances) {
           if (!tokenData || typeof tokenData !== 'object') continue;
 
-          const {
-            amount,
-            symbol,
-            name,
-            decimals,
-            address,
-            priceUSD,
-            logoURI,
-          } = tokenData as any;
+          const { amount, symbol, name, decimals, address, priceUSD, logoURI } = tokenData as any;
 
           if (!amount || !symbol) continue;
 
           try {
             const { raw, formatted } = normalizeTokenAmount(amount, decimals || 18);
-
-            // Skip zero balances
             if (raw === 0n) continue;
 
-            // Calculate USD value if price available
-            // Handle both number (new) and string (legacy) formats during migration
             const priceUsd = priceUSD 
               ? (typeof priceUSD === 'number' ? priceUSD : parseFloat(priceUSD))
               : undefined;
             let usdValue = priceUsd ? priceUsd * parseFloat(formatted) : 0;
 
-            // Validate USD calculation
             if (!Number.isFinite(usdValue) || usdValue < 0) {
-              console.warn(`Invalid USD calculation for token ${symbol}:`, {
-                priceUsd,
-                formatted,
-                usdValue,
-              });
+              console.warn(`Invalid USD calculation for ${symbol}`);
               usdValue = 0;
             }
 
@@ -576,6 +543,121 @@ export async function fetchPortfolioSnapshot(params: {
       }
     }
 
+    console.log(`✅ LiFi SDK fetched ${tokens.length} mainnet tokens`);
+  } catch (error) {
+    console.error('❌ LiFi fetch error:', error);
+    // Don't throw - return empty array to gracefully degrade
+    return [];
+  }
+
+  return tokens;
+}
+
+/**
+ * Fetch testnet balances using direct RPC calls
+ */
+async function fetchTestnetBalancesViaRpc(
+  address: `0x${string}`,
+  chainIds: number[],
+  abortSignal?: AbortSignal
+): Promise<PortfolioToken[]> {
+  if (chainIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const rpcBalances = await fetchMultiChainNativeBalances({
+      address,
+      chainIds,
+      abortSignal,
+    });
+
+    const tokens = rpcBalances.map(balance =>
+      convertRpcBalanceToPortfolioToken({
+        ...balance,
+        address,
+      })
+    );
+
+    console.log(`✅ RPC fetched ${tokens.length} testnet tokens`);
+    return tokens;
+  } catch (error) {
+    console.error('❌ RPC fetch error:', error);
+    // Don't throw - return empty array to gracefully degrade
+    return [];
+  }
+}
+
+/**
+ * Fetch portfolio snapshot using LiFi SDK with fallback
+ */
+export async function fetchPortfolioSnapshot(params: {
+  address: `0x${string}`;
+  chainIds?: number[];
+  abortSignal?: AbortSignal;
+}): Promise<PortfolioSnapshot> {
+  const { address, chainIds: requestedChainIds, abortSignal } = params;
+
+  // Get all supported chains (mainnet + testnet)
+  const supportedChains = getSupportedChains().filter(c => c.supported);
+  const chainIds = requestedChainIds || [supportedChains[0]?.id || 8453]; // Default to Base
+
+  // Split chains into mainnet and testnet
+  const mainnetChainIds = chainIds.filter(id => {
+    const config = getChainConfig(id);
+    return config && !config.isTestnet;
+  });
+  
+  const testnetChainIds = chainIds.filter(id => {
+    const config = getChainConfig(id);
+    return config && config.isTestnet;
+  });
+
+  // Check cache first
+  cleanCache();
+  const cacheKey = getCacheKey(address, chainIds);
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    console.log('✅ Returning cached portfolio snapshot');
+    return cached.snapshot;
+  }
+
+  console.log(`🔄 Fetching portfolio for ${address}`);
+  console.log(`  📡 Mainnet chains (${mainnetChainIds.length}): ${mainnetChainIds.join(', ')}`);
+  console.log(`  🧪 Testnet chains (${testnetChainIds.length}): ${testnetChainIds.join(', ')}`);
+
+  try {
+    // PARALLEL FETCH: Mainnet (LiFi) + Testnet (RPC)
+    const [lifiResults, testnetResults] = await Promise.allSettled([
+      // Mainnet: Use LiFi SDK
+      mainnetChainIds.length > 0
+        ? fetchMainnetBalancesViaLifi(address, mainnetChainIds, abortSignal)
+        : Promise.resolve([]),
+      
+      // Testnet: Use direct RPC calls
+      testnetChainIds.length > 0
+        ? fetchTestnetBalancesViaRpc(address, testnetChainIds, abortSignal)
+        : Promise.resolve([]),
+    ]);
+
+    const tokens: PortfolioToken[] = [];
+
+    // Process LiFi results (mainnet)
+    if (lifiResults.status === 'fulfilled') {
+      tokens.push(...lifiResults.value);
+    } else {
+      console.error('❌ Failed to fetch mainnet balances:', lifiResults.reason);
+    }
+
+    // Process RPC results (testnet)
+    if (testnetResults.status === 'fulfilled') {
+      tokens.push(...testnetResults.value);
+    } else {
+      console.error('❌ Failed to fetch testnet balances:', testnetResults.reason);
+    }
+
+    console.log(`✅ Fetched total ${tokens.length} tokens (${lifiResults.status === 'fulfilled' ? lifiResults.value.length : 0} mainnet, ${testnetResults.status === 'fulfilled' ? testnetResults.value.length : 0} testnet)`);
+
     // Sort by USD value descending, then by formatted amount
     tokens.sort((a, b) => {
       if (b.usdValue !== a.usdValue) {
@@ -596,7 +678,6 @@ export async function fetchPortfolioSnapshot(params: {
       expiresAt: Date.now() + CACHE_TTL,
     });
 
-    console.log(`✅ LiFi SDK fetched ${tokens.length} tokens successfully`);
     return snapshot;
 
   } catch (lifiError) {

@@ -33,7 +33,7 @@ export const helpCmd: CommandDef = {
 CORE COMMANDS:
   /help (/?) - Show commands and usage
   /whoami - Show current user, chain, and account info
-  /balances (/balance, /bal, /bals) - Show token balances across networks
+  /balances (/balance, /bal, /bals) - Show token balances across all networks (mainnet + testnet)
   /clear (/cls) - Clear terminal screen
   /accountinfo - Show detailed account information
   /send - Send native or ERC-20 tokens
@@ -46,7 +46,7 @@ CORE COMMANDS:
   /reset (/restart) - Emergency reset
 
 ESSENTIAL COMMANDS:
-  /balances (/balance, /bal, /bals) - Show all token balances across networks
+  /balances (/balance, /bal, /bals) - Show all token balances across networks (mainnet + testnet)
   /tx <hash> - Show transaction details and status
   /txs [limit] - Show recent transaction history
   /pending - Show pending transactions
