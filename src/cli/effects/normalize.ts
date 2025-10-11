@@ -10,6 +10,7 @@ import {
 } from "@/lib/chain-utils";
 import { resolveChain, getChainConfig } from "@/lib/chains/registry";
 import { transferNormalizeFx } from "./transfer/normalize";
+import { getActiveWalletAddress } from "../utils/getActiveWallet";
 
 export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   // Route transfers to isolated transfer effect
@@ -133,10 +134,8 @@ export const normalizeFx: StepDef["onEnter"] = async (ctx, core, dispatch, signa
   try {
     console.log("🔄 Normalizing intent:", ctx.intent);
 
-    // Get sender address for swap/bridge operations
-    const senderAddress = core.accountMode === "SMART_ACCOUNT"
-      ? core.saAddress
-      : core.selectedWallet?.address;
+    // Get sender address for swap/bridge operations based on active wallet mode
+    const senderAddress = getActiveWalletAddress(core);
 
     const norm = await normalizeIntent(
       { ok: true, intent: ctx.intent },

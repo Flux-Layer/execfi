@@ -33,11 +33,18 @@ export default function PrivyAppProvider({
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
       clientId={process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID || ""}
       config={{
+        // Enable wallet and email as login methods
+        loginMethods: ['email', 'wallet'],
         // Create embedded wallets for users who don't have a wallet
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
         },
-        appearance: { theme: "dark" },
+        appearance: { 
+          theme: "dark",
+          walletList: ['base_account'], // Base Account as primary wallet option
+          showWalletLoginFirst: true, // Show wallet options first
+        },
+        defaultChain: base, // Set Base as default chain
         supportedChains: [
           base,
           baseSepolia,

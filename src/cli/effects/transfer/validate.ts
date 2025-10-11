@@ -4,6 +4,7 @@ import type { StepDef } from "../../state/types";
 import { validateTransfer } from "@/lib/transfer/validation";
 import { checkPolicy } from "@/lib/policy/checker";
 import type { NormalizedTransfer } from "@/lib/transfer/types";
+import { getActiveWalletAddress, getActiveWallet } from "../../utils/getActiveWallet";
 
 export const transferValidateFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   console.log("🔍 [Transfer Effect] Starting validation");
@@ -33,37 +34,21 @@ export const transferValidateFx: StepDef["onEnter"] = async (ctx, core, dispatch
     return;
   }
 
-  // Determine the correct address based on account mode
+  // Determine the correct address based on active wallet mode
   const accountMode = core.accountMode || "EOA";
-  let fromAddress: `0x${string}` | undefined;
+  const activeWallet = getActiveWallet(core);
+  const fromAddress = activeWallet.address;
 
-  if (accountMode === "SMART_ACCOUNT") {
-    if (!core.saAddress) {
-      dispatch({
-        type: "VALIDATE.FAIL",
-        error: {
-          code: "AUTH_REQUIRED",
-          message: "Smart Account address not available. Please ensure you're logged in and have a Smart Wallet.",
-          phase: "validate",
-        },
-      });
-      return;
-    }
-    fromAddress = core.saAddress;
-  } else {
-    // EOA mode
-    if (!core.selectedWallet?.address) {
-      dispatch({
-        type: "VALIDATE.FAIL",
-        error: {
-          code: "AUTH_REQUIRED",
-          message: "Please sign in to execute transactions. Click the sign in button in the top right corner.",
-          phase: "validate",
-        },
-      });
-      return;
-    }
-    fromAddress = core.selectedWallet.address as `0x${string}`;
+  if (!fromAddress) {
+    dispatch({
+      type: "VALIDATE.FAIL",
+      error: {
+        code: "AUTH_REQUIRED",
+        message: `${activeWallet.label} not available. Please connect your wallet.`,
+        phase: "validate",
+      },
+    });
+    return;
   }
 
   try {

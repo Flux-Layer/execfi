@@ -6,9 +6,10 @@ import useSmartWallet from "@/hooks/useSmartWallet";
 import { useEOA } from "@/providers/EOAProvider";
 import { useChainSelection } from "@/hooks/useChainSelection";
 import { useTerminalStore } from "@/cli/hooks/useTerminalStore";
+import { useBaseAccount } from "@/providers/base-account-context";
 import type { PolicyState } from "@/lib/policy/types";
 import { savePolicy, createDefaultPolicy } from "@/lib/policy/storage";
-import type { AppState } from "@/cli/state/types";
+import type { AppState, AccountMode } from "@/cli/state/types";
 import { useOnChainActivity } from "@/hooks/useOnChainActivity";
 import { mergeActivitySources, convertChatHistoryToActivity } from "@/lib/activity/aggregator";
 import type { OnChainActivity } from "@/lib/activity/types";
@@ -36,6 +37,13 @@ export interface ProfileContextValue {
     address?: `0x${string}`;
     ready: boolean;
   };
+  baseAccount: {
+    address?: string | null;
+    isConnected: boolean;
+    promptSetup: () => void;
+  };
+  accountMode: AccountMode;
+  setAccountMode: (mode: AccountMode) => void;
   eoaWallets: ReturnType<typeof useEOA>["wallets"];
   selectedEoa?: ReturnType<typeof useEOA>["selectedWallet"];
   selectEoa: ReturnType<typeof useEOA>["setSelectedWalletIndex"];
@@ -61,6 +69,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const privy = usePrivy();
   const { smartAccountAddress, isReady: smartWalletReady } = useSmartWallet();
   const eoa = useEOA();
+  const baseAccount = useBaseAccount();
   const { selectedChain, selectedChainId } = useChainSelection();
   const { state, dispatch } = useTerminalStore();
 
@@ -95,6 +104,14 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     [dispatch],
   );
 
+  const handleAccountModeChange = useCallback(
+    (mode: AccountMode) => {
+      dispatch({ type: "ACCOUNT_MODE.UPDATE", accountMode: mode });
+      console.log(`🔄 Account mode switched to: ${mode}`);
+    },
+    [dispatch],
+  );
+
   const value = useMemo<ProfileContextValue>(() => {
     const identity = {
       userId: privy.user?.id,
@@ -118,6 +135,13 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         address: smartAccountAddress,
         ready: !!smartWalletReady,
       },
+      baseAccount: {
+        address: baseAccount.baseAccountAddress,
+        isConnected: baseAccount.isConnected,
+        promptSetup: baseAccount.promptSetup,
+      },
+      accountMode: state.core.accountMode || "EOA",
+      setAccountMode: handleAccountModeChange,
       eoaWallets: eoa.wallets,
       selectedEoa: eoa.selectedWallet ?? undefined,
       selectEoa: eoa.setSelectedWalletIndex,
@@ -140,12 +164,14 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     privy,
     smartAccountAddress,
     smartWalletReady,
+    baseAccount,
     eoa,
     selectedChain,
     selectedChainId,
     state,
     handlePolicyUpdate,
     handlePolicyReset,
+    handleAccountModeChange,
     onChainActivities,
     activityLoading,
     activityError,

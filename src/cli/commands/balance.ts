@@ -11,6 +11,7 @@ import {
 } from "@/services/portfolioService";
 import { resolveChainIds, formatChainLabel, getSupportedMainnetChainIds } from "@/lib/utils/chain";
 import { formatUSDValue, formatUSDCompact } from "@/lib/utils";
+import { getActiveWalletAddress, getActiveWallet } from "../utils/getActiveWallet";
 
 /**
  * Multi-token balance command - shows top tokens by USD value
@@ -117,18 +118,16 @@ export const balancesCmd: CommandDef = {
       resolvedChainIds = getSupportedMainnetChainIds();
     }
 
-    // Get the user's address (EOA mode prioritized per CLAUDE.md)
-    const address =
-      ctx.accountMode === "SMART_ACCOUNT"
-        ? ctx.saAddress
-        : ctx.selectedWallet?.address;
+    // Get the active wallet address based on current account mode
+    const activeWallet = getActiveWallet(ctx);
+    const address = activeWallet.address;
 
     if (!address) {
       dispatch({
         type: "CHAT.ADD",
         message: {
           role: "assistant",
-          content: `❌ No wallet address available. Please connect a wallet first.`,
+          content: `❌ No wallet address available for ${activeWallet.label}. Please connect a wallet first.`,
           timestamp: Date.now(),
         },
       });

@@ -67,6 +67,23 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
     return;
   }
 
+  if (accountMode === "BASE_ACCOUNT") {
+    const baseAccountAddress = core.baseAccountClients?.address;
+    const baseAccountProvider = core.baseAccountClients?.provider;
+
+    if (!baseAccountAddress || !baseAccountProvider) {
+      dispatch({
+        type: "EXEC.FAIL",
+        error: {
+          code: "AUTH_REQUIRED",
+          message: "Base Account not connected. Please sign in with Base Account.",
+          phase: "execute",
+        },
+      });
+      return;
+    }
+  }
+
   // ============================================================================
   // CHAIN SYNCHRONIZATION LOGIC
   // ============================================================================
@@ -203,6 +220,15 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
     if (accountMode === "SMART_ACCOUNT") {
       executionAddress = getSmartAccountAddress(core.saAddress);
       console.log("✅ Smart Account address:", executionAddress);
+    } else if (accountMode === "BASE_ACCOUNT") {
+      executionAddress = core.baseAccountClients!.address!;
+      console.log("✅ Base Account (Universal) address:", executionAddress);
+      
+      // Log Sub Account address if available
+      if (core.baseAccountClients?.subAccountAddress) {
+        console.log("✅ Base Account (Sub) address:", core.baseAccountClients.subAccountAddress);
+        console.log("💡 Transactions will use Sub Account (no passkey prompts)");
+      }
     } else {
       executionAddress = core.selectedWallet!.address;
       console.log("✅ EOA address:", executionAddress);
@@ -218,6 +244,8 @@ export const executePrivyFx: StepDef["onEnter"] = async (ctx, core, dispatch, si
         smartWalletClient: core.smartWalletClient,
         eoaSendTransaction: core.eoaSendTransaction,
         selectedWallet: core.selectedWallet,
+        baseAccountProvider: core.baseAccountClients?.provider,
+        baseAccountAddress: core.baseAccountClients?.address,
       },
       route
     );
