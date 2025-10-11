@@ -39,7 +39,7 @@ interface BaseAccountProviderProps {
 
 export function BaseAccountProvider({ children }: BaseAccountProviderProps) {
   const config = getBaseAccountConfig();
-  const { ready: privyReady, authenticated: privyAuthenticated, login } = usePrivy();
+  const { ready: privyReady, authenticated: privyAuthenticated, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { baseAccountSdk } = useBaseAccountSdk();
   const { connectWallet } = useConnectWallet();
@@ -66,6 +66,55 @@ export function BaseAccountProvider({ children }: BaseAccountProviderProps) {
       return null;
     }
   }, [baseAccountSdk]);
+
+  // Auto-reconnect Base Account wallet if user logged in with it
+  useEffect(() => {
+    if (!config.enabled) return;
+    if (!privyReady || !privyAuthenticated || !user) return;
+    if (isConnected) return; // Already connected
+    
+    // Check if user has Base Account in Privy's linked accounts
+    // Look for wallet type accounts that might be Base Account
+    const hasBaseAccountLinked = user.linkedAccounts?.some(
+      (account: any) => {
+        // Base Account appears as a wallet in linkedAccounts
+        if (account.type === 'wallet' && account.walletClientType === 'base_account') {
+          return true;
+        }
+        // Also check for base_account type directly
+        if (account.type === 'base_account') {
+          return true;
+        }
+        return false;
+      }
+    );
+
+    if (!hasBaseAccountLinked) {
+      return;
+    }
+
+    // User has Base Account linked but it's not in wallets array
+    // This happens after re-login - need to reconnect
+    console.log('🔄 Base Account found in linkedAccounts, reconnecting...');
+    
+    const attemptReconnect = async () => {
+      try {
+        setIsLoading(true);
+        await connectWallet({
+          walletList: ['base_account'],
+        });
+        console.log('✅ Base Account reconnected');
+      } catch (error) {
+        console.error('❌ Failed to reconnect Base Account:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Small delay to ensure Privy is fully initialized
+    const timeout = setTimeout(attemptReconnect, 500);
+    return () => clearTimeout(timeout);
+  }, [config.enabled, privyReady, privyAuthenticated, user, isConnected, wallets.length, connectWallet]);
 
   // Show setup prompt for logged-in users without Base Account
   useEffect(() => {
@@ -131,8 +180,19 @@ export function BaseAccountProvider({ children }: BaseAccountProviderProps) {
       console.log('🔑 Opening Privy login for Base Account...');
       login();
     } else {
-      // User logged in but no Base Account - connect Base Account wallet
-      console.log('🔗 Prompting user to connect Base Account wallet...');
+      // User already logged in with email/other method
+      // Base Account requires re-authentication to properly link
+      console.log('🔗 Base Account requires login to link properly...');
+      
+      // Show explanation to user
+      alert(
+        'To use Base Account, you need to log in with it.\n\n' +
+        'You will be logged out and can then choose "Base Account" as your login method.\n\n' +
+        'Your account data will be preserved.'
+      );
+      
+      // For now, open connectWallet (temporary connection for this session)
+      // TODO: Consider implementing proper re-login flow
       connectWallet({
         walletList: ['base_account']
       });

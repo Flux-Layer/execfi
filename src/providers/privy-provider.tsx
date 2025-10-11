@@ -33,6 +33,8 @@ export default function PrivyAppProvider({
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
       clientId={process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID || ""}
       config={{
+        // Enable wallet and email as login methods
+        loginMethods: ['email', 'wallet'],
         // Create embedded wallets for users who don't have a wallet
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
