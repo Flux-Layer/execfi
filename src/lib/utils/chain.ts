@@ -101,6 +101,15 @@ export function isChainSupported(chainId: number): boolean {
 }
 
 /**
+ * Get all supported chain IDs (mainnet + testnet)
+ */
+export function getSupportedChainIds(): number[] {
+  return getSupportedChains()
+    .filter(chain => chain.supported)
+    .map(chain => chain.id);
+}
+
+/**
  * Get all supported mainnet chain IDs
  */
 export function getSupportedMainnetChainIds(): number[] {
