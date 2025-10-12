@@ -5,7 +5,7 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://execfi.xyz").repl
 const DEFAULT_TITLE = "ExecFi | AI-Powered Onchain Execution";
 const TITLE_TEMPLATE = "%s | ExecFi";
 const DEFAULT_DESCRIPTION = "ExecFi is a DeFi operating system with an AI terminal that executes secure, signless onchain workflows for digital asset.";
-const DEFAULT_IMAGE = "/execfi.favicon.svg";
+const DEFAULT_IMAGE = "/og/execfi-card.png";
 const DEFAULT_KEYWORDS = [
   "ExecFi",
   "onchain automation",

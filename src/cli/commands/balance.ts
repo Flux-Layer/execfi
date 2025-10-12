@@ -9,8 +9,10 @@ import {
   type PortfolioSummary,
   type AggregatedToken
 } from "@/services/portfolioService";
-import { resolveChainIds, formatChainLabel, getSupportedMainnetChainIds } from "@/lib/utils/chain";
+import { resolveChainIds, formatChainLabel, getSupportedChainIds } from "@/lib/utils/chain";
+import { getChainConfig } from "@/lib/chains/registry";
 import { formatUSDValue, formatUSDCompact } from "@/lib/utils";
+import { getActiveWalletAddress, getActiveWallet } from "../utils/getActiveWallet";
 
 /**
  * Multi-token balance command - shows top tokens by USD value
@@ -19,7 +21,7 @@ export const balancesCmd: CommandDef = {
   name: "/balances",
   aliases: ["/balance", "/bal", "/bals", "/portfolio"],
   category: "core",
-  summary: "Show multi-token portfolio with USD values",
+  summary: "Show multi-token portfolio across all supported chains (mainnet + testnet)",
   usage: "/balances [--chain <id|name>] [--limit <n>] [--sort <field>] [--summary|--detailed] [--insights]",
   flags: [
     {
@@ -75,6 +77,18 @@ export const balancesCmd: CommandDef = {
       default: true,
       description: "Group same tokens across chains (default)",
     },
+    {
+      name: "mainnet-only",
+      alias: "M",
+      type: "boolean",
+      description: "Show only mainnet balances (exclude testnets)",
+    },
+    {
+      name: "testnet-only",
+      alias: "T",
+      type: "boolean",
+      description: "Show only testnet balances (exclude mainnets)",
+    },
   ],
   examples: [
     "/balances",
@@ -83,6 +97,8 @@ export const balancesCmd: CommandDef = {
     "/balances --limit 5 --sort symbol",
     "/bals -c ethereum -l 3 -I",
     "/portfolio --min-usd 1.00 --aggregate",
+    "/balances --mainnet-only",
+    "/balances --testnet-only --insights",
   ],
   parse: (line) => {
     try {
@@ -107,39 +123,116 @@ export const balancesCmd: CommandDef = {
     let resolvedChainIds: number[];
 
     if (args.chain) {
-      // User specified chains explicitly
-      resolvedChainIds = resolveChainIds(args.chain, defaultChainId);
+      // Enhanced chain resolution with suggestions
+      const { resolveWithSuggestions } = await import("@/lib/utils/chainMatcher");
+      
+      const parts = args.chain.split(',').map((p: string) => p.trim());
+      resolvedChainIds = [];
+      const warnings: string[] = [];
+
+      for (const part of parts) {
+        // Try parsing as number first
+        const parsed = parseInt(part);
+        if (!isNaN(parsed)) {
+          resolvedChainIds.push(parsed);
+          continue;
+        }
+
+        // Use enhanced resolution with suggestions
+        const result = resolveWithSuggestions(part);
+        
+        if (result.chainId) {
+          resolvedChainIds.push(result.chainId);
+          if (result.suggestions) {
+            warnings.push(result.suggestions);
+          }
+        } else {
+          // Chain not found
+          warnings.push(result.suggestions || `❌ Chain "${part}" not found.`);
+        }
+      }
+
+      // Show warnings/suggestions if any
+      if (warnings.length > 0) {
+        dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: warnings.join('\n\n'),
+            timestamp: Date.now(),
+          },
+        });
+      }
+
+      // If no valid chains resolved, fall back to all chains
+      if (resolvedChainIds.length === 0) {
+        let allChainIds = getSupportedChainIds();
+        
+        // Apply mainnet/testnet filters
+        if (args["mainnet-only"]) {
+          allChainIds = allChainIds.filter(id => {
+            const config = getChainConfig(id);
+            return config && !config.isTestnet;
+          });
+        } else if (args["testnet-only"]) {
+          allChainIds = allChainIds.filter(id => {
+            const config = getChainConfig(id);
+            return config && config.isTestnet;
+          });
+        }
+        
+        resolvedChainIds = allChainIds;
+      }
     } else if (showDetailed || !useAggregation) {
       // Detailed mode uses current chain only
       resolvedChainIds = [defaultChainId];
     } else {
-      // Summary mode uses all supported mainnet chains for portfolio aggregation
-      resolvedChainIds = getSupportedMainnetChainIds();
+      // Summary mode uses all supported chains (mainnet + testnet) for portfolio aggregation
+      let allChainIds = getSupportedChainIds();
+      
+      // Apply mainnet/testnet filters
+      if (args["mainnet-only"]) {
+        allChainIds = allChainIds.filter(id => {
+          const config = getChainConfig(id);
+          return config && !config.isTestnet;
+        });
+      } else if (args["testnet-only"]) {
+        allChainIds = allChainIds.filter(id => {
+          const config = getChainConfig(id);
+          return config && config.isTestnet;
+        });
+      }
+      
+      resolvedChainIds = allChainIds;
     }
 
-    // Get the user's address (EOA mode prioritized per CLAUDE.md)
-    const address =
-      ctx.accountMode === "SMART_ACCOUNT"
-        ? ctx.saAddress
-        : ctx.selectedWallet?.address;
+    // Get the active wallet address based on current account mode
+    const activeWallet = getActiveWallet(ctx);
+    const address = activeWallet.address;
 
     if (!address) {
       dispatch({
         type: "CHAT.ADD",
         message: {
           role: "assistant",
-          content: `❌ No wallet address available. Please connect a wallet first.`,
+          content: `❌ No wallet address available for ${activeWallet.label}. Please connect a wallet first.`,
           timestamp: Date.now(),
         },
       });
       return;
     }
 
-    // Build chain display names
+    // Build chain display names with mainnet/testnet split
     const chainDisplayNames = resolvedChainIds.map(id => formatChainLabel(id));
-    const chainSummary = chainDisplayNames.length === 1
+    const mainnetCount = resolvedChainIds.filter(id => {
+      const config = getChainConfig(id);
+      return config && !config.isTestnet;
+    }).length;
+    const testnetCount = resolvedChainIds.length - mainnetCount;
+
+    const chainSummary = resolvedChainIds.length === 1
       ? chainDisplayNames[0]
-      : `${chainDisplayNames.length} chains (${chainDisplayNames.slice(0, 2).join(', ')}${chainDisplayNames.length > 2 ? ', ...' : ''})`;
+      : `${resolvedChainIds.length} chains (${mainnetCount} mainnet${testnetCount > 0 ? `, ${testnetCount} testnet` : ''})`;
 
     // Show loading message
     dispatch({
@@ -268,6 +361,14 @@ export const balancesCmd: CommandDef = {
 };
 
 /**
+ * Helper: Check if a chain is a testnet
+ */
+function isTestnet(chainId: number): boolean {
+  const config = getChainConfig(chainId);
+  return config?.isTestnet ?? false;
+}
+
+/**
  * Detailed portfolio display formatter (per-token, per-chain)
  */
 function formatDetailedPortfolioDisplay(
@@ -352,10 +453,13 @@ function formatPortfolioSummaryDisplay(
 ): string {
   const now = new Date();
 
-  // Build chain summary
+  // Build chain summary with mainnet/testnet breakdown
+  const mainnetChainCount = summary.chainDistribution.filter(c => !isTestnet(c.chainId)).length;
+  const testnetChainCount = summary.activeChains - mainnetChainCount;
+  
   const chainSummary = summary.chainDistribution.length === 1
-    ? `**Chain:** ${summary.chainDistribution[0].chainName} (${summary.chainDistribution[0].chainId})`
-    : `**Chains:** ${summary.activeChains} chains (${summary.chainDistribution.slice(0, 2).map(c => c.chainName).join(', ')}${summary.activeChains > 2 ? ', ...' : ''})`;
+    ? `**Chain:** ${summary.chainDistribution[0].chainName}${isTestnet(summary.chainDistribution[0].chainId) ? ' 🧪' : ''} (${summary.chainDistribution[0].chainId})`
+    : `**Chains:** ${summary.activeChains} chains (${mainnetChainCount} mainnet${testnetChainCount > 0 ? `, ${testnetChainCount} testnet` : ''})`;
 
   const header = `💰 Portfolio Summary
 
@@ -417,10 +521,11 @@ ${chainSummary}
   }).join('\n\n');
 
   // Chain Distribution Section
-  const chainHeader = `\n📊 CHAIN DISTRIBUTION\n`;
+  const chainHeader = `\n\n📊 CHAIN DISTRIBUTION\n`;
   const chainRows = summary.chainDistribution.map(chain => {
     const percentage = chain.percentage.toFixed(1);
-    return `  • ${chain.chainName}: ${formatUSDValue(chain.usdValue, 'low')} (${percentage}%) - ${chain.tokenCount} token${chain.tokenCount !== 1 ? 's' : ''}`;
+    const testnetTag = isTestnet(chain.chainId) ? ' 🧪' : '';
+    return `  • ${chain.chainName}${testnetTag}: ${formatUSDValue(chain.usdValue, 'low')} (${percentage}%) - ${chain.tokenCount} token${chain.tokenCount !== 1 ? 's' : ''}`;
   }).join('\n');
 
   // Insights Section
@@ -435,7 +540,7 @@ ${chainSummary}
   }
 
   // Quick Actions Section
-  const quickActions = `\n💡 **QUICK ACTIONS:**\n`;
+  const quickActions = `\n\n💡 **QUICK ACTIONS:**\n`;
   const actionItems = [
     '• Use `/send <amount> <token> to <address>` to transfer tokens',
     '• Use `/balances --detailed` for per-token breakdown',
@@ -447,7 +552,7 @@ ${chainSummary}
   // Data freshness note
   const hasUnpricedTokens = filteredHoldings.some(token => token.priceUsd === undefined);
   const priceNote = hasUnpricedTokens
-    ? `⚠️  Some tokens show "(price unavailable)" - total may be incomplete\n`
+    ? `\n⚠️  Some tokens show "(price unavailable)" - total may be incomplete\n`
     : '';
 
   const footer = `\n${priceNote}✅ **Live Data:** Aggregated portfolio with 20s cache`;

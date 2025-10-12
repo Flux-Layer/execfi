@@ -183,6 +183,17 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
             <div className="p-2 text-slate-100 text-lg h-full">
                <InitialText />
 
+               {/* Debug Info - show if stuck in FLOW for too long */}
+               {mode === "FLOW" && flow && (
+                  <DebugInfo
+                     flow={flow}
+                     onReset={() => dispatch({ type: "APP.RESET" })}
+                  />
+               )}
+
+               {/* HSM Chat History */}
+               <HSMChatHistory history={chatHistory} />
+
                {/* Mode Indicator */}
                <ModeIndicator mode={mode} viewStack={viewStack} />
 
@@ -200,17 +211,6 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
                      }
                   />
                )}
-
-               {/* Debug Info - show if stuck in FLOW for too long */}
-               {mode === "FLOW" && flow && (
-                  <DebugInfo
-                     flow={flow}
-                     onReset={() => dispatch({ type: "APP.RESET" })}
-                  />
-               )}
-
-               {/* HSM Chat History */}
-               <HSMChatHistory history={chatHistory} />
 
                {/* HSM Input Line */}
                <HSMCurLine

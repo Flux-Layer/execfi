@@ -5,6 +5,7 @@ import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import useSmartWallet from "@/hooks/useSmartWallet";
 import { useEOA } from "@/providers/EOAProvider";
 import { useChainSelection } from "@/hooks/useChainSelection";
+import { useBaseAccount } from "@/providers/base-account-context";
 import type { Store } from "../state/store";
 import type { AppState, Dispatch } from "../state/types";
 import { createPersistedStore, createStore } from "../state/store";
@@ -28,6 +29,7 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   const { selectedWallet } = useEOA();
   const { sendTransaction } = useSendTransaction();
   const { selectedChainId } = useChainSelection();
+  const baseAccount = useBaseAccount();
 
   // Create store once and persist it
   const storeRef = useRef<Store | null>(null);
@@ -67,11 +69,47 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
       // Load or create policy state
       const policy = loadPolicy() || createDefaultPolicy("moderate");
 
+      // Load slippage from localStorage (default: 0.005 = 0.5%)
+      let defaultSlippage = 0.005;
+      try {
+        const stored = typeof window !== "undefined" ? localStorage.getItem("execfi_slippage_default") : null;
+        if (stored) {
+          const parsed = parseFloat(stored);
+          if (!isNaN(parsed) && parsed >= 0.0001 && parsed <= 0.99) {
+            defaultSlippage = parsed;
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to load slippage from localStorage:", error);
+      }
+
+      // Load account mode from localStorage (with smart defaults)
+      let accountMode: "EOA" | "SMART_ACCOUNT" | "BASE_ACCOUNT" = "EOA";
+      try {
+        const storedMode = typeof window !== "undefined" ? localStorage.getItem("execfi_account_mode") : null;
+        if (storedMode && ["EOA", "SMART_ACCOUNT", "BASE_ACCOUNT"].includes(storedMode)) {
+          accountMode = storedMode as any;
+        }
+      } catch (error) {
+        console.warn("Failed to load account mode from localStorage:", error);
+      }
+
+      // Auto-select appropriate mode if stored mode is not available
+      // Priority: Base Account > Smart Account > EOA
+      if (accountMode === "BASE_ACCOUNT" && !baseAccount.isConnected) {
+        // User selected Base Account but doesn't have it - fall back
+        accountMode = smartWalletReady && smartAccountAddress ? "SMART_ACCOUNT" : "EOA";
+      } else if (accountMode === "SMART_ACCOUNT" && (!smartWalletReady || !smartAccountAddress)) {
+        // User selected Smart Account but doesn't have it - fall back
+        accountMode = baseAccount.isConnected ? "BASE_ACCOUNT" : "EOA";
+      }
+
       const coreContext = {
         chainId: selectedChainId, // Use selected chain from chain selection context
         idempotency: new Map(),
-        accountMode: "EOA" as const, // Default to EOA mode
+        accountMode, // Dynamic account mode based on availability and user preference
         policy, // Add policy state
+        defaultSlippage, // Add default slippage tolerance
 
         // Auth-specific fields only when authenticated
         ...(authenticated && user && smartWalletReady
@@ -96,6 +134,21 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
               selectedWallet: undefined,
               eoaSendTransaction: undefined,
             }),
+
+        // Base Account support - available when user has Base Account
+        ...(baseAccount.isConnected
+          ? {
+              baseAccountClients: {
+                sdk: baseAccount.sdk,
+                provider: baseAccount.provider,
+                address: baseAccount.baseAccountAddress as `0x${string}`,
+                subAccountAddress: undefined, // Sub accounts are managed by SDK
+                isConnected: true,
+              },
+            }
+          : {
+              baseAccountClients: undefined,
+            }),
       };
 
       store.dispatch({
@@ -103,7 +156,7 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
         coreContext,
       });
     }
-  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store]);
+  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store, baseAccount]);
 
   // Dispatch chain updates when selectedChainId changes
   useEffect(() => {

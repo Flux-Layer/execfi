@@ -247,3 +247,151 @@ export async function warmUpPriceCache(chainId: number): Promise<void> {
     )
   );
 }
+
+/**
+ * Batch fetch prices for token symbols (without chain specificity)
+ * Uses CoinGecko as primary source for chain-agnostic pricing
+ * @param symbols - Array of token symbols
+ * @returns Record of symbol to price in USD
+ */
+export async function getTokenPrices(symbols: string[]): Promise<Record<string, number>> {
+  if (symbols.length === 0) {
+    return {};
+  }
+
+  const prices: Record<string, number> = {};
+  const symbolsToFetch = new Set<string>();
+
+  // Check cache first
+  const now = Date.now();
+  for (const symbol of symbols) {
+    const upperSymbol = symbol.toUpperCase();
+    
+    // Look for any cached entry for this symbol (regardless of chain)
+    let foundInCache = false;
+    for (const [key, entry] of priceCache.entries()) {
+      if (key.startsWith(`${upperSymbol}-`) && now - entry.timestamp < CACHE_TTL) {
+        prices[upperSymbol] = entry.price;
+        foundInCache = true;
+        break;
+      }
+    }
+
+    if (!foundInCache) {
+      symbolsToFetch.add(upperSymbol);
+    }
+  }
+
+  // Fetch missing prices
+  if (symbolsToFetch.size > 0) {
+    // Try CoinGecko batch fetch first
+    try {
+      const coinGeckoPrices = await fetchBatchPricesFromCoinGecko(Array.from(symbolsToFetch));
+      for (const [symbol, price] of Object.entries(coinGeckoPrices)) {
+        prices[symbol] = price;
+        // Cache with a generic chain ID (0) for chain-agnostic prices
+        priceCache.set(`${symbol}-0`, {
+          price,
+          timestamp: now,
+          source: 'coingecko',
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ CoinGecko batch fetch failed:', error);
+    }
+
+    // Use fallback prices for any still missing
+    for (const symbol of symbolsToFetch) {
+      if (!prices[symbol]) {
+        const fallbackPrice = FALLBACK_PRICES[symbol];
+        if (fallbackPrice) {
+          prices[symbol] = fallbackPrice;
+          priceCache.set(`${symbol}-0`, {
+            price: fallbackPrice,
+            timestamp: now,
+            source: 'static',
+          });
+        }
+      }
+    }
+  }
+
+  return prices;
+}
+
+/**
+ * Batch fetch prices from CoinGecko
+ * @param symbols - Array of token symbols
+ * @returns Record of symbol to price in USD
+ */
+async function fetchBatchPricesFromCoinGecko(symbols: string[]): Promise<Record<string, number>> {
+  const coinIds: Record<string, string> = {
+    'ETH': 'ethereum',
+    'WETH': 'ethereum',
+    'USDC': 'usd-coin',
+    'USDT': 'tether',
+    'DAI': 'dai',
+    'WBTC': 'wrapped-bitcoin',
+    'MATIC': 'matic-network',
+    'WMATIC': 'matic-network',
+    'AVAX': 'avalanche-2',
+    'WAVAX': 'avalanche-2',
+    'ARB': 'arbitrum',
+    'OP': 'optimism',
+    'BNB': 'binancecoin',
+    'WBNB': 'binancecoin',
+    'LINK': 'chainlink',
+    'UNI': 'uniswap',
+    'AAVE': 'aave',
+    'CRV': 'curve-dao-token',
+    'SNX': 'havven',
+    'SUSHI': 'sushi',
+    'COMP': 'compound-governance-token',
+    'MKR': 'maker',
+    'YFI': 'yearn-finance',
+  };
+
+  // Map symbols to CoinGecko IDs
+  const idsToFetch: string[] = [];
+  const symbolToId: Record<string, string> = {};
+
+  for (const symbol of symbols) {
+    const coinId = coinIds[symbol.toUpperCase()];
+    if (coinId) {
+      idsToFetch.push(coinId);
+      symbolToId[symbol.toUpperCase()] = coinId;
+    }
+  }
+
+  if (idsToFetch.length === 0) {
+    return {};
+  }
+
+  // Fetch from CoinGecko
+  const apiKey = process.env.NEXT_PUBLIC_COINGECKO_API_KEY;
+  const fetchOptions: RequestInit = apiKey 
+    ? { headers: { 'x-cg-demo-api-key': apiKey } }
+    : {};
+
+  const idsParam = idsToFetch.join(',');
+  const response = await fetch(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${idsParam}&vs_currencies=usd`,
+    fetchOptions
+  );
+
+  if (!response.ok) {
+    throw new Error(`CoinGecko API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Map back to symbols
+  const prices: Record<string, number> = {};
+  for (const [symbol, coinId] of Object.entries(symbolToId)) {
+    if (data[coinId]?.usd) {
+      prices[symbol] = data[coinId].usd;
+    }
+  }
+
+  return prices;
+}

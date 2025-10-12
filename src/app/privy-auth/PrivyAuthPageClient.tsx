@@ -8,9 +8,8 @@ import SplashButton from "@components/splash-button";
 import { useEOA } from "@hooks/useEOA";
 import useSmartWallet from "@/hooks/useSmartWallet";
 import SmartAccountBalance from "@/components/SmartAccountBalance";
-
 export default function PrivyAuthPageClient() {
-  const { authenticated, logout, user, exportWallet } = usePrivy();
+  const { authenticated, logout, user, exportWallet, login } = usePrivy();
   const {
     privyWallets,
     selectedWallet,
@@ -215,16 +214,43 @@ export default function PrivyAuthPageClient() {
                 exit={{ opacity: 0 }}
                 className="space-y-6"
               >
-                {/* Email Input */}
+                {/* Primary Sign In Button - Opens Privy Modal with Base Account */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="space-y-4"
+                >
+                  <button
+                    onClick={() => login()}
+                    className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-semibold text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-purple-500/50"
+                  >
+                    Sign In
+                  </button>
+                  <p className="text-center text-sm text-gray-400">
+                    Sign in with passkey (Base Account) or email
+                  </p>
+                </motion.div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3 px-4">
+                  <div className="flex-1 h-px bg-gray-700" />
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">Or use email code</span>
+                  <div className="flex-1 h-px bg-gray-700" />
+                </div>
+
+                {/* Email Input (Alternative) */}
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
                   className="space-y-2"
                 >
-                  <label className="text-sm font-medium text-gray-300 block px-4">
-                    Email Address
-                  </label>
+                  <div className="flex items-center justify-between px-4">
+                    <label className="text-sm font-medium text-gray-300">
+                      Email Address
+                    </label>
+                  </div>
                   <TextInput
                     placeholder="Enter your email address"
                     onChangeCallback={(v) => setEmail(v)}

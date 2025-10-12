@@ -8,7 +8,19 @@ import {
   validateQuote,
   LifiError,
 } from "@/lib/lifi-client";
-import { isAddress, getAddress, parseEther, formatEther } from "viem";
+import { isAddress, getAddress, parseEther, formatEther, encodeFunctionData } from "viem";
+import {
+  FEE_ENTRYPOINT_ADDRESSES,
+  FEE_ENTRYPOINT_ABI,
+} from "@/lib/contracts/entrypoint";
+
+// EntryPoint feature flag
+const ENABLE_ENTRYPOINT = process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+function isZeroAddress(address: string): boolean {
+  return address.trim().toLowerCase() === ZERO_ADDRESS;
+}
 
 // Request/Response schemas for API type safety
 const PrepareRequestSchema = z.object({
@@ -50,6 +62,13 @@ const PrepareResponseSchema = z.object({
       gasEstimate: z.string(),
       executionTime: z.number(),
       priceImpact: z.number().optional(),
+    })
+    .optional(),
+  requiresApproval: z
+    .object({
+      token: z.string(),
+      spender: z.string(),
+      amount: z.string(),
     })
     .optional(),
   error: z
@@ -122,24 +141,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Validate request body
     const params = PrepareRequestSchema.parse(body);
 
+    const isSameChain = params.fromChain === params.toChain;
+    const isNativeTransfer =
+      isSameChain &&
+      isZeroAddress(params.fromToken) &&
+      isZeroAddress(params.toToken);
+
     // Handle native transfers (same-chain ETH to ETH)
-    if (
-      (params.fromToken === params.toToken &&
-        params.fromToken === "0x0000000000000000000000000000000000000000" &&
-        params.fromChain === params.toChain) ||
-      (params?.fromChain === params?.toChain &&
-        params?.fromToken === params?.toToken)
-    ) {
+    if (isNativeTransfer) {
       console.log(
         `🔄 Native transfer detected - creating direct transaction data...`,
       );
 
-      // For native transfers, create transaction data directly (LI.FI doesn't handle ETH→ETH on same chain)
-      const transactionData: TransactionData = {
-        to: getAddress(params.toAddress),
-        value: params.amount,
-        chainId: params.fromChain,
-      };
+      // For native transfers, check if EntryPoint should be used
+      let transactionData: TransactionData;
+
+      const entrypoint = FEE_ENTRYPOINT_ADDRESSES[params.fromChain];
+      if (ENABLE_ENTRYPOINT && entrypoint) {
+        // Route through EntryPoint contract
+        console.log(`🔄 Routing native transfer through EntryPoint: ${entrypoint}`);
+
+        transactionData = {
+          to: entrypoint,
+          value: params.amount,
+          data: encodeFunctionData({
+            abi: FEE_ENTRYPOINT_ABI,
+            functionName: "transferETH",
+            args: [getAddress(params.toAddress)],
+          }),
+          chainId: params.fromChain,
+        };
+      } else {
+        // Direct transfer (current behavior)
+        transactionData = {
+          to: getAddress(params.toAddress),
+          value: params.amount,
+          chainId: params.fromChain,
+        };
+      }
 
       const response: PrepareResponse = {
         success: true,
@@ -148,7 +187,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           fromAmount: params.amount,
           toAmount: params.amount, // Native transfer is 1:1
           toAmountMin: params.amount,
-          gasEstimate: "21000", // Standard ETH transfer gas
+          gasEstimate: ENABLE_ENTRYPOINT && entrypoint ? "50000" : "21000", // EntryPoint adds overhead
           executionTime: 30, // Typical block time
         },
         requestId,
@@ -236,10 +275,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Convert route to transaction data for Privy execution
-    const transactionData = routeToTransactionData(
+    let transactionData = routeToTransactionData(
       selectedRoute,
       params.fromAddress,
     );
+
+    // Check if this is a same-chain ERC-20 transfer that should use EntryPoint
+    const isSameChainERC20 =
+      params.fromChain === params.toChain &&
+      params.fromToken === params.toToken &&
+      params.fromToken !== "0x0000000000000000000000000000000000000000";
+
+    const entrypoint = FEE_ENTRYPOINT_ADDRESSES[params.fromChain];
+
+    if (ENABLE_ENTRYPOINT && entrypoint && isSameChainERC20) {
+      console.log(`🔄 Routing ERC-20 transfer through EntryPoint: ${entrypoint}`);
+
+      // Override transaction data to route through EntryPoint
+      transactionData = {
+        to: entrypoint,
+        value: "0x0",
+        data: encodeFunctionData({
+          abi: FEE_ENTRYPOINT_ABI,
+          functionName: "transferERC20",
+          args: [
+            getAddress(params.fromToken),
+            getAddress(params.toAddress),
+            BigInt(params.amount),
+          ],
+        }),
+        chainId: params.fromChain,
+      };
+    }
 
     // Calculate execution metrics
     const totalExecutionTime = selectedRoute.steps.reduce(
@@ -272,6 +339,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           selectedRoute.toAmount,
         ),
       },
+      // Add approval requirement for ERC-20 transfers through EntryPoint
+      ...(ENABLE_ENTRYPOINT && entrypoint && isSameChainERC20
+        ? {
+            requiresApproval: {
+              token: params.fromToken,
+              spender: entrypoint,
+              amount: params.amount,
+            },
+          }
+        : {}),
       requestId,
     };
 

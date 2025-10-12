@@ -18,6 +18,7 @@ export function createInitialState(): AppState {
       chainId: 8453, // Base mainnet
       idempotency: new Map(),
       policy: createDefaultPolicy("moderate"), // Initialize with default moderate policy
+      defaultSlippage: 0.005, // Default 0.5% slippage
     },
     inputText: "",
     chatHistory: [],
@@ -62,6 +63,9 @@ export function reducer(state: AppState, event: AppEvent): AppState {
 
       // Regular input - start a flow if in IDLE or VIEW mode
       if (state.mode === "IDLE" || state.mode === "VIEW") {
+        // Check for pending slippage override
+        const slippage = state.core.pendingSlippage;
+        
         return {
           ...state,
           mode: "FLOW",
@@ -70,6 +74,11 @@ export function reducer(state: AppState, event: AppEvent): AppState {
             name: inferFlowName(text),
             step: "parse",
             raw: text,
+            slippage, // Include pending slippage if set
+          },
+          core: {
+            ...state.core,
+            pendingSlippage: undefined, // Clear pending slippage after use
           },
           viewStack: [], // Clear view stack when starting a flow
           chatHistory: [
@@ -1047,6 +1056,23 @@ export function reducer(state: AppState, event: AppEvent): AppState {
         },
       };
 
+    case "ACCOUNT_MODE.UPDATE":
+      // Update account mode and persist to localStorage
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("execfi_account_mode", event.accountMode);
+        } catch (error) {
+          console.warn("Failed to save account mode to localStorage:", error);
+        }
+      }
+      return {
+        ...state,
+        core: {
+          ...state.core,
+          accountMode: event.accountMode,
+        },
+      };
+
     case "POLICY.UPDATE":
       return {
         ...state,
@@ -1078,6 +1104,15 @@ export function reducer(state: AppState, event: AppEvent): AppState {
       // Policy violations are logged, no state change needed
       console.warn("Policy violations:", event.violations);
       return state;
+
+    case "SLIPPAGE.SET_PENDING":
+      return {
+        ...state,
+        core: {
+          ...state.core,
+          pendingSlippage: event.slippage,
+        },
+      };
 
     default:
       return state;

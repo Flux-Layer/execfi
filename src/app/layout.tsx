@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -8,6 +8,15 @@ import { seoDefaults } from "@/lib/seo";
 // Force dynamic rendering for client-side app with Privy
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
+
+// Viewport configuration for mobile
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+};
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,6 +38,12 @@ export const metadata: Metadata = {
   keywords: seoDefaults.keywords,
   alternates: {
     canonical: "/",
+  },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'ExecFi',
   },
   openGraph: {
     type: "website",

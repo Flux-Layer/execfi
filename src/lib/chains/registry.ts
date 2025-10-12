@@ -60,16 +60,17 @@ function getRpcUrl(chainId: number, fallbackUrl?: string): string {
 
     // polygon
     137: `https://polygon-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    80001: `https://polygon-mumbai.g.alchemy.com/v2/${alchemyKey}`,
     80002: `https://polygon-amoy.g.alchemy.com/v2/${alchemyKey}`,
 
     // arbitrum
     42161: `https://arb-mainnet.g.alchemy.com/v2/${alchemyKey}`,
+    421614: `https://arb-sepolia.g.alchemy.com/v2/${alchemyKey}`,
 
     // optimism
     10: `https://opt-mainnet.g.alchemy.com/v2/${alchemyKey}`,
+    11155420: `https://opt-sepolia.g.alchemy.com/v2/${alchemyKey}`,
 
-    // avax
+    // avalanche - use public RPC, Alchemy doesn't support
 
     // bsc
     56: `https://bnb-mainnet.g.alchemy.com/v2/${alchemyKey}`,
@@ -93,6 +94,8 @@ function getRpcUrl(chainId: number, fallbackUrl?: string): string {
 
 /**
  * Base tokens for Base mainnet
+ * Note: The RPC fallback now fetches a comprehensive token list from LiFi,
+ * so this registry is only used as a last resort fallback.
  */
 const BASE_MAINNET_TOKENS: Token[] = [
   {
@@ -283,7 +286,22 @@ export const CHAIN_REGISTRY: Record<number, ChainConfig> = {
     supported: true,
     isTestnet: false,
     tokens: getDefaultTokens(137),
-  }, // Polygon amoy
+  },
+
+  // Polygon Amoy Testnet
+  80002: {
+    id: 80002,
+    name: "Polygon Amoy",
+    symbol: "MATIC",
+    nativeCurrency: { name: "Polygon", symbol: "MATIC", decimals: 18 },
+    rpcUrl: getRpcUrl(80002, polygonAmoy?.rpcUrls?.default?.http?.[0]),
+    explorerUrl: polygonAmoy?.blockExplorers?.default?.url,
+    explorerName: "PolygonScan Amoy",
+    wagmiChain: polygonAmoy,
+    supported: true,
+    isTestnet: true,
+    tokens: getDefaultTokens(80002),
+  },
 
   // Arbitrum One
   42161: {
@@ -298,6 +316,21 @@ export const CHAIN_REGISTRY: Record<number, ChainConfig> = {
     supported: true,
     isTestnet: false,
     tokens: getDefaultTokens(42161),
+  },
+
+  // Arbitrum Sepolia Testnet
+  421614: {
+    id: 421614,
+    name: "Arbitrum Sepolia",
+    symbol: "ETH",
+    nativeCurrency: { name: "Ethereum", symbol: "ETH", decimals: 18 },
+    rpcUrl: getRpcUrl(421614, arbitrumSepolia?.rpcUrls?.default?.http?.[0]),
+    explorerUrl: arbitrumSepolia?.blockExplorers?.default?.url,
+    explorerName: "Arbiscan Sepolia",
+    wagmiChain: arbitrumSepolia,
+    supported: true,
+    isTestnet: true,
+    tokens: getDefaultTokens(421614),
   },
 
   // Optimism
@@ -315,6 +348,21 @@ export const CHAIN_REGISTRY: Record<number, ChainConfig> = {
     tokens: getDefaultTokens(10),
   },
 
+  // Optimism Sepolia Testnet
+  11155420: {
+    id: 11155420,
+    name: "Optimism Sepolia",
+    symbol: "ETH",
+    nativeCurrency: { name: "Ethereum", symbol: "ETH", decimals: 18 },
+    rpcUrl: getRpcUrl(11155420, optimismSepolia?.rpcUrls?.default?.http?.[0]),
+    explorerUrl: optimismSepolia?.blockExplorers?.default?.url,
+    explorerName: "Optimistic Etherscan Sepolia",
+    wagmiChain: optimismSepolia,
+    supported: true,
+    isTestnet: true,
+    tokens: getDefaultTokens(11155420),
+  },
+
   // Avalanche
   43114: {
     id: 43114,
@@ -329,6 +377,22 @@ export const CHAIN_REGISTRY: Record<number, ChainConfig> = {
     isTestnet: false,
     tokens: getDefaultTokens(43114),
   },
+
+  // Avalanche Fuji Testnet
+  43113: {
+    id: 43113,
+    name: "Avalanche Fuji",
+    symbol: "AVAX",
+    nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
+    rpcUrl: getRpcUrl(43113, avalancheFuji?.rpcUrls?.default?.http?.[0]),
+    explorerUrl: avalancheFuji?.blockExplorers?.default?.url,
+    explorerName: "Snowtrace Fuji",
+    wagmiChain: avalancheFuji,
+    supported: true,
+    isTestnet: true,
+    tokens: getDefaultTokens(43113),
+  },
+
   // --- Binance Smart Chain (BSC Mainnet) ---
   56: {
     id: 56,
@@ -400,6 +464,21 @@ export const CHAIN_REGISTRY: Record<number, ChainConfig> = {
     supported: true,
     isTestnet: false,
     tokens: getDefaultTokens(1135),
+  },
+
+  // --- Lisk Sepolia Testnet ---
+  4202: {
+    id: 4202,
+    name: "Lisk Sepolia",
+    symbol: "LSK",
+    nativeCurrency: { name: "Ethereum", symbol: "ETH", decimals: 18 },
+    rpcUrl: getRpcUrl(4202, liskSepolia?.rpcUrls?.default?.http?.[0]),
+    explorerUrl: liskSepolia?.blockExplorers?.default?.url,
+    explorerName: "Lisk Sepolia Explorer",
+    wagmiChain: liskSepolia,
+    supported: true,
+    isTestnet: true,
+    tokens: getDefaultTokens(4202),
   },
 };
 
@@ -476,14 +555,21 @@ export function resolveChain(chainInput: string | number): ChainConfig {
     arbitrum: 42161,
     arb: 42161,
     arbitrumone: 42161,
+    "arbitrum-sepolia": 421614,
+    "arb-sepolia": 421614,
 
     // Optimism
     optimism: 10,
     op: 10,
+    "optimism-sepolia": 11155420,
+    "op-sepolia": 11155420,
 
     // Avalanche
     avalanche: 43114,
     avax: 43114,
+    fuji: 43113,
+    "avalanche-fuji": 43113,
+    "avax-fuji": 43113,
 
     // BNB Chain
     bnb: 56,

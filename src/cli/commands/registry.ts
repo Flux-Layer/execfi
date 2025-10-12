@@ -10,6 +10,7 @@ import { approveCmd, allowancesCmd, revokeCmd } from "./token";
 import { addressbookCmd, contactAddCmd } from "./contact";
 import { stateCmd, logsCmd, traceCmd, configCmd } from "./developer";
 import { swapCmd, bridgeCmd, quoteCmd, ensCmd, signCmd, verifyCmd } from "./phase4";
+import { slippageCmd } from "./slippage";
 
 // Build the command registry
 export const COMMANDS: CommandDef[] = [
@@ -54,6 +55,9 @@ export const COMMANDS: CommandDef[] = [
   ensCmd,
   signCmd,
   verifyCmd,
+
+  // Settings
+  slippageCmd,
 ];
 
 // Build alias map for fast lookup

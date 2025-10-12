@@ -1,8 +1,14 @@
 // Chain utility functions for portfolio service
-import { getSupportedChains, getChainDisplayName } from "@/lib/chains/registry";
+import { 
+  getSupportedChains, 
+  getChainDisplayName,
+  resolveChain,
+  type ChainConfig
+} from "@/lib/chains/registry";
 
 /**
  * Resolve chain IDs from various input formats
+ * Uses registry's resolveChain() for consistent resolution across all commands
  */
 export function resolveChainIds(input?: string | number, defaultChainId: number = 8453): number[] {
   if (!input) {
@@ -17,6 +23,7 @@ export function resolveChainIds(input?: string | number, defaultChainId: number 
     // Handle comma-separated list
     const parts = input.split(',').map(part => part.trim());
     const chainIds: number[] = [];
+    const errors: string[] = [];
 
     for (const part of parts) {
       // Try parsing as number first
@@ -26,59 +33,35 @@ export function resolveChainIds(input?: string | number, defaultChainId: number 
         continue;
       }
 
-      // Try resolving as chain name/slug
-      const resolvedId = resolveChainNameToId(part.toLowerCase());
-      if (resolvedId) {
-        chainIds.push(resolvedId);
+      // Try resolving via registry (single source of truth)
+      try {
+        const chainConfig = resolveChain(part);
+        chainIds.push(chainConfig.id);
+      } catch (error) {
+        // Chain not found - collect error but continue processing other chains
+        errors.push(part);
+        console.warn(`⚠️ Chain "${part}" not recognized`);
       }
     }
 
-    return chainIds.length > 0 ? chainIds : [defaultChainId];
+    // If we resolved at least one valid chain, return those
+    if (chainIds.length > 0) {
+      return chainIds;
+    }
+
+    // If all chains failed to resolve, log comprehensive warning and use default
+    if (errors.length > 0) {
+      console.warn(
+        `❌ Failed to resolve chains: ${errors.join(', ')}. ` +
+        `Using default chain ${defaultChainId}. ` +
+        `Use chain IDs directly or check supported chain names.`
+      );
+    }
+    
+    return [defaultChainId];
   }
 
   return [defaultChainId];
-}
-
-/**
- * Resolve chain name/slug to chain ID
- */
-function resolveChainNameToId(nameOrSlug: string): number | null {
-  const supportedChains = getSupportedChains();
-
-  // Direct name matches
-  const nameMatches: Record<string, number> = {
-    'base': 8453,
-    'ethereum': 1,
-    'eth': 1,
-    'mainnet': 1,
-    'polygon': 137,
-    'matic': 137,
-    'arbitrum': 42161,
-    'arb': 42161,
-    'optimism': 10,
-    'op': 10,
-    'avalanche': 43114,
-    'avax': 43114,
-    'bsc': 56,
-    'binance': 56,
-    'abstract': 2741,
-    'lisk': 1135,
-  };
-
-  // Check direct matches first
-  if (nameMatches[nameOrSlug]) {
-    return nameMatches[nameOrSlug];
-  }
-
-  // Check registry by name (case-insensitive)
-  for (const chain of supportedChains) {
-    if (chain.name.toLowerCase() === nameOrSlug ||
-        chain.symbol.toLowerCase() === nameOrSlug) {
-      return chain.id;
-    }
-  }
-
-  return null;
 }
 
 /**
@@ -98,6 +81,15 @@ export function formatChainLabel(chainId: number): string {
 export function isChainSupported(chainId: number): boolean {
   const supportedChains = getSupportedChains();
   return supportedChains.some(chain => chain.id === chainId && chain.supported);
+}
+
+/**
+ * Get all supported chain IDs (mainnet + testnet)
+ */
+export function getSupportedChainIds(): number[] {
+  return getSupportedChains()
+    .filter(chain => chain.supported)
+    .map(chain => chain.id);
 }
 
 /**

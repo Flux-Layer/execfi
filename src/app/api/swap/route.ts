@@ -13,9 +13,7 @@ export async function GET(req: Request) {
     const fromAddress = searchParams.get("fromAddress");
     const toAddress = searchParams.get("toAddress") ?? undefined;
     const order = (searchParams.get("order") as "FASTEST" | "CHEAPEST") ?? "CHEAPEST";
-    const slippage = searchParams.get("slippage")
-      ? Number(searchParams.get("slippage"))
-      : 0.005;
+    // const slippage =     0;
 
     if (!fromChain || !toChain || !fromToken || !toToken || !fromAmount || !fromAddress) {
       return NextResponse.json(
@@ -33,7 +31,7 @@ export async function GET(req: Request) {
       fromAddress,
       toAddress,
       order,
-      slippage,
+      // slippage,
     });
 
     return NextResponse.json(quote);

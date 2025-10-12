@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import { useTerminalOverlays, useTerminalStore } from "@/cli/hooks/useTerminalStore";
 import HSMOverlays from "./HSMOverlays";
 import { useDock } from "@/context/DockContext";
+import { useResponsive } from "@/hooks/useResponsive";
 
 // Grid and beam configurations (keeping the same visual design)
 const GRID_BOX_SIZE = 32;
@@ -68,6 +69,7 @@ function HSMTerminalContent({
   onMinimize,
   onToggleFullscreen,
 }: HSMTerminalContentProps) {
+  const { isMobile } = useResponsive();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -81,13 +83,16 @@ function HSMTerminalContent({
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const dragCaptureTargetRef = useRef<EventTarget & { releasePointerCapture?: (pointerId: number) => void } | null>(null);
   const pointerUpListenerRef = useRef<((event: PointerEvent) => void) | null>(null);
+  
+  // On mobile, always treat as fullscreen
+  const effectiveFullscreen = fullscreen || isMobile;
 
   const preventDrag = useCallback((event: DragEvent) => {
     event.preventDefault();
   }, []);
 
   const clampWithinViewport = useCallback(() => {
-    if (typeof window === "undefined" || fullscreen) return;
+    if (typeof window === "undefined" || effectiveFullscreen) return;
     const node = windowRef.current;
     if (!node) return;
     const width = node.offsetWidth;
@@ -98,22 +103,22 @@ function HSMTerminalContent({
       x: Math.min(Math.max(prev.x, 0), maxX),
       y: Math.min(Math.max(prev.y, 0), maxY),
     }));
-  }, []);
+  }, [effectiveFullscreen]);
 
   const initializePosition = useCallback(() => {
-    if (typeof window === "undefined" || fullscreen) return;
+    if (typeof window === "undefined" || effectiveFullscreen) return;
     const node = windowRef.current;
     if (!node) return;
     const w = node.offsetWidth;
     const h = node.offsetHeight;
     setPosition({ x: Math.max((window.innerWidth - w) / 2, 0), y: Math.max((window.innerHeight - h) / 2, 0) });
     setIsPositionReady(true);
-  }, []);
+  }, [effectiveFullscreen]);
 
   useEffect(() => {
     if (!ready) return;
     const frame = requestAnimationFrame(() => {
-      if (fullscreen) {
+      if (effectiveFullscreen) {
         setPosition({ x: 0, y: 0 });
         setIsPositionReady(true);
         return;
@@ -126,7 +131,7 @@ function HSMTerminalContent({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [ready, isPositionReady, initializePosition, clampWithinViewport, fullscreen]);
+  }, [ready, isPositionReady, initializePosition, clampWithinViewport, effectiveFullscreen]);
 
   // Handle presence without AnimatePresence for React 19 compatibility
   useEffect(() => {
@@ -150,14 +155,44 @@ function HSMTerminalContent({
   }, [clampWithinViewport]);
 
   useEffect(() => {
-    if (!fullscreen) {
+    if (!effectiveFullscreen) {
       setIsPositionReady(false);
     }
-  }, [fullscreen]);
+  }, [effectiveFullscreen]);
+
+  // Auto-scroll to bottom when entering fullscreen or when window becomes active
+  useEffect(() => {
+    if (!isActive || !effectiveFullscreen) return;
+
+    // Use requestAnimationFrame to ensure DOM is fully rendered
+    const scrollToBottom = () => {
+      // Find the scrollable div (child of containerRef with overflow-y-auto)
+      const scrollableDiv = containerRef.current?.querySelector('.overflow-y-auto');
+      if (scrollableDiv) {
+        scrollableDiv.scrollTop = scrollableDiv.scrollHeight;
+      }
+    };
+
+    // For mobile, need more aggressive scrolling with longer delays
+    const timeouts: NodeJS.Timeout[] = [];
+    
+    requestAnimationFrame(() => {
+      scrollToBottom();
+      timeouts.push(setTimeout(scrollToBottom, 50));
+      timeouts.push(setTimeout(scrollToBottom, 100));
+      timeouts.push(setTimeout(scrollToBottom, 200));
+      timeouts.push(setTimeout(scrollToBottom, 350));
+      timeouts.push(setTimeout(scrollToBottom, 500));
+    });
+
+    return () => {
+      timeouts.forEach(t => clearTimeout(t));
+    };
+  }, [isActive, effectiveFullscreen, containerRef]);
 
   const handlePointerMove = useCallback(
     (event: PointerEvent) => {
-      if (fullscreen || minimized) return;
+      if (effectiveFullscreen || minimized) return;
       if (dragPointerIdRef.current !== event.pointerId) return;
       if (typeof window === "undefined") return;
       const node = windowRef.current;
@@ -176,7 +211,7 @@ function HSMTerminalContent({
       );
       setPosition({ x: nextX, y: nextY });
     },
-    [],
+    [effectiveFullscreen],
   );
 
   const endDrag = useCallback(
@@ -200,7 +235,7 @@ function HSMTerminalContent({
 
   const handleDragStart = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (typeof window === "undefined" || fullscreen || minimized) return;
+      if (typeof window === "undefined" || effectiveFullscreen || minimized) return;
       if (event.button !== 0 && event.pointerType !== "touch") return;
       const node = windowRef.current;
       if (!node) return;
@@ -220,7 +255,7 @@ function HSMTerminalContent({
       pointerUpListenerRef.current = pointerUpHandler;
       window.addEventListener("pointerup", pointerUpHandler, { passive: true });
     },
-    [handlePointerMove, endDrag],
+    [effectiveFullscreen, handlePointerMove, endDrag],
   );
 
   useEffect(() => {
@@ -252,16 +287,16 @@ function HSMTerminalContent({
             layout
             transition={isDragging ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 24 }}
             className={
-              fullscreen
-                ? "fixed inset-0 z-30 pb-24 flex items-center justify-center"
+              effectiveFullscreen
+                ? "fixed inset-0 z-30 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-[calc(7rem+env(safe-area-inset-bottom))] flex items-center justify-center pt-safe"
                 : "absolute px-4"
             }
             style={{
-              left: fullscreen ? undefined : position.x,
-              top: fullscreen ? undefined : position.y,
+              left: effectiveFullscreen ? undefined : position.x,
+              top: effectiveFullscreen ? undefined : position.y,
               userSelect: isDragging ? "none" : undefined,
-              width: fullscreen ? "100vw" : undefined,
-              height: fullscreen ? "100vh" : undefined,
+              width: effectiveFullscreen ? "100vw" : undefined,
+              height: effectiveFullscreen ? "100vh" : undefined,
               willChange: "transform",
             }}
           >
@@ -269,25 +304,25 @@ function HSMTerminalContent({
               ref={containerRef}
               layout
               initial={false}
-              animate={isActive ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -8, scale: 0.98 }}
+              animate={isActive ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: isMobile ? 20 : -8, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 300, damping: 28, mass: 0.9 }}
               onClick={() => inputRef.current?.focus()}
               className={
-                fullscreen
-                  ? "relative flex flex-col h-[calc(95vh-4rem)] w-[calc(100vw-4rem)] cursor-text overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
+                effectiveFullscreen
+                  ? "relative flex flex-col h-full w-full md:h-[calc(95vh-4rem)] md:w-[calc(100vw-4rem)] cursor-text overflow-hidden md:rounded-2xl border-0 md:border md:border-slate-800 bg-slate-900/95 shadow-2xl font-mono"
                   : "mx-auto h-96 w-full max-w-3xl cursor-text overflow-y-auto scrollbar-hide rounded-2xl border border-slate-800 backdrop-blur shadow-xl font-mono"
               }
               draggable={false}
             >
               <TerminalHeader
-                onDragHandle={fullscreen ? undefined : handleDragStart}
+                onDragHandle={effectiveFullscreen ? undefined : handleDragStart}
                 isDragging={isDragging}
                 onClose={onClose}
-                onMinimize={onMinimize}
-                onToggleFullscreen={onToggleFullscreen}
+                onMinimize={isMobile ? undefined : onMinimize}
+                onToggleFullscreen={isMobile ? undefined : onToggleFullscreen}
                 isFullscreen={fullscreen}
               />
-              <div className={fullscreen ? "h-[calc(100%-3rem)] overflow-y-auto scrollbar-hide" : ""}>
+              <div className={effectiveFullscreen ? "h-[calc(100%-3rem)] overflow-y-auto scrollbar-hide" : ""}>
                 <HSMTerminalBody inputRef={inputRef} containerRef={containerRef} />
               </div>
             </motion.div>

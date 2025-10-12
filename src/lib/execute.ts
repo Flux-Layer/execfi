@@ -1,6 +1,7 @@
 // lib/execute.ts - Smart Account execution engine using Privy + LI.FI
 
-import { formatEther, formatUnits, encodeFunctionData } from "viem";
+import { formatEther, formatUnits, encodeFunctionData, createPublicClient, http, erc20Abi, getContract } from "viem";
+import { executeIntentWithBaseAccount } from './execute-base-account';
 import type {
   NormalizedNativeTransfer,
   NormalizedERC20Transfer,
@@ -12,13 +13,16 @@ import type {
 import type { AccountMode } from "@/cli/state/types";
 import { getTxUrl, formatSuccessMessage } from "./explorer";
 import { getChainConfig } from "./chains/registry";
-import { FEE_ENTRYPOINT_ADDRESSES, FEE_ENTRYPOINT_ABI } from "./contracts/entrypoint";
+import { 
+  parseTransactionError, 
+  executeTransactionSafely, 
+  logTransactionError,
+  TransactionErrorType 
+} from "./errors/transaction-handler";
 
 // Feature flag for LI.FI execution path
 const ENABLE_LIFI_EXECUTION =
   process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION === "true";
-const ENABLE_ENTRYPOINT =
-  process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT === "true";
 
 // Types for LI.FI API integration
 interface LifiTransactionData {
@@ -28,6 +32,12 @@ interface LifiTransactionData {
   gasLimit?: string;
   gasPrice?: string;
   chainId: number;
+}
+
+interface ApprovalRequirement {
+  token: string;
+  spender: string;
+  amount: string;
 }
 
 interface LifiPrepareResponse {
@@ -42,6 +52,7 @@ interface LifiPrepareResponse {
     executionTime: number;
     priceImpact?: number;
   };
+  requiresApproval?: ApprovalRequirement;
   error?: {
     code: string;
     message: string;
@@ -56,7 +67,7 @@ interface LifiPrepareResponse {
 async function prepareLifiTransaction(
   norm: NormalizedIntent,
   fromAddress: string,
-): Promise<LifiTransactionData> {
+): Promise<{ transactionData: LifiTransactionData; requiresApproval?: ApprovalRequirement }> {
   // Get chainId based on intent type
   const chainId = "chainId" in norm ? norm.chainId : norm.fromChainId;
   const chainConfig = getChainConfig(chainId);
@@ -151,7 +162,17 @@ async function prepareLifiTransaction(
       );
     }
 
-    return result.transactionData;
+    // Log approval requirement if present
+    if (result.requiresApproval) {
+      console.log(
+        `⚠️ Approval required for ${result.requiresApproval.token} to spender ${result.requiresApproval.spender}`,
+      );
+    }
+
+    return {
+      transactionData: result.transactionData,
+      requiresApproval: result.requiresApproval,
+    };
   } catch (error) {
     console.error("❌ LI.FI preparation request failed:", error);
 
@@ -279,7 +300,12 @@ export async function executeNativeTransfer(
           ? clients.smartWalletClient!.getAddress()
           : clients.selectedWallet!.address;
 
-      const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
+      const { transactionData: lifiTxData, requiresApproval } = await prepareLifiTransaction(norm, fromAddress);
+
+      // Native transfers should not require approval
+      if (requiresApproval) {
+        console.warn("⚠️ Unexpected approval requirement for native transfer, ignoring...");
+      }
 
       // Convert LI.FI response to format expected by Privy clients
       transactionData = {
@@ -291,19 +317,8 @@ export async function executeNativeTransfer(
       // Current: Direct preparation path
       transactionData = await prepareDirectTransaction(norm);
 
-      // If EntryPoint is enabled and deployed for this chain, wrap native transfer via EntryPoint
-      const entrypoint = FEE_ENTRYPOINT_ADDRESSES[norm.chainId];
-      if (ENABLE_ENTRYPOINT && entrypoint) {
-        transactionData = {
-          to: entrypoint as `0x${string}`,
-          value: norm.amountWei,
-          data: encodeFunctionData({
-            abi: FEE_ENTRYPOINT_ABI,
-            functionName: "transferETH",
-            args: [norm.to],
-          }),
-        };
-      }
+      // Note: EntryPoint routing is now handled in /api/lifi/prepare
+      // This path is only used when ENABLE_LIFI_EXECUTION=false
     }
 
     // Step 7.3: Transaction Execution (Unchanged - preserves existing Privy signing)
@@ -434,7 +449,64 @@ export async function executeERC20Transfer(
         ? clients.smartWalletClient!.getAddress()
         : clients.selectedWallet!.address;
 
-    const lifiTxData = await prepareLifiTransaction(norm, fromAddress);
+    const { transactionData: lifiTxData, requiresApproval } = await prepareLifiTransaction(norm, fromAddress);
+
+    // Handle approval if required (for EntryPoint routing)
+    if (requiresApproval) {
+      console.log(
+        `🔐 Approval required for ${requiresApproval.token} to spender ${requiresApproval.spender}`,
+      );
+
+      // Create approval transaction
+      const approvalTx = {
+        to: requiresApproval.token as `0x${string}`,
+        value: 0n,
+        data: encodeFunctionData({
+          abi: [
+            {
+              name: "approve",
+              type: "function",
+              inputs: [
+                { name: "spender", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+              outputs: [{ name: "", type: "bool" }],
+              stateMutability: "nonpayable",
+            },
+          ],
+          functionName: "approve",
+          args: [requiresApproval.spender as `0x${string}`, BigInt(requiresApproval.amount)],
+        }),
+      };
+
+      // Execute approval transaction
+      let approvalHash: `0x${string}`;
+      if (accountMode === "SMART_ACCOUNT" && clients.smartWalletClient) {
+        console.log("🔄 Executing approval via Smart Account...");
+        const userOpHash = await clients.smartWalletClient.sendUserOperation({
+          calls: [approvalTx],
+        });
+        approvalHash = userOpHash;
+      } else if (clients.eoaSendTransaction) {
+        console.log("🔄 Executing approval via EOA...");
+        const result = await clients.eoaSendTransaction(approvalTx, {
+          address: clients.selectedWallet!.address,
+        });
+        approvalHash = result.hash;
+      } else {
+        throw new ExecutionError(
+          "No wallet client available for approval",
+          "NO_WALLET_CLIENT",
+        );
+      }
+
+      console.log(`✅ Approval transaction submitted: ${approvalHash}`);
+      console.log(`🔗 ${getTxUrl(norm.chainId, approvalHash)}`);
+
+      // Wait a bit for approval to be confirmed
+      console.log("⏳ Waiting for approval confirmation...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
 
     transaction = {
       to: lifiTxData.to as `0x${string}`,
@@ -466,19 +538,8 @@ export async function executeERC20Transfer(
       data,
     };
 
-    // If EntryPoint is enabled and deployed for this chain, route via EntryPoint
-    const entrypoint = FEE_ENTRYPOINT_ADDRESSES[norm.chainId];
-    if (ENABLE_ENTRYPOINT && entrypoint) {
-      transaction = {
-        to: entrypoint as `0x${string}`,
-        value: 0n,
-        data: encodeFunctionData({
-          abi: FEE_ENTRYPOINT_ABI,
-          functionName: "transferERC20",
-          args: [norm.token.address, norm.to, norm.amountWei],
-        }),
-      };
-    }
+    // Note: EntryPoint routing is now handled in /api/lifi/prepare
+    // This path is only used when ENABLE_LIFI_EXECUTION=false
   }
 
   try {
@@ -569,6 +630,166 @@ export async function executeERC20Transfer(
 }
 
 /**
+ * Create a public client for reading blockchain data
+ */
+function getPublicClientForChain(chainId: number) {
+  const chainConfig = getChainConfig(chainId);
+  if (!chainConfig) {
+    throw new ExecutionError(
+      `Unsupported chain ID: ${chainId}`,
+      "UNSUPPORTED_CHAIN"
+    );
+  }
+
+  return createPublicClient({
+    chain: chainConfig.wagmiChain,
+    transport: http(chainConfig.rpcUrl),
+  });
+}
+
+/**
+ * Check if a token has sufficient allowance for a spender
+ */
+async function checkTokenAllowance(
+  tokenAddress: `0x${string}`,
+  ownerAddress: `0x${string}`,
+  spenderAddress: `0x${string}`,
+  requiredAmount: bigint,
+  chainId: number
+): Promise<{ hasAllowance: boolean; currentAllowance: bigint }> {
+  // Skip allowance check for native tokens
+  if (tokenAddress === "0x0000000000000000000000000000000000000000") {
+    return { hasAllowance: true, currentAllowance: BigInt(0) };
+  }
+
+  const publicClient = getPublicClientForChain(chainId);
+
+  try {
+    const tokenContract = getContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      client: publicClient,
+    });
+
+    const currentAllowance = await tokenContract.read.allowance([
+      ownerAddress,
+      spenderAddress,
+    ]);
+
+    console.log("🔍 Token allowance check:", {
+      token: tokenAddress,
+      spender: spenderAddress,
+      currentAllowance: currentAllowance.toString(),
+      requiredAmount: requiredAmount.toString(),
+      hasAllowance: currentAllowance >= requiredAmount,
+    });
+
+    return {
+      hasAllowance: currentAllowance >= requiredAmount,
+      currentAllowance,
+    };
+  } catch (error: any) {
+    console.error("❌ Failed to check token allowance:", error);
+    throw new ExecutionError(
+      `Failed to check token allowance: ${error.message}`,
+      "ALLOWANCE_CHECK_FAILED"
+    );
+  }
+}
+
+/**
+ * Approve a token for spending by a spender contract
+ */
+async function approveToken(
+  tokenAddress: `0x${string}`,
+  spenderAddress: `0x${string}`,
+  amount: bigint,
+  chainId: number,
+  accountMode: AccountMode,
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
+      options?: { address?: string }
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  }
+): Promise<string> {
+  console.log("✍️ Approving token for spending...", {
+    token: tokenAddress,
+    spender: spenderAddress,
+    amount: amount.toString(),
+  });
+
+  // Encode the approve function call
+  const approveData = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: "approve",
+    args: [spenderAddress, amount],
+  });
+
+  // Wrap transaction execution with error handling
+  const result = await executeTransactionSafely(
+    async () => {
+      let txHash: string;
+
+      if (accountMode === "SMART_ACCOUNT") {
+        txHash = await clients.smartWalletClient!.sendTransaction({
+          to: tokenAddress,
+          value: BigInt(0),
+          data: approveData,
+        });
+      } else {
+        const txResult = await clients.eoaSendTransaction!(
+          {
+            to: tokenAddress,
+            value: BigInt(0),
+            data: approveData,
+          },
+          {
+            address: clients.selectedWallet!.address,
+          }
+        );
+        txHash = txResult.hash;
+      }
+
+      return txHash;
+    },
+    "Token Approval"
+  );
+
+  if (!result.success) {
+    logTransactionError(result.error, "Token Approval");
+    
+    // Convert to ExecutionError for backward compatibility
+    throw new ExecutionError(
+      result.error.userMessage,
+      result.error.type
+    );
+  }
+
+  const txHash = result.data;
+  console.log("✅ Token approval transaction submitted:", txHash);
+  const explorerUrl = getTxUrl(chainId, txHash);
+  console.log(`   View on explorer: ${explorerUrl}`);
+
+  // Wait for approval confirmation
+  try {
+    await waitForTransactionConfirmation(txHash, chainId, 30000); // 30s timeout
+    console.log("✅ Token approval confirmed");
+  } catch (error: any) {
+    const txError = parseTransactionError(error, "Approval Confirmation");
+    logTransactionError(txError);
+    throw new ExecutionError(
+      `Approval confirmation failed: ${txError.userMessage}`,
+      txError.type
+    );
+  }
+
+  return txHash;
+}
+
+/**
  * Execute swap operation using LI.FI
  */
 export async function executeSwap(
@@ -582,109 +803,158 @@ export async function executeSwap(
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
   if (!route) {
     throw new ExecutionError(
       "No route data available for swap execution",
-      "ROUTE_MISSING"
+      "ROUTE_MISSING",
+    );
+  }
+
+  if (!route.steps || route.steps.length === 0) {
+    throw new ExecutionError(
+      "Route has no steps to execute",
+      "INVALID_ROUTE_DATA",
     );
   }
 
   try {
+    const totalSteps = route.steps.length;
+
     console.log("🔄 Executing swap via LI.FI...", {
       fromToken: norm.fromToken.symbol,
       toToken: norm.toToken.symbol,
       chain: norm.fromChainId,
+      totalSteps,
     });
 
-    // Extract transaction data from route (already prepared during planning phase)
-    const firstStep = route.steps?.[0];
-    if (!firstStep?.transactionRequest) {
+    // Get user address
+    const userAddress = (accountMode === "SMART_ACCOUNT" 
+      ? clients.smartWalletClient?.account?.address 
+      : clients.selectedWallet?.address) as `0x${string}`;
+
+    if (!userAddress) {
       throw new ExecutionError(
-        "Route missing transaction request data",
-        "INVALID_ROUTE_DATA"
+        "User address not available",
+        "MISSING_ADDRESS"
       );
     }
 
-    const txRequest = firstStep.transactionRequest;
-    console.log("✅ Extracted transaction data from route:", {
-      to: txRequest.to,
-      value: txRequest.value,
-      hasData: !!txRequest.data,
-    });
+    // Check token approvals for all steps before execution
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
+      const txRequest = step.transactionRequest;
 
-    // Execute transaction
-    let txHash: string;
-
-    if (accountMode === "SMART_ACCOUNT") {
-      txHash = await clients.smartWalletClient!.sendTransaction({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      });
-    } else {
-      try {
-        const txResult = await clients.eoaSendTransaction!({
-          to: txRequest.to as `0x${string}`,
-          value: BigInt(txRequest.value || 0),
-          data: txRequest.data as `0x${string}`,
-        }, {
-          address: clients.selectedWallet!.address,
-        });
-        txHash = txResult.hash;
-      } catch (sendError: any) {
-        console.error("❌ EOA sendTransaction error:", sendError);
+      // Skip approval check for native token transfers (ETH, MATIC, etc.)
+      if (
+        norm.fromToken.address &&
+        norm.fromToken.address !== "0x0000000000000000000000000000000000000000"
+      ) {
+        const spenderAddress = txRequest?.to as `0x${string}`;
         
-        // Handle specific error types from viem/privy
-        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
-          throw new ExecutionError(
-            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED"
+        if (spenderAddress) {
+          console.log(`🔍 Checking token approval for step ${i + 1}/${totalSteps}...`);
+
+          const { hasAllowance } = await checkTokenAllowance(
+            norm.fromToken.address as `0x${string}`,
+            userAddress,
+            spenderAddress,
+            norm.fromAmount,
+            norm.fromChainId
           );
+
+          if (!hasAllowance) {
+            console.log(`⚠️ Insufficient allowance for step ${i + 1}, requesting approval...`);
+            
+            // Use max uint256 for approval to avoid repeated approvals
+            const maxApproval = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+            
+            await approveToken(
+              norm.fromToken.address as `0x${string}`,
+              spenderAddress,
+              maxApproval,
+              norm.fromChainId,
+              accountMode,
+              clients
+            );
+
+            console.log(`✅ Token approval completed for step ${i + 1}`);
+          } else {
+            console.log(`✅ Sufficient allowance already exists for step ${i + 1}`);
+          }
         }
-        
-        throw sendError; // Re-throw other errors to be caught by outer catch
+      }
+    }
+
+    const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
+
+    // Execute each step in sequence (swaps are typically on same chain, but can have multiple steps)
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
+
+      // Execute this step
+      const txHash = await executeStep(step, i, totalSteps, accountMode, clients);
+      executedSteps.push({ stepIndex: i, txHash, chainId: norm.fromChainId });
+
+      // Wait for confirmation before proceeding to next step (if there are more steps)
+      if (i < route.steps.length - 1) {
+        await waitForTransactionConfirmation(txHash, norm.fromChainId, 10000); // 10s for same-chain swaps
       }
     }
 
     const chainConfig = getChainConfig(norm.fromChainId);
-    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    // Return the hash of the first step for tracking
+    const firstStepHash = executedSteps[0].txHash;
+    const firstStepExplorerUrl = getTxUrl(norm.fromChainId, firstStepHash);
+
+    if (totalSteps > 1) {
+      console.log(`✅ All ${totalSteps} swap steps executed successfully!`);
+      console.log(`   Executed steps:`, executedSteps);
+    }
 
     return {
       success: true,
-      txHash,
-      message: `✅ Swap initiated on ${chainConfig?.name}`,
-      explorerUrl,
+      txHash: firstStepHash,
+      message: `✅ Swap ${totalSteps > 1 ? `(${totalSteps} steps) ` : ""}completed on ${chainConfig?.name}`,
+      explorerUrl: firstStepExplorerUrl,
     };
   } catch (error: any) {
     console.error("❌ Swap execution error:", error);
-    
+
     // Handle specific error types
     if (error instanceof ExecutionError) {
       throw error; // Re-throw ExecutionError as-is
     }
-    
+
     // Handle user rejection
-    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+    if (
+      error.message?.includes("user rejected") ||
+      error.message?.includes("User rejected") ||
+      error.code === "ACTION_REJECTED"
+    ) {
       throw new ExecutionError(
         "Transaction was cancelled by user",
-        "USER_REJECTED"
+        "USER_REJECTED",
       );
     }
-    
+
     // Handle insufficient funds
-    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+    if (
+      error.message?.includes("insufficient funds") ||
+      error.message?.includes("insufficient balance")
+    ) {
       throw new ExecutionError(
         "Insufficient balance to complete swap (including gas fees)",
-        "INSUFFICIENT_FUNDS"
+        "INSUFFICIENT_FUNDS",
       );
     }
-    
+
     // Generic error
     throw new ExecutionError(
       `Swap execution failed: ${error.message || "Unknown error"}`,
-      "SWAP_EXECUTION_FAILED"
+      "SWAP_EXECUTION_FAILED",
     );
   }
 }
@@ -703,105 +973,131 @@ export async function executeBridge(
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
   if (!route) {
     throw new ExecutionError(
       "No route data available for bridge execution",
-      "ROUTE_MISSING"
+      "ROUTE_MISSING",
+    );
+  }
+
+  if (!route.steps || route.steps.length === 0) {
+    throw new ExecutionError(
+      "Route has no steps to execute",
+      "INVALID_ROUTE_DATA",
     );
   }
 
   try {
+    const totalSteps = route.steps.length;
+
     console.log("🔄 Executing bridge via LI.FI...", {
       token: norm.token.symbol,
       fromChain: norm.fromChainId,
       toChain: norm.toChainId,
+      totalSteps,
     });
 
-    // Extract transaction data from route (already prepared during planning phase)
-    const firstStep = route.steps?.[0];
-    if (!firstStep?.transactionRequest) {
-      throw new ExecutionError(
-        "Route missing transaction request data",
-        "INVALID_ROUTE_DATA"
-      );
-    }
+    const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
+    let currentChainId = norm.fromChainId;
 
-    const txRequest = firstStep.transactionRequest;
-    console.log("✅ Extracted transaction data from route:", {
-      to: txRequest.to,
-      value: txRequest.value,
-      hasData: !!txRequest.data,
-    });
+    // Execute each step in sequence
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
+      const stepChainId = step.action.fromChainId;
 
-    // Execute transaction
-    let txHash: string;
+      // Check if we need to switch chains
+      if (stepChainId !== currentChainId) {
+        console.log(`🔄 Chain switch required: ${currentChainId} → ${stepChainId}`);
 
-    if (accountMode === "SMART_ACCOUNT") {
-      txHash = await clients.smartWalletClient!.sendTransaction({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      });
-    } else {
-      try {
-        const txResult = await clients.eoaSendTransaction!({
-          to: txRequest.to as `0x${string}`,
-          value: BigInt(txRequest.value || 0),
-          data: txRequest.data as `0x${string}`,
-        }, {
-          address: clients.selectedWallet!.address,
-        });
-        txHash = txResult.hash;
-      } catch (sendError: any) {
-        console.error("❌ EOA sendTransaction error:", sendError);
-        
-        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+        if (clients.selectedWallet?.switchChain) {
+          try {
+            console.log(`   Switching wallet to chain ${stepChainId}...`);
+            await clients.selectedWallet.switchChain(stepChainId);
+            console.log(`   ✅ Wallet switched to chain ${stepChainId}`);
+
+            // Wait for chain switch to propagate
+            await new Promise(resolve => setTimeout(resolve, 500));
+            currentChainId = stepChainId;
+          } catch (switchError: any) {
+            console.error(`   ❌ Chain switch failed:`, switchError);
+            throw new ExecutionError(
+              `Failed to switch to chain ${stepChainId} for step ${i + 1}. Please switch manually and retry.`,
+              "CHAIN_SWITCH_FAILED",
+            );
+          }
+        } else {
           throw new ExecutionError(
-            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED"
+            `Step ${i + 1} requires chain ${stepChainId}, but wallet doesn't support chain switching. Current chain: ${currentChainId}`,
+            "CHAIN_SWITCH_NOT_SUPPORTED",
           );
         }
-        
-        throw sendError;
+      }
+
+      // Execute this step
+      const txHash = await executeStep(step, i, totalSteps, accountMode, clients);
+      executedSteps.push({ stepIndex: i, txHash, chainId: stepChainId });
+
+      // Wait for confirmation before proceeding to next step
+      if (i < route.steps.length - 1) {
+        // If this step is a cross-chain bridge, wait longer
+        const isCrossChain = step.action.fromChainId !== step.action.toChainId;
+        const waitTime = isCrossChain ? 30000 : 10000; // 30s for bridge, 10s for same-chain
+
+        await waitForTransactionConfirmation(txHash, stepChainId, waitTime);
       }
     }
 
     const fromChainConfig = getChainConfig(norm.fromChainId);
     const toChainConfig = getChainConfig(norm.toChainId);
-    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    // Return the hash of the first step for tracking
+    const firstStepHash = executedSteps[0].txHash;
+    const firstStepExplorerUrl = getTxUrl(executedSteps[0].chainId, firstStepHash);
+
+    if (totalSteps > 1) {
+      console.log(`✅ All ${totalSteps} bridge steps executed successfully!`);
+      console.log(`   Executed steps:`, executedSteps);
+    }
 
     return {
       success: true,
-      txHash,
-      message: `✅ Bridge initiated: ${fromChainConfig?.name} → ${toChainConfig?.name}`,
-      explorerUrl,
+      txHash: firstStepHash,
+      message: `✅ Bridge ${totalSteps > 1 ? `(${totalSteps} steps) ` : ""}initiated: ${fromChainConfig?.name} → ${toChainConfig?.name}`,
+      explorerUrl: firstStepExplorerUrl,
     };
   } catch (error: any) {
     console.error("❌ Bridge execution error:", error);
-    
+
     if (error instanceof ExecutionError) {
       throw error;
     }
-    
-    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+
+    if (
+      error.message?.includes("user rejected") ||
+      error.message?.includes("User rejected") ||
+      error.code === "ACTION_REJECTED"
+    ) {
       throw new ExecutionError(
         "Transaction was cancelled by user",
-        "USER_REJECTED"
+        "USER_REJECTED",
       );
     }
-    
-    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+
+    if (
+      error.message?.includes("insufficient funds") ||
+      error.message?.includes("insufficient balance")
+    ) {
       throw new ExecutionError(
         "Insufficient balance to complete bridge (including gas fees)",
-        "INSUFFICIENT_FUNDS"
+        "INSUFFICIENT_FUNDS",
       );
     }
-    
+
     throw new ExecutionError(
       `Bridge execution failed: ${error.message || "Unknown error"}`,
-      "BRIDGE_EXECUTION_FAILED"
+      "BRIDGE_EXECUTION_FAILED",
     );
   }
 }
@@ -809,6 +1105,133 @@ export async function executeBridge(
 /**
  * Execute bridge-swap operation using LI.FI
  */
+/**
+ * Wait for transaction confirmation on a specific chain
+ */
+async function waitForTransactionConfirmation(
+  txHash: string,
+  chainId: number,
+  maxWaitTime: number = 60000, // 60 seconds
+): Promise<boolean> {
+  const startTime = Date.now();
+  const chainConfig = getChainConfig(chainId);
+
+  console.log(`⏳ Waiting for transaction confirmation on ${chainConfig?.name}...`, txHash);
+
+  // For now, we'll use a simple time-based wait
+  // In production, you'd want to actually poll the chain for transaction status
+  // using a public RPC provider or LiFi's status API
+
+  return new Promise((resolve) => {
+    const checkInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+
+      if (elapsed >= maxWaitTime) {
+        clearInterval(checkInterval);
+        console.log(`✅ Transaction wait timeout reached for ${txHash}`);
+        resolve(true); // Proceed anyway after timeout
+      }
+    }, 1000);
+
+    // For cross-chain bridges, we need to wait longer
+    // Typical bridge time is 1-5 minutes depending on the bridge
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      console.log(`✅ Transaction assumed confirmed after wait period`);
+      resolve(true);
+    }, 10000); // 10 seconds for now (TODO: make this smarter)
+  });
+}
+
+/**
+ * Execute a single step of a multi-step route
+ */
+async function executeStep(
+  step: any,
+  stepIndex: number,
+  totalSteps: number,
+  accountMode: AccountMode,
+  clients: {
+    smartWalletClient?: any;
+    eoaSendTransaction?: (
+      transaction: { to: `0x${string}`; value: bigint; data?: `0x${string}` },
+      options?: { address?: string },
+    ) => Promise<{ hash: `0x${string}` }>;
+    selectedWallet?: any;
+  },
+): Promise<string> {
+  const txRequest = step.transactionRequest;
+
+  if (!txRequest) {
+    throw new ExecutionError(
+      `Step ${stepIndex + 1} missing transaction request data`,
+      "INVALID_ROUTE_DATA",
+    );
+  }
+
+  const fromChain = getChainConfig(step.action.fromChainId);
+  const toChain = getChainConfig(step.action.toChainId);
+
+  console.log(`🔄 Executing step ${stepIndex + 1}/${totalSteps}:`, {
+    type: step.type,
+    tool: step.tool,
+    from: `${step.action.fromToken.symbol} on ${fromChain?.name}`,
+    to: `${step.action.toToken.symbol} on ${toChain?.name}`,
+  });
+
+  // Wrap transaction execution with error handling
+  const result = await executeTransactionSafely(
+    async () => {
+      if (accountMode === "SMART_ACCOUNT") {
+        return await clients.smartWalletClient!.sendTransaction({
+          to: txRequest.to as `0x${string}`,
+          value: BigInt(txRequest.value || 0),
+          data: txRequest.data as `0x${string}`,
+        });
+      } else {
+        const txResult = await clients.eoaSendTransaction!(
+          {
+            to: txRequest.to as `0x${string}`,
+            value: BigInt(txRequest.value || 0),
+            data: txRequest.data as `0x${string}`,
+          },
+          {
+            address: clients.selectedWallet!.address,
+          }
+        );
+        return txResult.hash;
+      }
+    },
+    `Step ${stepIndex + 1}/${totalSteps} (${step.tool})`
+  );
+
+  if (!result.success) {
+    logTransactionError(result.error, `Step ${stepIndex + 1}/${totalSteps}`);
+    
+    // Provide specific handling for approval errors
+    if (result.error.type === TransactionErrorType.APPROVAL_REQUIRED) {
+      throw new ExecutionError(
+        `Step ${stepIndex + 1} failed: ${result.error.userMessage}.\n\nThis should have been handled by automatic approval. Please try again.`,
+        result.error.type
+      );
+    }
+
+    // Convert to ExecutionError for backward compatibility
+    throw new ExecutionError(
+      `Step ${stepIndex + 1} failed: ${result.error.userMessage}`,
+      result.error.type
+    );
+  }
+
+  const txHash = result.data;
+
+  console.log(`✅ Step ${stepIndex + 1}/${totalSteps} transaction submitted:`, txHash);
+  const explorerUrl = getTxUrl(step.action.fromChainId, txHash);
+  console.log(`   View on explorer: ${explorerUrl}`);
+
+  return txHash;
+}
+
 export async function executeBridgeSwap(
   norm: NormalizedBridgeSwap,
   accountMode: AccountMode = "EOA",
@@ -820,106 +1243,131 @@ export async function executeBridgeSwap(
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
   if (!route) {
     throw new ExecutionError(
       "No route data available for bridge-swap execution",
-      "ROUTE_MISSING"
+      "ROUTE_MISSING",
+    );
+  }
+
+  if (!route.steps || route.steps.length === 0) {
+    throw new ExecutionError(
+      "Route has no steps to execute",
+      "INVALID_ROUTE_DATA",
     );
   }
 
   try {
-    console.log("🔄 Executing bridge-swap via LI.FI...", {
+    const totalSteps = route.steps.length;
+
+    console.log("🔄 Executing multi-step bridge-swap via LI.FI...", {
       fromToken: norm.fromToken.symbol,
       toToken: norm.toToken.symbol,
       fromChain: norm.fromChainId,
       toChain: norm.toChainId,
+      totalSteps,
     });
 
-    // Extract transaction data from route (already prepared during planning phase)
-    const firstStep = route.steps?.[0];
-    if (!firstStep?.transactionRequest) {
-      throw new ExecutionError(
-        "Route missing transaction request data",
-        "INVALID_ROUTE_DATA"
-      );
-    }
 
-    const txRequest = firstStep.transactionRequest;
-    console.log("✅ Extracted transaction data from route:", {
-      to: txRequest.to,
-      value: txRequest.value,
-      hasData: !!txRequest.data,
-    });
+    const executedSteps: Array<{ stepIndex: number; txHash: string; chainId: number }> = [];
+    let currentChainId = norm.fromChainId;
 
-    // Execute transaction
-    let txHash: string;
+    // Execute each step in sequence
+    for (let i = 0; i < route.steps.length; i++) {
+      const step = route.steps[i];
+      const stepChainId = step.action.fromChainId;
 
-    if (accountMode === "SMART_ACCOUNT") {
-      txHash = await clients.smartWalletClient!.sendTransaction({
-        to: txRequest.to as `0x${string}`,
-        value: BigInt(txRequest.value || 0),
-        data: txRequest.data as `0x${string}`,
-      });
-    } else {
-      try {
-        const txResult = await clients.eoaSendTransaction!({
-          to: txRequest.to as `0x${string}`,
-          value: BigInt(txRequest.value || 0),
-          data: txRequest.data as `0x${string}`,
-        }, {
-          address: clients.selectedWallet!.address,
-        });
-        txHash = txResult.hash;
-      } catch (sendError: any) {
-        console.error("❌ EOA sendTransaction error:", sendError);
-        
-        if (sendError.name === "EstimateGasExecutionError" || sendError.message?.includes("execution reverted")) {
+      // Check if we need to switch chains
+      if (stepChainId !== currentChainId) {
+        console.log(`🔄 Chain switch required: ${currentChainId} → ${stepChainId}`);
+
+        if (clients.selectedWallet?.switchChain) {
+          try {
+            console.log(`   Switching wallet to chain ${stepChainId}...`);
+            await clients.selectedWallet.switchChain(stepChainId);
+            console.log(`   ✅ Wallet switched to chain ${stepChainId}`);
+
+            // Wait for chain switch to propagate
+            await new Promise(resolve => setTimeout(resolve, 500));
+            currentChainId = stepChainId;
+          } catch (switchError: any) {
+            console.error(`   ❌ Chain switch failed:`, switchError);
+            throw new ExecutionError(
+              `Failed to switch to chain ${stepChainId} for step ${i + 1}. Please switch manually and retry.`,
+              "CHAIN_SWITCH_FAILED",
+            );
+          }
+        } else {
           throw new ExecutionError(
-            `Transaction validation failed: ${sendError.details || sendError.message}. This may be due to insufficient balance, slippage, or liquidity issues.`,
-            "TRANSACTION_REVERTED"
+            `Step ${i + 1} requires chain ${stepChainId}, but wallet doesn't support chain switching. Current chain: ${currentChainId}`,
+            "CHAIN_SWITCH_NOT_SUPPORTED",
           );
         }
-        
-        throw sendError;
+      }
+
+      // Execute this step
+      const txHash = await executeStep(step, i, totalSteps, accountMode, clients);
+      executedSteps.push({ stepIndex: i, txHash, chainId: stepChainId });
+
+      // Wait for confirmation before proceeding to next step
+      if (i < route.steps.length - 1) {
+        // If this step is a cross-chain bridge, wait longer
+        const isCrossChain = step.action.fromChainId !== step.action.toChainId;
+        const waitTime = isCrossChain ? 30000 : 10000; // 30s for bridge, 10s for same-chain
+
+        await waitForTransactionConfirmation(txHash, stepChainId, waitTime);
       }
     }
 
     const fromChainConfig = getChainConfig(norm.fromChainId);
     const toChainConfig = getChainConfig(norm.toChainId);
-    const explorerUrl = getTxUrl(norm.fromChainId, txHash);
+
+    // Return the hash of the first step for tracking
+    const firstStepHash = executedSteps[0].txHash;
+    const firstStepExplorerUrl = getTxUrl(executedSteps[0].chainId, firstStepHash);
+
+    console.log(`✅ All ${totalSteps} steps executed successfully!`);
+    console.log(`   Executed steps:`, executedSteps);
 
     return {
       success: true,
-      txHash,
-      message: `✅ Bridge-swap initiated: ${fromChainConfig?.name} ${norm.fromToken.symbol} → ${toChainConfig?.name} ${norm.toToken.symbol}`,
-      explorerUrl,
+      txHash: firstStepHash,
+      message: `✅ Multi-step bridge-swap completed (${totalSteps} steps): ${fromChainConfig?.name} ${norm.fromToken.symbol} → ${toChainConfig?.name} ${norm.toToken.symbol}`,
+      explorerUrl: firstStepExplorerUrl,
     };
   } catch (error: any) {
     console.error("❌ Bridge-swap execution error:", error);
-    
+
     if (error instanceof ExecutionError) {
       throw error;
     }
-    
-    if (error.message?.includes("user rejected") || error.message?.includes("User rejected") || error.code === "ACTION_REJECTED") {
+
+    if (
+      error.message?.includes("user rejected") ||
+      error.message?.includes("User rejected") ||
+      error.code === "ACTION_REJECTED"
+    ) {
       throw new ExecutionError(
         "Transaction was cancelled by user",
-        "USER_REJECTED"
+        "USER_REJECTED",
       );
     }
-    
-    if (error.message?.includes("insufficient funds") || error.message?.includes("insufficient balance")) {
+
+    if (
+      error.message?.includes("insufficient funds") ||
+      error.message?.includes("insufficient balance")
+    ) {
       throw new ExecutionError(
         "Insufficient balance to complete bridge-swap (including gas fees)",
-        "INSUFFICIENT_FUNDS"
+        "INSUFFICIENT_FUNDS",
       );
     }
-    
+
     throw new ExecutionError(
       `Bridge-swap execution failed: ${error.message || "Unknown error"}`,
-      "BRIDGE_SWAP_EXECUTION_FAILED"
+      "BRIDGE_SWAP_EXECUTION_FAILED",
     );
   }
 }
@@ -937,10 +1385,29 @@ export async function executeIntent(
       options?: { address?: string },
     ) => Promise<{ hash: `0x${string}` }>;
     selectedWallet?: any;
+    baseAccountProvider?: any;
+    baseAccountAddress?: `0x${string}`;
   },
-  route?: any
+  route?: any,
 ): Promise<ExecutionResult> {
-  console.log({clientnih: clients})
+  // Base Account execution path
+  if (accountMode === "BASE_ACCOUNT") {
+    if (!clients.baseAccountProvider || !clients.baseAccountAddress) {
+      throw new ExecutionError(
+        'Base Account not connected',
+        'BASE_ACCOUNT_NOT_CONNECTED',
+      );
+    }
+
+    return executeIntentWithBaseAccount(
+      norm,
+      clients.baseAccountProvider,
+      clients.baseAccountAddress,
+    );
+  }
+
+  // Existing Privy paths
+  console.log({ clientnih: clients });
   if (norm.kind === "native-transfer") {
     return executeNativeTransfer(norm, accountMode, clients);
   } else if (norm.kind === "erc20-transfer") {

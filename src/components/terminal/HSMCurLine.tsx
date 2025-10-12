@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FormEvent, ChangeEvent, useEffect, useState } from "react";
+import { FormEvent, ChangeEvent, useEffect, useState, useRef } from "react";
 import PageBarLoader from "@components/loader";
 import { useTerminalInput } from "@/cli/hooks/useTerminalStore";
 
@@ -25,9 +25,19 @@ const HSMCurLine = ({
   // For auth flow, use local state since it doesn't go through HSM
   const [localInputText, setLocalInputText] = useState("");
   const { inputText: hsmInputText, setInputText: setHSMInputText } = useTerminalInput();
+  
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const measureRef = useRef<HTMLSpanElement>(null);
 
   const inputText = isAuthFlow ? localInputText : hsmInputText;
   const setInputText = isAuthFlow ? setLocalInputText : setHSMInputText;
+
+  // Update cursor position when input changes or cursor moves
+  const updateCursorPosition = () => {
+    if (inputRef.current) {
+      setCursorPosition(inputRef.current.selectionStart || 0);
+    }
+  };
 
   const scrollToBottom = () => {
     if (containerRef.current) {
@@ -52,9 +62,13 @@ const HSMCurLine = ({
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputText(newValue);
+    // Update cursor position after state update
+    setTimeout(updateCursorPosition, 0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Update cursor position after key press
+    setTimeout(updateCursorPosition, 0);
     // Handle ESC key to cancel confirmation
     if (e.key === "Escape" && command === "confirm") {
       e.preventDefault();
@@ -98,6 +112,35 @@ const HSMCurLine = ({
     }, 200); // Longer delay for initial page load
     return () => clearTimeout(focusTimer);
   }, []);
+
+  // Track cursor position on clicks and selection changes
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const handleSelectionChange = () => {
+      updateCursorPosition();
+    };
+
+    input.addEventListener('click', handleSelectionChange);
+    input.addEventListener('keyup', handleSelectionChange);
+    input.addEventListener('select', handleSelectionChange);
+
+    return () => {
+      input.removeEventListener('click', handleSelectionChange);
+      input.removeEventListener('keyup', handleSelectionChange);
+      input.removeEventListener('select', handleSelectionChange);
+    };
+  }, [inputRef]);
+
+  // Calculate cursor offset based on text width
+  const textBeforeCursor = inputText.substring(0, cursorPosition);
+  const getCursorOffset = () => {
+    if (measureRef.current) {
+      return measureRef.current.offsetWidth;
+    }
+    return 0;
+  };
 
   const getCommandPrompt = (): string => {
     switch (command) {
@@ -170,7 +213,16 @@ const HSMCurLine = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex-1 min-w-0">
+        <form onSubmit={handleSubmit} className="flex-1 min-w-0 relative">
+          {/* Hidden span to measure text width */}
+          <span
+            ref={measureRef}
+            className="absolute invisible whitespace-pre font-mono text-slate-100"
+            style={{ fontSize: 'inherit', fontFamily: 'inherit' }}
+          >
+            {textBeforeCursor}
+          </span>
+
           <input
             ref={inputRef}
             type={command === "code" ? "text" : command === "email" ? "email" : "text"}
@@ -179,23 +231,28 @@ const HSMCurLine = ({
             onKeyDown={handleKeyDown}
             placeholder={getInputPlaceholder()}
             disabled={isInputDisabled()}
-            className="bg-transparent border-none outline-none text-slate-100 w-full placeholder-slate-500 disabled:opacity-50"
+            className="bg-transparent border-none outline-none text-slate-100 w-full placeholder-slate-500 disabled:opacity-50 font-mono"
             autoComplete={command === "email" ? "email" : "off"}
             spellCheck={false}
           />
+
+          {/* Cursor animation positioned at actual cursor location */}
+          {!loading && (
+            <motion.span
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 1, repeat: Infinity, repeatType: "reverse" }}
+              className="absolute text-emerald-400 font-bold pointer-events-none"
+              style={{
+                left: `${getCursorOffset()}px`,
+                top: '50%',
+                transform: 'translateY(-50%)',
+              }}
+            >
+              █
+            </motion.span>
+          )}
         </form>
       </div>
-
-      {/* Cursor animation */}
-      {!loading && (
-        <motion.span
-          animate={{ opacity: [1, 0] }}
-          transition={{ duration: 1, repeat: Infinity, repeatType: "reverse" }}
-          className="text-emerald-400 font-bold"
-        >
-          █
-        </motion.span>
-      )}
     </motion.div>
   );
 };

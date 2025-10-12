@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import { FiX } from "react-icons/fi";
 import logo from "../../../public/execfi.icon.svg";
+import { useResponsive } from "@/hooks/useResponsive";
 
 type TerminalHeaderProps = {
   className?: string;
@@ -23,6 +25,7 @@ const TerminalHeader = ({
   isFullscreen = false,
   showClock = true,
 }: TerminalHeaderProps) => {
+  const { isMobile } = useResponsive();
   const [time, setTime] = useState(() => new Date());
   const [mounted, setMounted] = useState(false);
 
@@ -57,35 +60,50 @@ const TerminalHeader = ({
     .join(" ");
 
   return (
-    <div onPointerDown={onDragHandle} className={headerClasses}>
-      {/* traffic lights (left) */}
-      <div className="flex items-center gap-2">
-        <div className="flex gap-1.5">
-          <TrafficLightButton
-            color="bg-red-500"
-            label="Close"
+    <div onPointerDown={!isMobile ? onDragHandle : undefined} className={headerClasses}>
+      {/* Mobile: simple close button (left) */}
+      {isMobile ? (
+        <div className="flex items-center">
+          <button
+            type="button"
             onClick={onClose}
-          />
-          <TrafficLightButton
-            color="bg-yellow-500"
-            label="Minimize"
-            onClick={onMinimize}
-          />
-          <TrafficLightButton
-            color="bg-green-500"
-            label={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-            onClick={onToggleFullscreen}
-          />
+            onPointerDown={(e) => e.stopPropagation()}
+            className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-slate-200 transition rounded-full hover:bg-slate-800/50"
+            aria-label="Close"
+          >
+            <FiX size={20} />
+          </button>
         </div>
-      </div>
+      ) : (
+        /* Desktop: traffic lights */
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1.5">
+            <TrafficLightButton
+              color="bg-red-500"
+              label="Close"
+              onClick={onClose}
+            />
+            <TrafficLightButton
+              color="bg-yellow-500"
+              label="Minimize"
+              onClick={onMinimize}
+            />
+            <TrafficLightButton
+              color="bg-green-500"
+              label={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              onClick={onToggleFullscreen}
+            />
+          </div>
+        </div>
+      )}
 
       {/* centered logo */}
       <div className="justify-self-center">
-        <Image src={logo} alt="ExecFi Logo" className="h-6 w-auto" />
+        <Image src={logo} alt="ExecFi Logo" className="h-5 md:h-6 w-auto" />
       </div>
 
-      {/* clock */}
-      {showClock && mounted ? (
+      {/* clock (hidden on mobile to save space) */}
+      {showClock && mounted && !isMobile ? (
         <div className="ml-auto text-xs font-mono text-slate-200">
           <span suppressHydrationWarning>{timeLabel}</span>
         </div>

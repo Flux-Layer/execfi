@@ -1,13 +1,61 @@
 // lib/defi/normalize.ts - DeFi-specific normalization
 
-import { parseUnits, isAddress, getAddress } from "viem";
+import { parseUnits, isAddress, getAddress, createPublicClient, http } from "viem";
 import type { SwapIntent, BridgeIntent, BridgeSwapIntent, NormalizedSwap, NormalizedBridge, NormalizedBridgeSwap, NormalizedDeFi } from "./types";
 import { DeFiNormalizationError, DeFiTokenSelectionError } from "./errors";
-import { resolveChain } from "@/lib/chains/registry";
+import { resolveChain, getChainConfig } from "@/lib/chains/registry";
 import { resolveTokensMultiProvider } from "@/lib/normalize";
 import { resolveAddressOrEns, isEnsName } from "@/lib/ens";
 import { isUSDBasedIntent, parseIntentUSDAmount } from "@/lib/ai/schema";
 import { convertUSDToToken } from "@/lib/utils/usd-converter";
+import { verifyTokenDecimals } from "@/lib/utils/tokenDecimals";
+
+/**
+ * Helper: Verify token decimals on-chain for DeFi operations
+ * Returns verified decimals, skips native tokens (0x0000...)
+ */
+async function verifyDeFiTokenDecimals(
+  token: any,
+  chainId: number
+): Promise<number> {
+  // Skip verification for native tokens
+  if (token.address === "0x0000000000000000000000000000000000000000") {
+    const chainConfig = getChainConfig(chainId);
+    return chainConfig?.nativeCurrency.decimals || 18;
+  }
+
+  // Get public client
+  const chainConfig = getChainConfig(chainId);
+  if (!chainConfig) {
+    throw new DeFiNormalizationError(
+      `Chain configuration not found for chain ${chainId}`,
+      "CHAIN_CONFIG_MISSING"
+    );
+  }
+
+  const publicClient = createPublicClient({
+    chain: chainConfig.wagmiChain,
+    transport: http(chainConfig.rpcUrl),
+  });
+
+  // Verify decimals on-chain
+  const expectedDecimals = token.decimals || 18;
+  const verification = await verifyTokenDecimals(
+    token.address as `0x${string}`,
+    expectedDecimals,
+    chainId,
+    publicClient
+  );
+
+  if (verification.mismatch) {
+    console.warn(
+      `⚠️ [DeFi] Decimal mismatch for ${token.symbol}:`,
+      `Expected: ${expectedDecimals}, Actual: ${verification.actualDecimals}`
+    );
+  }
+
+  return verification.actualDecimals;
+}
 
 /**
  * Normalize DeFi intent (swap/bridge/bridge-swap)
@@ -67,10 +115,11 @@ async function normalizeSwapIntent(
 
   // Resolve fromToken
   if (selectedFromToken) {
+    const verifiedDecimals = await verifyDeFiTokenDecimals(selectedFromToken, fromChainId);
     fromToken = {
       address: selectedFromToken.address,
       symbol: selectedFromToken.symbol,
-      decimals: selectedFromToken.decimals || 18,
+      decimals: verifiedDecimals,
     };
   } else {
     const fromTokenResult = await resolveTokensMultiProvider(intent.fromToken, fromChainId);
@@ -99,15 +148,21 @@ async function normalizeSwapIntent(
       );
     }
 
-    fromToken = fromTokenResult.tokens[0];
+    const resolvedFromToken = fromTokenResult.tokens[0];
+    const verifiedFromDecimals = await verifyDeFiTokenDecimals(resolvedFromToken, fromChainId);
+    fromToken = {
+      ...resolvedFromToken,
+      decimals: verifiedFromDecimals,
+    };
   }
 
   // Resolve toToken
   if (selectedToToken) {
+    const verifiedDecimals = await verifyDeFiTokenDecimals(selectedToToken, toChainId);
     toToken = {
       address: selectedToToken.address,
       symbol: selectedToToken.symbol,
-      decimals: selectedToToken.decimals || 18,
+      decimals: verifiedDecimals,
     };
   } else {
     const toTokenResult = await resolveTokensMultiProvider(intent.toToken, toChainId);
@@ -136,7 +191,12 @@ async function normalizeSwapIntent(
       );
     }
 
-    toToken = toTokenResult.tokens[0];
+    const resolvedToToken = toTokenResult.tokens[0];
+    const verifiedToDecimals = await verifyDeFiTokenDecimals(resolvedToToken, toChainId);
+    toToken = {
+      ...resolvedToToken,
+      decimals: verifiedToDecimals,
+    };
   }
 
   // Parse amount (handle USD or token amount)
@@ -249,10 +309,11 @@ async function normalizeBridgeIntent(
   let token: any;
 
   if (selectedToken) {
+    const verifiedDecimals = await verifyDeFiTokenDecimals(selectedToken, fromChainId);
     token = {
       address: selectedToken.address,
       symbol: selectedToken.symbol,
-      decimals: selectedToken.decimals || 18,
+      decimals: verifiedDecimals,
     };
   } else {
     const tokenResult = await resolveTokensMultiProvider(intent.token, fromChainId);
@@ -281,7 +342,12 @@ async function normalizeBridgeIntent(
       );
     }
 
-    token = tokenResult.tokens[0];
+    const resolvedToken = tokenResult.tokens[0];
+    const verifiedDecimals = await verifyDeFiTokenDecimals(resolvedToken, fromChainId);
+    token = {
+      ...resolvedToken,
+      decimals: verifiedDecimals,
+    };
   }
 
   // Parse amount (handle USD or token amount)
@@ -392,10 +458,11 @@ async function normalizeBridgeSwapIntent(
 
   // Resolve fromToken
   if (selectedFromToken) {
+    const verifiedDecimals = await verifyDeFiTokenDecimals(selectedFromToken, fromChainId);
     fromToken = {
       address: selectedFromToken.address,
       symbol: selectedFromToken.symbol,
-      decimals: selectedFromToken.decimals || 18,
+      decimals: verifiedDecimals,
     };
   } else {
     const fromTokenResult = await resolveTokensMultiProvider(intent.fromToken, fromChainId);
@@ -424,15 +491,21 @@ async function normalizeBridgeSwapIntent(
       );
     }
 
-    fromToken = fromTokenResult.tokens[0];
+    const resolvedFromToken = fromTokenResult.tokens[0];
+    const verifiedFromDecimals = await verifyDeFiTokenDecimals(resolvedFromToken, fromChainId);
+    fromToken = {
+      ...resolvedFromToken,
+      decimals: verifiedFromDecimals,
+    };
   }
 
   // Resolve toToken (on destination chain)
   if (selectedToToken) {
+    const verifiedDecimals = await verifyDeFiTokenDecimals(selectedToToken, toChainId);
     toToken = {
       address: selectedToToken.address,
       symbol: selectedToToken.symbol,
-      decimals: selectedToToken.decimals || 18,
+      decimals: verifiedDecimals,
     };
   } else {
     const toTokenResult = await resolveTokensMultiProvider(intent.toToken, toChainId);
@@ -461,7 +534,12 @@ async function normalizeBridgeSwapIntent(
       );
     }
 
-    toToken = toTokenResult.tokens[0];
+    const resolvedToToken = toTokenResult.tokens[0];
+    const verifiedToDecimals = await verifyDeFiTokenDecimals(resolvedToToken, toChainId);
+    toToken = {
+      ...resolvedToToken,
+      decimals: verifiedToDecimals,
+    };
   }
 
   // Parse amount (handle USD or token amount)

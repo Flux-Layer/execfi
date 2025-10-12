@@ -102,6 +102,12 @@ export function formatBalanceWithUSD(
   symbol: string,
   priceUSD?: number
 ): string {
+  // Validate decimals (defensive programming)
+  if (decimals < 0 || decimals > 77) {
+    console.error(`❌ [Balance] Invalid decimals for ${symbol}: ${decimals}`);
+    return `${value.toString()} ${symbol} (invalid decimals)`;
+  }
+
   const formatted = formatBalance(value, decimals);
 
   if (!priceUSD || priceUSD === 0) {
@@ -126,8 +132,21 @@ export function calculateTokenUSDValue(
   decimals: number,
   priceUSD: number
 ): number {
+  // Validate decimals
+  if (decimals < 0 || decimals > 77) {
+    console.error(`❌ [Balance] Invalid decimals in USD calculation: ${decimals}`);
+    throw new Error(`Invalid decimals: ${decimals}. Expected 0-77.`);
+  }
+
   const formatted = formatUnits(value, decimals);
-  return parseFloat(formatted) * priceUSD;
+  const usdValue = parseFloat(formatted) * priceUSD;
+
+  // Log unusual values for monitoring
+  if (usdValue > 1000000) {
+    console.warn(`⚠️ [Balance] High USD value detected: $${usdValue.toFixed(2)} for ${formatted} tokens at $${priceUSD}`);
+  }
+
+  return usdValue;
 }
 
 /**

@@ -33,7 +33,7 @@ export const helpCmd: CommandDef = {
 CORE COMMANDS:
   /help (/?) - Show commands and usage
   /whoami - Show current user, chain, and account info
-  /balances (/balance, /bal, /bals) - Show token balances across networks
+  /balances (/balance, /bal, /bals) - Show token balances across all networks (mainnet + testnet)
   /clear (/cls) - Clear terminal screen
   /accountinfo - Show detailed account information
   /send - Send native or ERC-20 tokens
@@ -46,7 +46,7 @@ CORE COMMANDS:
   /reset (/restart) - Emergency reset
 
 ESSENTIAL COMMANDS:
-  /balances (/balance, /bal, /bals) - Show all token balances across networks
+  /balances (/balance, /bal, /bals) - Show all token balances across networks (mainnet + testnet)
   /tx <hash> - Show transaction details and status
   /txs [limit] - Show recent transaction history
   /pending - Show pending transactions
@@ -58,10 +58,17 @@ ADVANCED FEATURES:
   /contact - Add new contacts
 
 DEFI INTEGRATION (Powered by LI.FI):
-  /swap <from> <to> <amount> [--chain <name>] - Execute token swaps
+  /swap <from> <to> <amount> [--chain <name>] [--slippage <percent>] - Execute token swaps
   /bridge <token> <amount> <to-chain> [--from-chain <name>] - Cross-chain transfers
   /quote <from> <to> <amount> [--chain <name>] - Get real-time swap quotes
   /ens <name|address> [--reverse] - Resolve ENS names to addresses
+
+TRANSACTION SETTINGS:
+  /slippage [value] [--reset] - View or set global slippage tolerance (0.01% - 99%)
+    Examples:
+      /slippage          → View current slippage
+      /slippage 1.0      → Set to 1%
+      /slippage --reset  → Reset to default (0.5%)
 
 CHAIN MANAGEMENT:
   /chain list - Show all supported chains
@@ -164,50 +171,13 @@ export const accountinfoCmd: CommandDef = {
   examples: ["/accountinfo"],
   parse: () => ({ ok: true, args: {} }),
   run: (_, ctx, dispatch) => {
-    const accountMode = ctx.accountMode || "EOA";
-    const address =
-      accountMode === "SMART_ACCOUNT"
-        ? ctx.saAddress
-        : ctx.selectedWallet?.address;
-
-    const chainName = getChainName(ctx.chainId);
-    const userStatus = ctx.userId
-      ? `✅ Signed in as: ${ctx.userId}`
-      : "❌ Not signed in";
-    const chainInfo = `Active Chain: ${chainName} (${ctx.chainId})`;
-    const modeInfo = `Mode: ${accountMode}`;
-    const walletInfo = address
-      ? `${accountMode} Address: ${address}`
-      : `${accountMode}: Not available`;
-
-    const accountInfo = `🔑 Account Information
-
-User:
-${userStatus}
-
-Network:
-${chainInfo}
-${modeInfo}
-
-Wallet:
-${walletInfo}
-
-Quick Actions:
-• Use /balances (alias: /balance) to check your token balances
-• Use /send to transfer tokens
-• Use /login to sign in (if not signed in)
-• Use /logout to sign out (if signed in)`;
-
+    // Push the accountinfo view to the view stack
     dispatch({
-      type: "CHAT.ADD",
-      message: {
-        role: "assistant",
-        content: accountInfo,
-        timestamp: Date.now(),
-      },
+      type: "NAV.VIEW.PUSH",
+      page: { kind: "accountinfo" },
     });
 
-    // Command completed - account info displayed
+    // Command completed - account info view displayed
   },
 };
 

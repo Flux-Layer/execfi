@@ -6,7 +6,25 @@ import type { NormalizedTransfer } from "@/lib/transfer/types";
 import { validateNoDuplicate, updateTransactionStatus } from "@/lib/idempotency";
 import { getChainConfig } from "@/lib/chains/registry";
 import { getTxUrl } from "@/lib/explorer";
-import { createWalletClient, http, type WalletClient } from "viem";
+import {
+  createPublicClient,
+  encodeFunctionData,
+  erc20Abi,
+  http,
+  type WalletClient,
+} from "viem";
+import {
+  FEE_ENTRYPOINT_ABI,
+  FEE_ENTRYPOINT_ADDRESSES,
+} from "@/lib/contracts/entrypoint";
+
+function parseEnvFlag(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "true";
+}
+
+// Feature flag for LIFI execution path
+const ENABLE_LIFI_EXECUTION = parseEnvFlag(process.env.NEXT_PUBLIC_ENABLE_LIFI_EXECUTION);
+const ENABLE_ENTRYPOINT = parseEnvFlag(process.env.NEXT_PUBLIC_ENABLE_ENTRYPOINT);
 
 export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch, signal) => {
   console.log("⚡ [Transfer Effect] Starting execution");
@@ -146,52 +164,278 @@ export const transferExecuteFx: StepDef["onEnter"] = async (ctx, core, dispatch,
     } else {
       // EOA execution using Privy's sendTransaction (has signing capability)
       const fromAddress = core.selectedWallet!.address as `0x${string}`;
-      
+      const entrypoint = ENABLE_ENTRYPOINT
+        ? FEE_ENTRYPOINT_ADDRESSES[norm.chainId]
+        : undefined;
+      if (ENABLE_ENTRYPOINT && !entrypoint) {
+        console.warn(
+          `⚠️ [Transfer Effect] EntryPoint enabled but no address configured for chain ${norm.chainId}`
+        );
+      }
+
+      const shouldUseEntrypoint = Boolean(entrypoint);
+      const shouldUseLifi = ENABLE_LIFI_EXECUTION && !shouldUseEntrypoint;
+
       console.log("🔄 [Transfer Effect] Using EOA send transaction");
 
-      if (norm.kind === "native-transfer") {
-        // Native transfer
-        const result = await core.eoaSendTransaction!(
-          {
-            to: norm.to,
-            value: norm.amountWei,
-          },
-          {
-            address: fromAddress,
-          }
-        );
-        txHash = result.hash;
-      } else {
-        // ERC-20 transfer
-        const { encodeFunctionData } = await import("viem");
-        const data = encodeFunctionData({
-          abi: [
-            {
-              name: "transfer",
-              type: "function",
-              stateMutability: "nonpayable",
-              inputs: [
-                { name: "to", type: "address" },
-                { name: "amount", type: "uint256" },
-              ],
-              outputs: [{ name: "", type: "bool" }],
-            },
-          ],
-          functionName: "transfer",
-          args: [norm.to, norm.amountWei],
+      if (shouldUseLifi) {
+        // Use LIFI preparation API for EntryPoint routing
+        console.log("🔄 [Transfer Effect] Using LIFI preparation API");
+
+        const prepareRequest = {
+          fromChain: norm.chainId,
+          toChain: norm.chainId,
+          fromToken: norm.kind === "native-transfer"
+            ? "0x0000000000000000000000000000000000000000"
+            : norm.token.address,
+          toToken: norm.kind === "native-transfer"
+            ? "0x0000000000000000000000000000000000000000"
+            : norm.token.address,
+          amount: norm.amountWei.toString(),
+          fromAddress,
+          toAddress: norm.to,
+          slippage: 0.005,
+          routePreference: "recommended",
+          validateFreshness: true,
+        };
+
+        const response = await fetch("/api/lifi/prepare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(prepareRequest),
         });
 
-        const result = await core.eoaSendTransaction!(
+        if (!response.ok) {
+          throw new Error(`LIFI preparation failed: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.success || !result.transactionData) {
+          throw new Error(result.error?.message || "LIFI preparation failed");
+        }
+
+        // Handle approval if required (ERC-20)
+        if (result.requiresApproval) {
+          console.log("🔐 Approval required, executing approval transaction");
+
+          const approvalData = encodeFunctionData({
+            abi: [
+              {
+                name: "approve",
+                type: "function",
+                inputs: [
+                  { name: "spender", type: "address" },
+                  { name: "amount", type: "uint256" },
+                ],
+                outputs: [{ name: "", type: "bool" }],
+                stateMutability: "nonpayable",
+              },
+            ],
+            functionName: "approve",
+            args: [result.requiresApproval.spender, BigInt(result.requiresApproval.amount)],
+          });
+
+          const approvalResult = await core.eoaSendTransaction!(
+            {
+              to: result.requiresApproval.token as `0x${string}`,
+              value: 0n,
+              data: approvalData,
+            },
+            { address: fromAddress }
+          );
+
+          console.log(`✅ Approval submitted: ${approvalResult.hash}`);
+
+          // Wait for approval confirmation
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+
+        // Execute main transaction
+        const txData = result.transactionData;
+        const txResult = await core.eoaSendTransaction!(
           {
-            to: norm.token.address,
-            value: 0n,
-            data,
+            to: txData.to as `0x${string}`,
+            value: BigInt(txData.value),
+            data: txData.data as `0x${string}` | undefined,
           },
-          {
-            address: fromAddress,
-          }
+          { address: fromAddress }
         );
-        txHash = result.hash;
+
+        txHash = txResult.hash;
+      } else {
+        // Direct execution (fallback when LIFI disabled)
+        if (norm.kind === "native-transfer") {
+          if (entrypoint) {
+            console.log(
+              `🔄 [Transfer Effect] Routing native transfer through EntryPoint ${entrypoint}`
+            );
+
+            const data = encodeFunctionData({
+              abi: FEE_ENTRYPOINT_ABI,
+              functionName: "transferETH",
+              args: [norm.to],
+            });
+
+            const result = await core.eoaSendTransaction!(
+              {
+                to: entrypoint,
+                value: norm.amountWei,
+                data,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          } else {
+            // Native transfer directly
+            const result = await core.eoaSendTransaction!(
+              {
+                to: norm.to,
+                value: norm.amountWei,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          }
+        } else {
+          // ERC-20 transfer
+          if (entrypoint) {
+            console.log(
+              `🔄 [Transfer Effect] Routing ERC-20 transfer through EntryPoint ${entrypoint}`
+            );
+
+            let needsApproval = true;
+            let previousAllowance: bigint | undefined;
+
+            try {
+              const publicClient = createPublicClient({
+                chain: targetChainConfig.wagmiChain,
+                transport: http(targetChainConfig.rpcUrl),
+              });
+
+              const currentAllowance = (await publicClient.readContract({
+                address: norm.token.address,
+                abi: erc20Abi,
+                functionName: "allowance",
+                args: [fromAddress, entrypoint],
+              })) as bigint;
+
+              previousAllowance = currentAllowance;
+              needsApproval = currentAllowance < norm.amountWei;
+
+              if (!needsApproval) {
+                console.log(
+                  `✅ Existing allowance ${currentAllowance} sufficient for EntryPoint transfer`
+                );
+              } else {
+                console.log(
+                  `🔐 Current allowance ${currentAllowance} too low, approving EntryPoint`
+                );
+              }
+            } catch (allowanceError) {
+              console.warn(
+                "⚠️ [Transfer Effect] Failed to verify allowance, defaulting to approval",
+                allowanceError
+              );
+              needsApproval = true;
+            }
+
+            if (needsApproval) {
+              if (previousAllowance && previousAllowance > 0n) {
+                console.log(
+                  `🔄 Resetting existing allowance ${previousAllowance} before new approval`
+                );
+
+                const resetApprovalData = encodeFunctionData({
+                  abi: erc20Abi,
+                  functionName: "approve",
+                  args: [entrypoint, 0n],
+                });
+
+                await core.eoaSendTransaction!(
+                  {
+                    to: norm.token.address,
+                    value: 0n,
+                    data: resetApprovalData,
+                  },
+                  { address: fromAddress }
+                );
+
+                await new Promise(resolve => setTimeout(resolve, 1500));
+              }
+
+              const approvalData = encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [entrypoint, norm.amountWei],
+              });
+
+              const approvalResult = await core.eoaSendTransaction!(
+                {
+                  to: norm.token.address,
+                  value: 0n,
+                  data: approvalData,
+                },
+                { address: fromAddress }
+              );
+
+              console.log(`✅ Approval submitted: ${approvalResult.hash}`);
+
+              await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+
+            const entrypointData = encodeFunctionData({
+              abi: FEE_ENTRYPOINT_ABI,
+              functionName: "transferERC20",
+              args: [norm.token.address, norm.to, norm.amountWei],
+            });
+
+            const result = await core.eoaSendTransaction!(
+              {
+                to: entrypoint,
+                value: 0n,
+                data: entrypointData,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          } else {
+            const data = encodeFunctionData({
+              abi: [
+                {
+                  name: "transfer",
+                  type: "function",
+                  stateMutability: "nonpayable",
+                  inputs: [
+                    { name: "to", type: "address" },
+                    { name: "amount", type: "uint256" },
+                  ],
+                  outputs: [{ name: "", type: "bool" }],
+                },
+              ],
+              functionName: "transfer",
+              args: [norm.to, norm.amountWei],
+            });
+
+            const result = await core.eoaSendTransaction!(
+              {
+                to: norm.token.address,
+                value: 0n,
+                data,
+              },
+              {
+                address: fromAddress,
+              }
+            );
+            txHash = result.hash;
+          }
+        }
       }
 
       explorerUrl = getTxUrl(targetChainId, txHash);

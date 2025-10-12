@@ -48,7 +48,18 @@ export type ViewPage =
 /**
  * Account mode for transaction execution
  */
-export type AccountMode = "EOA" | "SMART_ACCOUNT";
+export type AccountMode = "EOA" | "SMART_ACCOUNT" | "BASE_ACCOUNT";
+
+/**
+ * Base Account client state
+ */
+export interface BaseAccountClients {
+  sdk: any; // Base Account SDK instance
+  provider: any; // EIP-1193 provider
+  address?: `0x${string}`; // Universal Base Account address
+  subAccountAddress?: `0x${string}`; // Sub Account address (private key-based)
+  isConnected: boolean;
+}
 
 export type CoreContext = {
   userId?: string; // undefined when not authenticated
@@ -64,11 +75,18 @@ export type CoreContext = {
     options?: { address?: string }
   ) => Promise<{ hash: `0x${string}` }>; // EOA transaction method from useSendTransaction
 
+  // Base Account support
+  baseAccountClients?: BaseAccountClients;
+
   // Transaction mode (defaults to "EOA")
   accountMode?: AccountMode;
 
   // Policy state
   policy: PolicyState;
+
+  // Slippage settings
+  defaultSlippage: number; // Global default slippage tolerance as decimal (0.0005 = 0.05%)
+  pendingSlippage?: number; // Temporary slippage override for next transaction (cleared after use)
 };
 
 export type AppError = {
@@ -108,6 +126,8 @@ export type FlowContext = {
     }>;
   };
   selectedTokenIndex?: number;
+  // Per-transaction slippage override (overrides defaultSlippage from CoreContext)
+  slippage?: number;
 };
 
 export type AppState = {
@@ -177,10 +197,12 @@ export type AppEvent =
   | { type: "BALANCE.FETCH"; chainId?: number; chainName?: string }
   | { type: "TERMINAL.CLEAR" }
   | { type: "CHAIN.UPDATE"; chainId: number }
+  | { type: "ACCOUNT_MODE.UPDATE"; accountMode: AccountMode }
   | { type: "POLICY.UPDATE"; policy: PolicyState }
   | { type: "POLICY.RESET"; preset?: string }
   | { type: "POLICY.VIOLATION"; violations: PolicyViolation[] }
-  | { type: "POLICY.TX_TRACKED"; amountETH: number };
+  | { type: "POLICY.TX_TRACKED"; amountETH: number }
+  | { type: "SLIPPAGE.SET_PENDING"; slippage: number };
 
 // Helper types for effect definitions
 export type Dispatch = (e: AppEvent) => void;
