@@ -104,18 +104,19 @@ export function createStoreWithDevTools(
 
     const wrappedDispatch: Dispatch = (event) => {
       try {
-        // Safely serialize state for DevTools (handle BigInt)
-        const safeState = JSON.parse(serializeWithBigInt(store.getState()));
+        // Create safe state without circular references
+        const safeState = createDevToolsSafeState(store.getState());
+        const serialized = JSON.parse(serializeWithBigInt(safeState));
         devTools.send(
           {
             type: event.type,
             payload: event,
             id: actionId++,
           },
-          safeState
+          serialized
         );
       } catch (error) {
-        console.warn("DevTools serialization error:", error);
+        // Silently fail to avoid console spam - DevTools will show partial state
         devTools.send(
           {
             type: event.type,
@@ -137,10 +138,11 @@ export function createStoreWithDevTools(
     });
 
     try {
-      const safeInitialState = JSON.parse(serializeWithBigInt(store.getState()));
+      const safeState = createDevToolsSafeState(store.getState());
+      const safeInitialState = JSON.parse(serializeWithBigInt(safeState));
       devTools.init(safeInitialState);
     } catch (error) {
-      console.warn("DevTools init error:", error);
+      // Silently fail - DevTools will show partial state
       devTools.init({ mode: "ERROR", error: "Initial state serialization failed" });
     }
 
@@ -166,6 +168,25 @@ function serializeWithBigInt(obj: any): string {
     }
     return value;
   });
+}
+
+/**
+ * Create a safe state object for DevTools that excludes circular references
+ * and non-serializable objects
+ */
+function createDevToolsSafeState(state: AppState): any {
+  return {
+    mode: state.mode,
+    flow: state.flow,
+    viewStack: state.viewStack,
+    core: {
+      ...state.core,
+      // Exclude non-serializable objects that cause circular reference errors
+      smartWalletClient: state.core.smartWalletClient ? "WalletClient (excluded)" : undefined,
+      // Convert Map to array for serialization
+      idempotency: Array.from(state.core.idempotency.entries()),
+    },
+  };
 }
 
 /**
