@@ -123,8 +123,66 @@ export const balancesCmd: CommandDef = {
     let resolvedChainIds: number[];
 
     if (args.chain) {
-      // User specified chains explicitly
-      resolvedChainIds = resolveChainIds(args.chain, defaultChainId);
+      // Enhanced chain resolution with suggestions
+      const { resolveWithSuggestions } = await import("@/lib/utils/chainMatcher");
+      
+      const parts = args.chain.split(',').map((p: string) => p.trim());
+      resolvedChainIds = [];
+      const warnings: string[] = [];
+
+      for (const part of parts) {
+        // Try parsing as number first
+        const parsed = parseInt(part);
+        if (!isNaN(parsed)) {
+          resolvedChainIds.push(parsed);
+          continue;
+        }
+
+        // Use enhanced resolution with suggestions
+        const result = resolveWithSuggestions(part);
+        
+        if (result.chainId) {
+          resolvedChainIds.push(result.chainId);
+          if (result.suggestions) {
+            warnings.push(result.suggestions);
+          }
+        } else {
+          // Chain not found
+          warnings.push(result.suggestions || `❌ Chain "${part}" not found.`);
+        }
+      }
+
+      // Show warnings/suggestions if any
+      if (warnings.length > 0) {
+        dispatch({
+          type: "CHAT.ADD",
+          message: {
+            role: "assistant",
+            content: warnings.join('\n\n'),
+            timestamp: Date.now(),
+          },
+        });
+      }
+
+      // If no valid chains resolved, fall back to all chains
+      if (resolvedChainIds.length === 0) {
+        let allChainIds = getSupportedChainIds();
+        
+        // Apply mainnet/testnet filters
+        if (args["mainnet-only"]) {
+          allChainIds = allChainIds.filter(id => {
+            const config = getChainConfig(id);
+            return config && !config.isTestnet;
+          });
+        } else if (args["testnet-only"]) {
+          allChainIds = allChainIds.filter(id => {
+            const config = getChainConfig(id);
+            return config && config.isTestnet;
+          });
+        }
+        
+        resolvedChainIds = allChainIds;
+      }
     } else if (showDetailed || !useAggregation) {
       // Detailed mode uses current chain only
       resolvedChainIds = [defaultChainId];
