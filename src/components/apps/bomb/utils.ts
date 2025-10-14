@@ -28,27 +28,42 @@ export function formatPlain(value: number, digits = 2): string {
   return value.toFixed(digits);
 }
 
-export function loadStoredSession(): StoredSession | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredSession;
-    if (!parsed || typeof parsed !== "object") return null;
-    return parsed;
-  } catch (error) {
-    console.warn("[BombGame] Failed to parse stored session", error);
-    return null;
-  }
+function resolveSessionKey(address?: string | null) {
+  if (!address) return SESSION_KEY;
+  return `${SESSION_KEY}:${address.toLowerCase()}`;
 }
 
-export function saveStoredSession(session: StoredSession | null) {
+export function loadStoredSession(address?: string | null): StoredSession | null {
+  if (typeof window === "undefined") return null;
+  const keysToTry = address
+    ? [resolveSessionKey(address), SESSION_KEY]
+    : [SESSION_KEY];
+  for (const key of keysToTry) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as StoredSession;
+      if (!parsed || typeof parsed !== "object") continue;
+      if (address && key !== resolveSessionKey(address)) {
+        window.localStorage.setItem(resolveSessionKey(address), raw);
+        window.localStorage.removeItem(key);
+      }
+      return parsed;
+    } catch (error) {
+      console.warn("[BombGame] Failed to parse stored session", error);
+    }
+  }
+  return null;
+}
+
+export function saveStoredSession(session: StoredSession | null, address?: string | null) {
   if (typeof window === "undefined") return;
+  const key = resolveSessionKey(address);
   if (!session) {
-    window.localStorage.removeItem(SESSION_KEY);
+    window.localStorage.removeItem(key);
     return;
   }
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  window.localStorage.setItem(key, JSON.stringify(session));
 }
 
 export function centerColumns(count: number): number[] {

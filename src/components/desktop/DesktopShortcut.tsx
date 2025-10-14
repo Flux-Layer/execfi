@@ -25,7 +25,7 @@ export default function DesktopShortcut({
          onClick={onActivate}
          className={clsx(
             "group pointer-events-auto flex w-24 flex-col items-center gap-2 rounded-2xl bg-none p-3 text-slate-200 transition",
-            "backdrop-blur hover:border-emerald-400/60 hover:bg-slate-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400/70",
+            "backdrop-blur hover:border-emerald-400/60 hover:bg-slate-900/40 focus-visible:outline-2 focus-visible:outline-emerald-400/70",
             className,
          )}
       >

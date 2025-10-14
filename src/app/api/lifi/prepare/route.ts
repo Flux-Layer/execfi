@@ -8,7 +8,7 @@ import {
   validateQuote,
   LifiError,
 } from "@/lib/lifi-client";
-import { isAddress, getAddress, parseEther, formatEther, encodeFunctionData } from "viem";
+import { isAddress, getAddress, formatEther, encodeFunctionData } from "viem";
 import {
   FEE_ENTRYPOINT_ADDRESSES,
   FEE_ENTRYPOINT_ABI,
@@ -41,58 +41,46 @@ const PrepareRequestSchema = z.object({
   validateFreshness: z.boolean().optional().default(true),
 });
 
-const TransactionDataSchema = z.object({
-  to: z.string(),
-  value: z.string(),
-  data: z.string().optional(),
-  gasLimit: z.string().optional(),
-  gasPrice: z.string().optional(),
-  chainId: z.number(),
-});
-
-const PrepareResponseSchema = z.object({
-  success: z.boolean(),
-  transactionData: TransactionDataSchema.optional(),
-  route: z.any().optional(), // LI.FI Route object
-  quote: z
-    .object({
-      fromAmount: z.string(),
-      toAmount: z.string(),
-      toAmountMin: z.string(),
-      gasEstimate: z.string(),
-      executionTime: z.number(),
-      priceImpact: z.number().optional(),
-    })
-    .optional(),
-  requiresApproval: z
-    .object({
-      token: z.string(),
-      spender: z.string(),
-      amount: z.string(),
-    })
-    .optional(),
-  error: z
-    .object({
-      code: z.string(),
-      message: z.string(),
-      details: z.any().optional(),
-    })
-    .optional(),
-  requestId: z.string(),
-});
-
 export type PrepareRequest = z.infer<typeof PrepareRequestSchema>;
-export type PrepareResponse = z.infer<typeof PrepareResponseSchema>;
-export type TransactionData = z.infer<typeof TransactionDataSchema>;
+export type TransactionData = {
+  to: string;
+  value: string;
+  data?: string;
+  gasLimit?: string;
+  gasPrice?: string;
+  chainId: number;
+};
+
+export type PrepareResponse = {
+  success: boolean;
+  transactionData?: TransactionData;
+  route?: unknown;
+  quote?: {
+    fromAmount: string;
+    toAmount: string;
+    toAmountMin: string;
+    gasEstimate: string;
+    executionTime: number;
+    priceImpact?: number;
+  };
+  requiresApproval?: {
+    token: string;
+    spender: string;
+    amount: string;
+  };
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+  requestId: string;
+};
 
 /**
  * Convert LI.FI route to transaction data compatible with existing execution layer
  * This maintains the identical interface that Step 7.3 (Privy execution) expects
  */
-function routeToTransactionData(
-  route: any,
-  fromAddress: string,
-): TransactionData {
+function routeToTransactionData(route: any): TransactionData {
   // For same-chain transfers, we use the first step's transaction request
   const firstStep = route.steps[0];
   if (!firstStep?.transactionRequest) {
@@ -275,10 +263,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Convert route to transaction data for Privy execution
-    let transactionData = routeToTransactionData(
-      selectedRoute,
-      params.fromAddress,
-    );
+    let transactionData = routeToTransactionData(selectedRoute);
 
     // Check if this is a same-chain ERC-20 transfer that should use EntryPoint
     const isSameChainERC20 =

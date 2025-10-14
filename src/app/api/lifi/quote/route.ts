@@ -18,38 +18,35 @@ const QuoteValidationRequestSchema = z.object({
   }),
 });
 
-// Response schema
-const QuoteValidationResponseSchema = z.object({
-  success: z.boolean(),
-  data: z.object({
-    valid: z.boolean(),
-    reason: z.string().optional(),
-    originalRoute: z.any(), // LifiRoute
-    freshRoute: z.any().optional(), // LifiRoute
-    analysis: z.object({
-      priceChange: z.object({
-        percentage: z.number(),
-        direction: z.enum(["favorable", "unfavorable", "unchanged"]),
-        amount: z.string(),
-      }),
-      routeComparison: z.object({
-        sameTools: z.boolean(),
-        stepCountMatch: z.boolean(),
-        estimatedDurationChange: z.number(),
-      }),
-      recommendation: z.enum(["proceed", "refresh", "abort"]),
-    }),
-    timestamp: z.number(),
-    requestId: z.string(),
-  }).optional(),
-  error: z.object({
-    code: z.string(),
-    message: z.string(),
-    details: z.any().optional(),
-  }).optional(),
-});
-
-export type QuoteValidationResponse = z.infer<typeof QuoteValidationResponseSchema>;
+export type QuoteValidationResponse = {
+  success: boolean;
+  data?: {
+    valid: boolean;
+    reason?: string;
+    originalRoute: unknown;
+    freshRoute?: unknown;
+    analysis: {
+      priceChange: {
+        percentage: number;
+        direction: "favorable" | "unfavorable" | "unchanged";
+        amount: string;
+      };
+      routeComparison: {
+        sameTools: boolean;
+        stepCountMatch: boolean;
+        estimatedDurationChange: number;
+      };
+      recommendation: "proceed" | "refresh" | "abort";
+    };
+    timestamp: number;
+    requestId: string;
+  };
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+};
 
 /**
  * Calculate percentage change between two amounts
@@ -276,7 +273,7 @@ export async function POST(request: NextRequest) {
  *
  * Health check endpoint for quote validation service
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Simple health check - could be expanded to check LI.FI connectivity
     return NextResponse.json({

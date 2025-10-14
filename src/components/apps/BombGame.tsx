@@ -1,7 +1,12 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
+import { useBalance } from "wagmi";
+import { formatEther } from "viem";
 import { useDock } from "@/context/DockContext";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useEOA } from "@/providers/EOAProvider";
+import useSmartWallet from "@/hooks/useSmartWallet";
 import { BetControls } from "./bomb/BetControls";
 import HowItWorksModal from "./bomb/HowItWorksModal";
 import { BombBoardSection } from "./bomb/components/BombBoardSection";
@@ -10,6 +15,7 @@ import { GameOverBanner, GameOverModal } from "./bomb/components/BombGameOver";
 import { BombTileCustomizerModal } from "./bomb/components/BombTileCustomizerModal";
 import { BombWindowFrame } from "./bomb/components/BombWindowFrame";
 import { useBombGameState } from "./bomb/useBombGameState";
+import { DEGENSHOOT_CHAIN_ID } from "@/lib/contracts/addresses";
 
 export default function BombGameWindow() {
   const {
@@ -49,12 +55,106 @@ function BombGameContent({
   onToggleFullscreen,
 }: BombGameContentProps) {
   const { isMobile } = useResponsive();
-  const game = useBombGameState({ fullscreen, isMobile });
+  const { selectedWallet } = useEOA();
+  const { smartAccountAddress } = useSmartWallet();
+
+  const activeAddress = (selectedWallet?.address ??
+    smartAccountAddress) as `0x${string}` | undefined;
+
+  const game = useBombGameState({
+    fullscreen,
+    isMobile,
+    wallet: selectedWallet ?? null,
+    activeAddress,
+  });
+
+  const {
+    data: balanceData,
+    isLoading: isBalanceLoading,
+  } = useBalance({
+    address: activeAddress,
+    chainId: DEGENSHOOT_CHAIN_ID,
+    query: {
+      enabled: Boolean(activeAddress),
+      refetchInterval: 15_000,
+    },
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // eslint-disable-next-line no-console
+    console.log("[BombGame] Balance context", {
+      activeAddress,
+      isBalanceLoading,
+      balanceData,
+    });
+  }, [activeAddress, balanceData, isBalanceLoading]);
+
+  const balanceNumeric = useMemo(() => {
+    if (!balanceData) return null;
+    try {
+      return Number(formatEther(balanceData.value));
+    } catch {
+      return null;
+    }
+  }, [balanceData]);
+
+  const balanceDisplay = useMemo(() => {
+    if (balanceNumeric === null || !Number.isFinite(balanceNumeric)) {
+      return balanceData ? `${balanceData.formatted} ${balanceData.symbol}` : null;
+    }
+    const formatted = balanceNumeric.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: balanceNumeric < 1 ? 6 : 4,
+    });
+    return `${formatted} ${balanceData?.symbol ?? "ETH"}`;
+  }, [balanceData, balanceNumeric]);
+
+  const balanceSummary = useMemo(() => {
+    const chainLabel = "Balance :";
+    if (!activeAddress) {
+      return {
+        chainLabel,
+        isLoading: false,
+        valueLabel: null as string | null,
+      };
+    }
+
+    return {
+      chainLabel,
+      isLoading: isBalanceLoading,
+      valueLabel: balanceDisplay,
+    };
+  }, [activeAddress, balanceDisplay, isBalanceLoading]);
+
+  const betAmountNumeric = useMemo(() => {
+    const parsed = Number(game.betInput);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+    if (typeof game.betAmountValue === "number") {
+      return game.betAmountValue;
+    }
+    return null;
+  }, [game.betAmountValue, game.betInput]);
+
+  const cashOutLabel = useMemo(() => {
+    if (!game.cashOutAmount) return undefined;
+    return `Cash Out (${game.cashOutAmount.toFixed(game.cashOutAmount < 1 ? 4 : 2)} ETH)`;
+  }, [game.cashOutAmount]);
 
   if (minimized) return null;
 
-  const disableCustomize = game.isBuildingRound || !game.fairnessState;
-  const disableReroll = game.isBuildingRound || !game.fairnessState;
+  const disableCustomize =
+    game.isBuildingRound ||
+    !game.fairnessState ||
+    game.isRoundInProgress ||
+    game.isOnchainBusy;
+  const disableReroll =
+    game.isBuildingRound ||
+    !game.fairnessState ||
+    game.isRoundInProgress ||
+    game.isOnchainBusy;
 
   return (
     <BombWindowFrame
@@ -85,45 +185,53 @@ function BombGameContent({
           summary={{
             title: game.summaryTitle,
             variant: game.summaryVariant,
-            carryIn: game.carryInForPanel,
+            multiplier: game.currentMultiplier,
             potentialPayout: game.potentialPayout,
             hasStarted: game.hasStarted,
             betAmount: game.betAmount,
           }}
         />
 
-        <BetControls
-          betInput={game.betInput}
-          betError={game.betError}
-          onBetChange={game.updateBetInput}
-          onQuickBet={game.quickBet}
-          onStartRound={game.handleStartGame}
-          startDisabled={game.isStartDisabled}
-          startLabel={game.startLabel}
-          onShowInfo={game.openInfo}
-          onShowCustomizer={game.openCustomizer}
-          onReroll={() => {
-            void game.rerollTiles();
-          }}
+      <BetControls
+        betInput={game.betInput}
+        betError={game.betError}
+        onBetChange={game.updateBetInput}
+        onQuickBet={game.quickBet}
+        onStartRound={game.handleStartGame}
+        onCashOut={game.handleCashOut}
+        startDisabled={game.isStartDisabled}
+        cashOutDisabled={!game.canCashOut || game.isOnchainBusy}
+        startLabel={game.startLabel}
+        cashOutLabel={cashOutLabel}
+        onShowInfo={game.openInfo}
+        onShowCustomizer={game.openCustomizer}
+        onReroll={() => {
+          void game.rerollTiles();
+        }}
           onToggleSound={game.toggleSound}
           soundOn={game.soundOn}
           disableCustomize={disableCustomize}
           disableReroll={disableReroll}
+          balanceLabel={balanceSummary.chainLabel}
+          balanceValue={balanceSummary.valueLabel}
+          balanceIsLoading={balanceSummary.isLoading}
+          balanceNumericValue={balanceNumeric}
+          betAmountValue={betAmountNumeric}
         />
 
         <BombFairnessPanel
           status={game.status}
           isBuildingRound={game.isBuildingRound}
+          isRevealing={game.isRevealing}
           rerollTiles={game.rerollTiles}
-          txHashInput={game.txHashInput}
-          setTxHashInput={game.setTxHashInput}
-          txHashVerified={game.txHashVerified}
           revealFairness={game.revealFairness}
           verifyRound={game.verifyRound}
           isVerifying={game.isVerifying}
           fairnessState={game.fairnessState}
           rows={game.rows}
           rowStats={game.rowStats}
+          roundSummary={game.roundSummary}
+          canReveal={game.canReveal}
           verificationStatus={game.verificationStatus}
           verificationOutput={game.verificationOutput}
         />

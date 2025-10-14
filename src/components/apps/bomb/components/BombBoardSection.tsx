@@ -17,7 +17,7 @@ type BombBoardSectionProps = {
   summary: {
     title: string;
     variant: SummaryVariant;
-    carryIn: number;
+    multiplier: number;
     potentialPayout: number | null;
     hasStarted: boolean;
     betAmount: number | null;
@@ -62,7 +62,7 @@ export function BombBoardSection({
         <BombSummaryCard
           title={summary.title}
           variant={summary.variant}
-          carryIn={summary.carryIn}
+          multiplier={summary.multiplier}
           potentialPayout={summary.potentialPayout}
           hasStarted={summary.hasStarted}
           betAmount={summary.betAmount}

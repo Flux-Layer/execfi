@@ -31,7 +31,7 @@ export const BombRowCard = forwardRef<HTMLDivElement, BombRowCardProps>(
     const bombsPerRowDisplay = layout.fairness.bombsPerRow ?? BOMBS_PER_ROW;
     const bombColumn =
       layout.fairness.bombIndex >= 0 ? layout.activeColumns[layout.fairness.bombIndex] : null;
-    const shouldRevealBomb = isCrashRow;
+    const shouldRevealBomb = status !== "idle";
 
     const cardStateClass = isCrashRow
       ? "border-red-500/70 bg-slate-950 shadow-red-900/40 text-red-100"

@@ -6,7 +6,7 @@ import type { SummaryVariant } from "../useBombGameState";
 type BombSummaryCardProps = {
   title: string;
   variant: SummaryVariant;
-  carryIn: number;
+  multiplier: number;
   potentialPayout: number | null;
   hasStarted: boolean;
   betAmount: number | null;
@@ -15,7 +15,7 @@ type BombSummaryCardProps = {
 export function BombSummaryCard({
   title,
   variant,
-  carryIn,
+  multiplier,
   potentialPayout,
   hasStarted,
   betAmount,
@@ -36,7 +36,7 @@ export function BombSummaryCard({
           )}
         </div>
         <div className="mt-3 text-center">
-          <div className={`text-3xl font-semibold ${valueClass}`}>{formatMultiplier(carryIn)}</div>
+          <div className={`text-3xl font-semibold ${valueClass}`}>{formatMultiplier(multiplier)}</div>
           {potentialPayout !== null && (
             <div className="mt-2 text-[11px] text-slate-400">≈ {potentialPayout.toFixed(4)} ETH</div>
           )}
