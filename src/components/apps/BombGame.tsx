@@ -149,12 +149,18 @@ function BombGameContent({
     game.isBuildingRound ||
     !game.fairnessState ||
     game.isRoundInProgress ||
-    game.isOnchainBusy;
+    game.isOnchainBusy ||
+    !game.isWalletConnected ||
+    game.needsChainSwitch ||
+    game.isSessionStuck;
   const disableReroll =
     game.isBuildingRound ||
     !game.fairnessState ||
     game.isRoundInProgress ||
-    game.isOnchainBusy;
+    game.isOnchainBusy ||
+    !game.isWalletConnected ||
+    game.needsChainSwitch ||
+    game.isSessionStuck;
 
   return (
     <BombWindowFrame
@@ -208,16 +214,31 @@ function BombGameContent({
         onReroll={() => {
           void game.rerollTiles();
         }}
-          onToggleSound={game.toggleSound}
-          soundOn={game.soundOn}
-          disableCustomize={disableCustomize}
-          disableReroll={disableReroll}
-          balanceLabel={balanceSummary.chainLabel}
-          balanceValue={balanceSummary.valueLabel}
-          balanceIsLoading={balanceSummary.isLoading}
-          balanceNumericValue={balanceNumeric}
-          betAmountValue={betAmountNumeric}
-        />
+        onToggleSound={game.toggleSound}
+        soundOn={game.soundOn}
+        disableCustomize={disableCustomize}
+        disableReroll={disableReroll}
+        balanceLabel={balanceSummary.chainLabel}
+        balanceValue={balanceSummary.valueLabel}
+        balanceIsLoading={balanceSummary.isLoading}
+        balanceNumericValue={balanceNumeric}
+        betAmountValue={betAmountNumeric}
+        startHelperText={game.startHelperText}
+        showSwitchChain={game.needsChainSwitch}
+        onSwitchChain={() => {
+          void game.switchToGameChain();
+        }}
+        switchChainLabel={`Switch to ${game.targetChainLabel}`}
+        switchChainDisabled={!game.needsChainSwitch || game.isOnchainBusy}
+        showRestartButton={game.isSessionStuck}
+        onRestart={() => {
+          void game.restartStuckSession();
+        }}
+        restartLabel="Restart Game"
+        restartDisabled={
+          !game.isSessionStuck || game.isOnchainBusy || game.isBuildingRound
+        }
+      />
 
         <BombFairnessPanel
           status={game.status}
