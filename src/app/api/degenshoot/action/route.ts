@@ -271,19 +271,28 @@ export async function POST(request: Request) {
             );
           }
 
-          const logs = parseEventLogs({
-            abi: WAGER_VAULT_ABI,
-            eventName: "BetPlaced",
-            logs: receipt.logs,
-          });
+        type BetPlacedLog = {
+          eventName: "BetPlaced";
+          args: {
+            bettor: `0x${string}`;
+            sessionKey: `0x${string}`;
+            amount: bigint;
+          };
+        };
 
-          const matchedLog = logs.find((log) => {
-            const bettor = (log.args?.bettor ?? "").toLowerCase();
-            return (
-              bettor === session.userAddress?.toLowerCase() &&
-              log.args?.sessionKey === sessionKey
-            );
-          });
+        const logs = parseEventLogs({
+          abi: WAGER_VAULT_ABI,
+          eventName: "BetPlaced",
+          logs: receipt.logs,
+        }) as unknown as BetPlacedLog[];
+
+        const matchedLog = logs.find((log) => {
+          const bettor = log.args.bettor?.toLowerCase() ?? "";
+          return (
+            bettor === session.userAddress?.toLowerCase() &&
+            log.args.sessionKey === sessionKey
+          );
+        });
 
           if (!matchedLog) {
             return NextResponse.json(
@@ -292,7 +301,7 @@ export async function POST(request: Request) {
             );
           }
 
-          const eventAmount = matchedLog.args?.amount ?? 0n;
+          const eventAmount = matchedLog.args.amount ?? 0n;
 
           const escrowAtBlock = await wagerVaultPublicClient.readContract({
             address: WAGER_VAULT_ADDRESS,

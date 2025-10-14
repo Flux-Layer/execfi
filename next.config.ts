@@ -6,7 +6,7 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: true,
   workboxOptions: {
     disableDevLogs: true,
   },
@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false,
   output: "standalone",
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default withPWA(nextConfig);

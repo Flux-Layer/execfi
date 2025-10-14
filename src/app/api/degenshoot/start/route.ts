@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const lockedCountsInputRaw: number[] | null = Array.isArray(body?.lockedTileCounts)
       ? body.lockedTileCounts
           .map((value: unknown) => (typeof value === "number" ? clampTile(value) : null))
-          .filter((value): value is number => value !== null)
+          .filter((value: number | null): value is number => value !== null)
       : null;
     const lockedCountsInput =
       lockedCountsInputRaw && lockedCountsInputRaw.length
