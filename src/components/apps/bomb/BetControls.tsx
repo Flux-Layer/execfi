@@ -27,6 +27,15 @@ type BetControlsProps = {
   balanceIsLoading?: boolean;
   balanceNumericValue?: number | null;
   betAmountValue?: number | null;
+  startHelperText?: string | null;
+  showSwitchChain?: boolean;
+  onSwitchChain?: () => void;
+  switchChainLabel?: string;
+  switchChainDisabled?: boolean;
+  showRestartButton?: boolean;
+  onRestart?: () => void;
+  restartLabel?: string;
+  restartDisabled?: boolean;
 };
 
 function BetControlsComponent({
@@ -52,6 +61,15 @@ function BetControlsComponent({
   balanceIsLoading,
   balanceNumericValue,
   betAmountValue,
+  startHelperText,
+  showSwitchChain,
+  onSwitchChain,
+  switchChainLabel,
+  switchChainDisabled,
+  showRestartButton,
+  onRestart,
+  restartLabel,
+  restartDisabled,
 }: BetControlsProps) {
   const insufficientBalance =
     typeof balanceNumericValue === "number" &&
@@ -113,6 +131,26 @@ function BetControlsComponent({
                   ? "Checking balance..."
                   : startLabel}
             </button>
+            {showSwitchChain && (
+              <button
+                type="button"
+                onClick={onSwitchChain}
+                disabled={switchChainDisabled}
+                className="rounded-full border border-sky-500 bg-sky-500/20 px-5 py-2 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:text-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {switchChainLabel ?? "Switch Chain"}
+              </button>
+            )}
+            {showRestartButton && (
+              <button
+                type="button"
+                onClick={onRestart}
+                disabled={restartDisabled}
+                className="rounded-full border border-amber-500 bg-amber-500/10 px-5 py-2 text-xs font-semibold text-amber-200 transition hover:border-amber-400 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {restartLabel ?? "Restart Game"}
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {QUICK_BETS.map((bet) => (
@@ -131,6 +169,9 @@ function BetControlsComponent({
             <span className="text-[10px] text-red-400">
               Insufficient balance. Adjust your bet or top up.
             </span>
+          )}
+          {startHelperText && (
+            <span className="text-[10px] text-amber-300">{startHelperText}</span>
           )}
         </div>
 

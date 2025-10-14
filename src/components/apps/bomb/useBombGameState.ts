@@ -13,6 +13,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
+import { base, baseSepolia } from "viem/chains";
 import {
   BOMBS_PER_ROW,
   HOUSE_EDGE,
@@ -163,6 +164,13 @@ export type UseBombGameStateReturn = {
   canReveal: boolean;
   finalizedSessionId: string | null;
   isRoundInProgress: boolean;
+  startHelperText: string | null;
+  needsChainSwitch: boolean;
+  switchToGameChain: () => Promise<void>;
+  targetChainLabel: string;
+  isWalletConnected: boolean;
+  isSessionStuck: boolean;
+  restartStuckSession: () => Promise<void>;
 };
 
 export function useBombGameState({
@@ -227,6 +235,7 @@ export function useBombGameState({
       }
     | null
   >(null);
+  const [isSessionStuck, setIsSessionStuck] = useState(false);
   const resultSubmittedRef = useRef(false);
 
   const effectiveFullscreen = fullscreen || isMobile;
@@ -252,6 +261,27 @@ export function useBombGameState({
     () => `0x${DEGENSHOOT_CHAIN_ID.toString(16)}` as `0x${string}`,
     [],
   );
+
+  const targetChainLabel = useMemo(() => {
+    if (DEGENSHOOT_CHAIN_ID === base.id) return "Base";
+    if (DEGENSHOOT_CHAIN_ID === baseSepolia.id) return "Base Sepolia";
+    return `Chain ${DEGENSHOOT_CHAIN_ID}`;
+  }, []);
+
+  const isWalletConnected = Boolean(wallet && activeAddress);
+  const needsChainSwitch =
+    isWalletConnected && walletChainId !== null && walletChainId !== DEGENSHOOT_CHAIN_ID;
+
+  const switchToGameChain = useCallback(async () => {
+    if (!wallet) return;
+    try {
+      await wallet.switchChain(desiredChainHex);
+      setBetError(null);
+    } catch (error) {
+      console.error("[Bomb Game] Failed to switch chain:", error);
+      setBetError((error as Error).message ?? "Failed to switch network");
+    }
+  }, [wallet, desiredChainHex]);
 
   const onchainReady =
     ONCHAIN_FEATURES_ENABLED &&
@@ -486,6 +516,9 @@ export function useBombGameState({
         ? data.lockedTileCounts.map((value: number) => Number(value))
         : layoutRows.map((row: any) => Number(row.tileCount));
 
+      setIsSessionStuck(false);
+      setBetError((prev) => (prev && prev.includes("Session") ? null : prev));
+
       setSessionId(nextSessionId);
       setFinalizedSessionId(null);
       setRoundSummary(null);
@@ -543,6 +576,39 @@ export function useBombGameState({
     },
     [activeAddress, buildRowsWithSeeds],
   );
+
+  const restartStuckSession = useCallback(async () => {
+    if (isOnchainBusy) return;
+    try {
+      saveStoredSession(null, normalizedActiveAddress);
+      pendingSessionRef.current = null;
+      setPendingSession(null);
+      lockedTileCountsRef.current = null;
+      setHasStarted(false);
+      setBetAmount(null);
+      setStatus("idle");
+      setLostRow(null);
+      setShowGameOver(false);
+      setSessionId(null);
+      setFinalizedSessionId(null);
+      setRoundSummary(null);
+      setRows([]);
+      setActiveRowIndex(-1);
+      setCurrentMultiplier(1);
+      setBetError(null);
+      await requestSessionSeeds(currentClientSeed ?? undefined, undefined, null);
+      setIsSessionStuck(false);
+    } catch (error) {
+      console.error("[Bomb Game] Failed to restart session:", error);
+      setBetError((error as Error).message ?? "Failed to restart session");
+      setIsSessionStuck(true);
+    }
+  }, [
+    isOnchainBusy,
+    normalizedActiveAddress,
+    requestSessionSeeds,
+    currentClientSeed,
+  ]);
 
   const adjustPendingRange = useCallback((key: "min" | "max", delta: number) => {
     setPendingRange((prev) => {
@@ -927,6 +993,7 @@ export function useBombGameState({
             lockedTileCountsRef.current,
             storedFairness.rowsMeta,
           );
+          setIsSessionStuck(false);
         } else {
           if (cancelled) return;
           lockedTileCountsRef.current = null;
@@ -1224,7 +1291,10 @@ export function useBombGameState({
         saveStoredSession(null, normalizedActiveAddress);
       } catch (error) {
         console.error("[Bomb Game] Failed to finalise result:", error);
-        if (error instanceof BaseError) {
+        if (error instanceof Error && error.message.includes("404")) {
+          setBetError("Session expired. Please restart the game.");
+          setIsSessionStuck(true);
+        } else if (error instanceof BaseError) {
           let friendly = error.shortMessage ?? error.message;
           error.walk((err) => {
             if (err instanceof ContractFunctionRevertedError) {
@@ -1276,6 +1346,7 @@ export function useBombGameState({
     setRoundSummary(null);
     pendingSessionRef.current = null;
     saveStoredSession(null, normalizedActiveAddress);
+    setIsSessionStuck(false);
   }, [normalizedActiveAddress]);
 
   const dismissGameOver = useCallback(() => {
@@ -1843,7 +1914,12 @@ export function useBombGameState({
           }
         } catch (error) {
           console.error("[Bomb Game] Failed to resolve tile:", error);
-          setBetError((error as Error).message ?? "Failed to resolve tile");
+          if (error instanceof Error && error.message.includes("404")) {
+            setBetError("Session expired. Please restart the game.");
+            setIsSessionStuck(true);
+          } else {
+            setBetError((error as Error).message ?? "Failed to resolve tile");
+          }
         }
       })();
     },
@@ -1922,7 +1998,12 @@ export function useBombGameState({
         }
       } catch (error) {
         console.error("[Bomb Game] Cash out failed:", error);
-        setBetError((error as Error).message ?? "Failed to cash out");
+        if (error instanceof Error && error.message.includes("404")) {
+          setBetError("Session expired. Please restart the game.");
+          setIsSessionStuck(true);
+        } else {
+          setBetError((error as Error).message ?? "Failed to cash out");
+        }
       }
     })();
   }, [
@@ -1945,15 +2026,39 @@ export function useBombGameState({
   const openInfo = useCallback(() => setShowInfo(true), []);
   const closeInfo = useCallback(() => setShowInfo(false), []);
 
-  const isStartDisabled = isRoundInProgress || isBuildingRound || isOnchainBusy || isWithdrawing;
+  const isStartDisabled =
+    !isWalletConnected ||
+    needsChainSwitch ||
+    isSessionStuck ||
+    isRoundInProgress ||
+    isBuildingRound ||
+    isOnchainBusy ||
+    isWithdrawing;
 
-  const startLabel = isWithdrawing
-    ? "Processing payout..."
-    : isOnchainBusy
-    ? "Processing..."
-    : isRoundInProgress
-      ? "In Progress"
-      : "Start Round";
+  let startLabel: string;
+  if (!isWalletConnected) {
+    startLabel = "Please connect wallet";
+  } else if (needsChainSwitch) {
+    startLabel = `Switch to ${targetChainLabel}`;
+  } else if (isSessionStuck) {
+    startLabel = "Session expired";
+  } else if (isWithdrawing) {
+    startLabel = "Processing payout...";
+  } else if (isOnchainBusy) {
+    startLabel = "Processing...";
+  } else if (isRoundInProgress) {
+    startLabel = "In Progress";
+  } else {
+    startLabel = "Start Round";
+  }
+
+  const startHelperText = !isWalletConnected
+    ? "Please connect wallet"
+    : needsChainSwitch
+    ? `Switch to ${targetChainLabel}`
+    : isSessionStuck
+    ? "Session expired. Please restart the game."
+    : null;
 
   return {
     windowRef,
@@ -2028,5 +2133,12 @@ export function useBombGameState({
     roundSummary,
     canReveal,
     isRoundInProgress,
+    startHelperText,
+    needsChainSwitch,
+    switchToGameChain,
+    targetChainLabel,
+    isWalletConnected,
+    isSessionStuck,
+    restartStuckSession,
   };
 }
