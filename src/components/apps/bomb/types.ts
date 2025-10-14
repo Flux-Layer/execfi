@@ -15,11 +15,12 @@ export type RowLayout = {
 };
 
 export type FairnessState = {
-  serverSeed: string;
+  serverSeed: string | null;
   serverSeedHash: string;
-  clientSeed: string;
+  clientSeed: string | null;
   nonceBase: number;
   rowsMeta: RowFairnessMeta[];
+  revealed: boolean;
 };
 
 export type RowMultiplierStat = {
@@ -33,7 +34,18 @@ export type RowMultiplierStat = {
   status: RowStatusView;
 };
 
+export type RoundSummary = {
+  xp: number;
+  kills: number;
+  timeAlive: number;
+  score: number;
+  multiplier: number;
+  completedRows: number;
+};
+
 export type StoredSession = {
+  sessionId?: string | null;
+  finalizedSessionId?: string | null;
   hasStarted: boolean;
   betAmount: number;
   status: GameStatus;
@@ -45,6 +57,8 @@ export type StoredSession = {
     crashed: boolean;
     isCompleted: boolean;
   }>;
+  currentMultiplier: number;
+  roundSummary?: RoundSummary | null;
 };
 
 export const ROW_STATUS_LABELS: Record<RowStatusView, string> = {

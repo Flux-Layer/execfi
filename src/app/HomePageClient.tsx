@@ -8,7 +8,7 @@ import ExecFiNotesWindow from "@/components/apps/ExecFiNotes";
 import ProfileAppWindow from "@/components/apps/Profile";
 import BombGameWindow from "@/components/apps/BombGame";
 import DesktopShortcut from "@/components/desktop/DesktopShortcut";
-import { GiBomber } from "react-icons/gi";
+import { FaBomb } from "react-icons/fa6";
 import { useDock } from "@/context/DockContext";
 
 export default function HomePageClient() {
@@ -21,10 +21,10 @@ export default function HomePageClient() {
 
   return (
     <main className="relative flex h-screen w-full items-center justify-center bg-black">
-      <div className="pointer-events-none absolute left-6 top-6 z-30">
+      <div className="pointer-events-none absolute left-6 top-6 z-10">
         <DesktopShortcut
-          icon={<GiBomber className="h-6 w-6" />}
-          label="Bomb"
+          icon={<FaBomb className="h-6 w-6" />}
+          label="Degen Shooter"
           onActivate={handleBombShortcut}
         />
       </div>

@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Provably fair engine helpers for the Bomb mini-game.
  *
@@ -38,16 +36,17 @@ export type RowCfg = {
 };
 
 export type BuildRowsParams = {
-   serverSeed: string;
-   clientSeed: string;
-   rowCount: number;
-   nonceBase?: number;
-   tilePreference?: number | null;
-   minTiles: number;
-   maxTiles: number;
-   bombsPerRow?: number;
-   houseEdge?: number;
-   maxTotalMultiplier?: number;
+  serverSeed: string;
+  clientSeed: string;
+  rowCount: number;
+  nonceBase?: number;
+  tilePreference?: number | null;
+  minTiles: number;
+  maxTiles: number;
+  bombsPerRow?: number;
+  houseEdge?: number;
+  maxTotalMultiplier?: number;
+  explicitTileCounts?: number[] | null;
 };
 
 export type BuildRowsResult = {
@@ -153,33 +152,36 @@ export function liveTotal(
 }
 
 export async function buildFairRows({
-   serverSeed,
-   clientSeed,
-   rowCount,
-   nonceBase = 0,
-   tilePreference = null,
-   minTiles,
-   maxTiles,
-   bombsPerRow = 1,
-   houseEdge = 0,
-   maxTotalMultiplier,
+  serverSeed,
+  clientSeed,
+  rowCount,
+  nonceBase = 0,
+  tilePreference = null,
+  minTiles,
+  maxTiles,
+  bombsPerRow = 1,
+  houseEdge = 0,
+  maxTotalMultiplier,
+  explicitTileCounts = null,
 }: BuildRowsParams): Promise<BuildRowsResult> {
-   const rows: RowFairnessMeta[] = [];
+  const rows: RowFairnessMeta[] = [];
 
-   for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-      const nonce = nonceBase + rowIndex;
-      const primaryHash = await deriveGameHash(serverSeed, clientSeed, nonce);
-      const numbers = hashToUint32Array(primaryHash);
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    const nonce = nonceBase + rowIndex;
+    const primaryHash = await deriveGameHash(serverSeed, clientSeed, nonce);
+    const numbers = hashToUint32Array(primaryHash);
 
-      const tileCount =
-         tilePreference !== null
-            ? tilePreference
-            : minTiles +
-              (numbers[0] % Math.max(1, maxTiles - minTiles + 1));
+    const explicit = explicitTileCounts?.[rowIndex];
+    let tileCount =
+       explicit && Number.isFinite(explicit)
+          ? Math.max(2, Math.min(maxTiles, Math.max(minTiles, Math.floor(explicit))))
+          : tilePreference !== null
+          ? tilePreference
+          : minTiles + (numbers[0] % Math.max(1, maxTiles - minTiles + 1));
 
-      const availableTiles = Array.from({ length: tileCount }, (_, idx) => idx);
-      const bombIndices: number[] = [];
-      let numberPointer = 1;
+    const availableTiles = Array.from({ length: tileCount }, (_, idx) => idx);
+    const bombIndices: number[] = [];
+    let numberPointer = 1;
 
       for (let bomb = 0; bomb < Math.min(bombsPerRow, tileCount); bomb++) {
          if (numberPointer >= numbers.length) {
