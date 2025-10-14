@@ -953,7 +953,7 @@ export function useBombGameState({
     try {
       saveStoredSession(null, normalizedActiveAddress);
       lockedTileCountsRef.current = null;
-      await requestSessionSeeds(currentClientSeed, undefined, null);
+      await requestSessionSeeds(currentClientSeed ?? undefined, undefined, null);
     } catch (error) {
       console.error("[Bomb Game] Failed to reroll tiles:", error);
     }
@@ -1312,7 +1312,7 @@ export function useBombGameState({
       setTileRange(appliedValue);
       saveStoredSession(null, normalizedActiveAddress);
       lockedTileCountsRef.current = null;
-      await requestSessionSeeds(currentClientSeed, appliedValue, null);
+      await requestSessionSeeds(currentClientSeed ?? undefined, appliedValue, null);
     } finally {
       setShowCustomizer(false);
     }
@@ -1337,7 +1337,7 @@ export function useBombGameState({
       setPendingRange(resetRange);
       saveStoredSession(null, normalizedActiveAddress);
       lockedTileCountsRef.current = null;
-      await requestSessionSeeds(currentClientSeed, resetRange, null);
+      await requestSessionSeeds(currentClientSeed ?? undefined, resetRange, null);
     } finally {
       setShowCustomizer(false);
     }
@@ -1484,7 +1484,7 @@ export function useBombGameState({
       }
 
       const revealedMap = new Map<number, RowFairnessMeta>(
-        revealedMeta.map((meta) => [meta.rowIndex, meta]),
+        revealedMeta.map((meta: any) => [meta.rowIndex, meta]),
       );
 
       setFairnessState((prev) => {
@@ -1580,7 +1580,7 @@ export function useBombGameState({
               }
             : undefined;
         currentSession = await requestSessionSeeds(
-          currentClientSeed,
+          currentClientSeed ?? undefined,
           lockedRange,
           lockedCounts ?? null,
         );
