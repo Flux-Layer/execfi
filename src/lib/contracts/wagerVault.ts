@@ -1,4 +1,4 @@
-import { createWalletClient, custom, http, type Address } from "viem";
+import { createWalletClient, custom, http, type Address, type Abi } from "viem";
 import { createPublicClient } from "viem";
 import { baseSepolia, base } from "viem/chains";
 import WagerVaultArtifact from "../../../contracts/out/WagerVault.sol/WagerVault.json";
@@ -8,7 +8,7 @@ import {
   DEGENSHOOT_ADDRESS,
 } from "./addresses";
 
-export const WAGER_VAULT_ABI = WagerVaultArtifact.abi as const;
+export const WAGER_VAULT_ABI = WagerVaultArtifact.abi as Abi;
 
 export const WAGER_VAULT_CHAIN =
   DEGENSHOOT_CHAIN_ID === base.id ? base : baseSepolia;
