@@ -899,6 +899,10 @@ export function useBombGameState({
     if (!fairnessState || !hasStarted) {
       return;
     }
+    if (status !== "idle" || !sessionId) {
+      saveStoredSession(null, normalizedActiveAddress);
+      return;
+    }
     const rawBet = betAmount ?? Number(betInput);
     const normalizedBet =
       typeof rawBet === "number" && Number.isFinite(rawBet) && rawBet >= MIN_BET_AMOUNT
@@ -1357,16 +1361,10 @@ export function useBombGameState({
     resultSubmittedRef.current = false;
     setResultTxHash(null);
     setBetTxHash(null);
-    setWithdrawTxHash(null);
-    setIsWithdrawing(false);
-  }, [sessionId]);
-
-  useEffect(() => {
-    resultSubmittedRef.current = false;
-    setResultTxHash(null);
-    setBetTxHash(null);
-    setWithdrawTxHash(null);
-    setIsWithdrawing(false);
+    if (sessionId) {
+      setWithdrawTxHash(null);
+      setIsWithdrawing(false);
+    }
   }, [sessionId]);
 
   const applyTileRange = useCallback(async () => {
