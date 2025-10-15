@@ -299,7 +299,7 @@ export function useBombGameState({
 
   useEffect(() => {
     if (resultTxHash) {
-      console.log("[BombGame] Result transaction submitted:", resultTxHash);
+      console.log("[BombGame] Result transaction submitted:", resultTxHash)
     }
   }, [resultTxHash]);
 
