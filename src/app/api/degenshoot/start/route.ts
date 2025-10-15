@@ -37,7 +37,7 @@ function computeDynamicRowCount(range: TileRange): number {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    pruneExpiredSessions();
+    await pruneExpiredSessions();
 
     const requestedRange = body?.tileRange ?? {};
     const range: TileRange = {
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         ? lockedCountsInputRaw.slice(0, MAX_GENERATED_ROWS)
         : null;
 
-    const session = createSessionRecord({
+    const session = await createSessionRecord({
       userAddress: normalizedAddress,
       wagerWei: body?.wagerWei,
       status: "pending",
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       isCompleted: false,
     }));
 
-    updateSessionRecord(session.id, {
+    await updateSessionRecord(session.id, {
       status: "active",
       rows: storedRows,
       currentRow: 0,

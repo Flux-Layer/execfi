@@ -58,7 +58,7 @@ const GAME_ID = BigInt(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    pruneExpiredSessions();
+    await pruneExpiredSessions();
 
     const { sessionId, user, wagerWei, deadline, xpDeadline } = body ?? {};
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const session = getSessionRecord(String(sessionId));
+    const session = await getSessionRecord(String(sessionId));
     if (!session) {
       return NextResponse.json(
         { success: false, error: "SESSION_NOT_FOUND" },
@@ -217,11 +217,11 @@ export async function POST(request: Request) {
       message: xpMessage,
     });
 
-    updateSessionRecord(String(sessionId), {
+    await updateSessionRecord(String(sessionId), {
       status: "submitted",
       finalizedAt: session.finalizedAt ?? Date.now(),
     });
-    removeSessionRecord(String(sessionId));
+    await removeSessionRecord(String(sessionId));
 
     return NextResponse.json({
       success: true,

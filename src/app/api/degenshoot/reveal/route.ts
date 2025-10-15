@@ -9,7 +9,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "INVALID_REQUEST" }, { status: 400 });
     }
 
-    const session = getSessionRecord(sessionId);
+    const session = await getSessionRecord(sessionId);
     if (!session) {
       return NextResponse.json({ success: false, error: "SESSION_NOT_FOUND" }, { status: 404 });
     }
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "SESSION_NOT_FINAL" }, { status: 409 });
     }
 
-    updateSessionRecord(sessionId, {
+    await updateSessionRecord(sessionId, {
       status: "revealed",
       finalizedAt: session.finalizedAt ?? Date.now(),
     });

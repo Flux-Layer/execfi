@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "INVALID_REQUEST" }, { status: 400 });
     }
 
-    const session = getSessionRecord(sessionId);
+    const session = await getSessionRecord(sessionId);
     if (!session) {
       return NextResponse.json({ success: false, error: "SESSION_NOT_FOUND" }, { status: 404 });
     }
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
 
       if (hitBomb) {
         const summary = buildSummary(session.completedRows, session.currentMultiplier);
-        updateSessionRecord(session.id, {
+        await updateSessionRecord(session.id, {
           rows: updatedRows,
           status: "lost",
           currentRow: currentRowIndex,
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
       const nextStatus = hasMoreRows ? "active" : "completed";
       const finalizedAt = hasMoreRows ? null : Date.now();
 
-      updateSessionRecord(session.id, {
+      await updateSessionRecord(session.id, {
         rows: updatedRows,
         currentRow: hasMoreRows ? nextRowIndex : session.rows.length,
         currentMultiplier: newMultiplier,
@@ -333,7 +333,7 @@ export async function POST(request: Request) {
         );
       }
 
-      updateSessionRecord(session.id, { wagerWei: normalizedWager });
+      await updateSessionRecord(session.id, { wagerWei: normalizedWager });
 
       return NextResponse.json({
         success: true,
@@ -349,7 +349,7 @@ export async function POST(request: Request) {
       }
 
       const summary = buildSummary(session.completedRows, session.currentMultiplier);
-      updateSessionRecord(session.id, {
+      await updateSessionRecord(session.id, {
         status: "cashout",
         currentRow: Math.min(session.currentRow, session.rows.length),
         roundSummary: summary,

@@ -1,0 +1,72 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Game Sessions - Phase 1 (Degenshoot specific)
+model GameSession {
+  id                String   @id
+  userAddress       String?  @db.VarChar(42)
+  serverSeed        String   @db.VarChar(100)
+  serverSeedHash    String   @db.VarChar(100)
+  clientSeed        String   @db.VarChar(100)
+  createdAt         BigInt
+  wagerWei          String?  @db.VarChar(100)
+  nonceBase         Int
+  status            String   @db.VarChar(20)
+  rows              Json     @default("[]")
+  currentRow        Int      @default(0)
+  currentMultiplier Float    @default(1.0)
+  completedRows     Int      @default(0)
+  lockedTileCounts  Json     @default("[]")
+  roundSummary      Json?
+  finalizedAt       BigInt?
+  expiresAt         DateTime
+  isActive          Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+
+  @@index([userAddress])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@index([userAddress, isActive])
+  @@index([status])
+  @@map("game_sessions")
+}
+
+// Users - Phase 2
+model User {
+  address            String            @id @db.VarChar(42)
+  onboardedAt        DateTime?
+  tutorialCompletedAt DateTime?
+  tutorialSkipped    Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  tutorialProgress   TutorialProgress[]
+
+  @@map("users")
+}
+
+// Tutorial Progress - Phase 2
+model TutorialProgress {
+  id          Int      @id @default(autoincrement())
+  userAddress String   @db.VarChar(42)
+  stepId      String   @db.VarChar(100)
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  data        Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userAddress], references: [address], onDelete: Cascade)
+
+  @@unique([userAddress, stepId])
+  @@index([userAddress])
+  @@map("tutorial_progress")
+}

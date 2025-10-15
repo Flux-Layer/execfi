@@ -7,6 +7,8 @@ import { useDock } from "@/context/DockContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useEOA } from "@/providers/EOAProvider";
 import useSmartWallet from "@/hooks/useSmartWallet";
+import { useOnboarding } from "@/context/OnboardingContext";
+import { TutorialModal } from "@/components/tutorial/TutorialModal";
 import { BetControls } from "./bomb/BetControls";
 import HowItWorksModal from "./bomb/HowItWorksModal";
 import { BombBoardSection } from "./bomb/components/BombBoardSection";
@@ -57,6 +59,7 @@ function BombGameContent({
   const { isMobile } = useResponsive();
   const { selectedWallet } = useEOA();
   const { smartAccountAddress } = useSmartWallet();
+  const { showTutorial } = useOnboarding();
 
   const activeAddress = (selectedWallet?.address ??
     smartAccountAddress) as `0x${string}` | undefined;
@@ -177,6 +180,9 @@ function BombGameContent({
       onToggleFullscreen={onToggleFullscreen}
       onHeaderDrag={game.handleHeaderDrag}
     >
+      {/* Tutorial Modal - only renders when game is active and user needs onboarding */}
+      {showTutorial && <TutorialModal />}
+
       <HowItWorksModal open={game.showInfo} onClose={game.closeInfo} />
 
       <div className="flex h-full flex-col justify-between overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)]">
