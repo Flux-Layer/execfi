@@ -249,4 +249,13 @@ EXPOSE 3290
 ENV PORT=3290
 ENV HOSTNAME="0.0.0.0"
 
+# Create entrypoint script to run migrations before starting the server
+USER root
+RUN echo '#!/bin/sh\nset -e\necho "Running database migrations..."\nnpx prisma migrate deploy\necho "Migrations complete. Starting application..."\nexec "$@"' > /app/docker-entrypoint.sh && \
+    chmod +x /app/docker-entrypoint.sh && \
+    chown nextjs:nodejs /app/docker-entrypoint.sh
+
+USER nextjs
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]
