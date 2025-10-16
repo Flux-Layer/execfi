@@ -5,6 +5,8 @@ services:
       - "3290:3290"
     restart: unless-stopped
     container_name: execfi-app
+    env_file:
+      - .env
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
