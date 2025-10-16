@@ -3,7 +3,7 @@ FROM node:20-alpine AS base
 
 # Stage 1: Install dependencies
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 # Copy package files
@@ -14,6 +14,7 @@ RUN npm ci --legacy-peer-deps
 
 # Stage 2: Build the application
 FROM base AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -132,8 +133,11 @@ ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
     CRON_SECRET=$CRON_SECRET \
     ONBOARDING_ENABLED=$ONBOARDING_ENABLED \
     ONBOARDING_SKIP_ALLOWED=$ONBOARDING_SKIP_ALLOWED \
-    ONBOARDING_DEVICE_TTL_DAYS=$ONBOARDING_DEVICE_TTL_DAYS 
+    ONBOARDING_DEVICE_TTL_DAYS=$ONBOARDING_DEVICE_TTL_DAYS
 
+
+# Generate Prisma Client
+RUN npx prisma generate
 
 # Disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -143,6 +147,7 @@ RUN npm run build
 
 # Stage 3: Production runner
 FROM base AS runner
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -220,6 +225,11 @@ ENV OPENROUTER_API_KEY=$OPENROUTER_API_KEY \
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+
+# Copy Prisma files and generated client
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Copy static files
 COPY --from=builder /app/public ./public
