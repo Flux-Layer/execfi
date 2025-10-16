@@ -70,3 +70,49 @@ model TutorialProgress {
   @@index([userAddress])
   @@map("tutorial_progress")
 }
+
+// Device-based onboarding (replaces wallet-based for new onboarding flow)
+model Device {
+  id                    String              @id @default(cuid())
+  fingerprint           String              @unique @db.VarChar(100)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  lastSeenAt            DateTime            @default(now())
+
+  // Onboarding tracking
+  onboardedAt           DateTime?
+  onboardingCompleted   Boolean             @default(false)
+  onboardingSkipped     Boolean             @default(false)
+  onboardingProgress    OnboardingProgress[]
+
+  // Optional user association (when wallet connects)
+  userAddress           String?             @db.VarChar(42)
+
+  // Device metadata
+  userAgent             String?             @db.Text
+  locale                String?             @db.VarChar(10)
+  timezone              String?             @db.VarChar(50)
+
+  @@index([fingerprint])
+  @@index([userAddress])
+  @@index([lastSeenAt])
+  @@map("devices")
+}
+
+// Step-by-step onboarding progress
+model OnboardingProgress {
+  id          Int       @id @default(autoincrement())
+  deviceId    String
+  stepId      String    @db.VarChar(100)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  data        Json?     // Additional step-specific data
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, stepId])
+  @@index([deviceId])
+  @@map("onboarding_progress")
+}

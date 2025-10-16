@@ -14,6 +14,8 @@ import { Toaster } from "react-hot-toast";
 import Dock from "@components/dock";
 import PathFinderLoader from "@/components/loader/path-finder";
 import BaseAccountStatus from "@/components/auth/BaseAccountStatus";
+import { OnboardingErrorBoundary } from "@/components/onboarding/OnboardingErrorBoundary";
+import { OnboardingOrchestrator } from "@/components/onboarding/OnboardingOrchestrator";
 
 interface ClientShellProps {
   children: React.ReactNode;
@@ -52,6 +54,14 @@ export default function ClientShell({ children }: ClientShellProps) {
                     >
                       <PathFinderLoader caption="Initializing" />
                     </div>
+                  )}
+
+                  {/* App-wide onboarding system (device-based, no wallet required) */}
+                  {/* Only show after intro loader is completely done */}
+                  {!introMounted && (
+                    <OnboardingErrorBoundary>
+                      <OnboardingOrchestrator />
+                    </OnboardingErrorBoundary>
                   )}
 
                   {children}

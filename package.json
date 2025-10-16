@@ -16,6 +16,7 @@
     "@base-org/account": "^2.4.0",
     "@base-org/account-ui": "^1.0.1",
     "@ducanh2912/next-pwa": "^10.2.9",
+    "@fingerprintjs/fingerprintjs": "^4.6.2",
     "@lifi/sdk": "^3.12.11",
     "@prisma/client": "^6.17.1",
     "@privy-io/react-auth": "^2.24.0",
