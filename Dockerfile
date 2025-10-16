@@ -231,6 +231,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modul
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
+# Copy entrypoint script
+COPY --chown=nextjs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Copy static files
 COPY --from=builder /app/public ./public
 
@@ -248,14 +252,6 @@ EXPOSE 3290
 
 ENV PORT=3290
 ENV HOSTNAME="0.0.0.0"
-
-# Create entrypoint script to run migrations before starting the server
-USER root
-RUN echo '#!/bin/sh\nset -e\necho "Running database migrations..."\nnpx prisma migrate deploy\necho "Migrations complete. Starting application..."\nexec "$@"' > /app/docker-entrypoint.sh && \
-    chmod +x /app/docker-entrypoint.sh && \
-    chown nextjs:nodejs /app/docker-entrypoint.sh
-
-USER nextjs
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]
