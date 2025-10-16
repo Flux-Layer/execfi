@@ -7,6 +7,8 @@ services:
     container_name: execfi-app
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
