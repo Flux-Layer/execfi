@@ -10,13 +10,15 @@
     "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint --format json"
   },
   "dependencies": {
     "@base-org/account": "^2.4.0",
     "@base-org/account-ui": "^1.0.1",
     "@ducanh2912/next-pwa": "^10.2.9",
+    "@fingerprintjs/fingerprintjs": "^4.6.2",
     "@lifi/sdk": "^3.12.11",
+    "@prisma/client": "^6.17.1",
     "@privy-io/react-auth": "^2.24.0",
     "@privy-io/wagmi": "^1.0.6",
     "@react-native-async-storage/async-storage": "^1.24.0",
@@ -30,6 +32,7 @@
     "permissionless": "^0.2.57",
     "pino": "^9.9.2",
     "pino-pretty": "^13.1.1",
+    "prisma": "^6.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.6.0",

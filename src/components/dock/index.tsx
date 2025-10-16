@@ -57,8 +57,10 @@ export default function Dock() {
 
    return (
       <div className="pointer-events-none fixed bottom-0 md:bottom-6 left-0 md:left-1/2 right-0 md:right-auto z-40 md:-translate-x-1/2">
-         <nav className="pointer-events-auto flex items-end md:gap-4 
-                         md:rounded-3xl md:border md:border-white/10 md:bg-slate-900/70 md:px-6 md:py-3 
+         <nav
+            data-onboarding-id="dock"
+            className="pointer-events-auto flex items-end md:gap-4
+                         md:rounded-3xl md:border md:border-white/10 md:bg-slate-900/70 md:px-6 md:py-3
                          bg-slate-950/95 border-t border-white/10 md:border-t-0
                          md:shadow-2xl md:shadow-black/40 backdrop-blur-xl relative
                          justify-around md:justify-start py-2 md:py-3
@@ -81,6 +83,7 @@ export default function Dock() {
                      role="button"
                      tabIndex={0}
                      key={item.key}
+                     data-onboarding-id={`dock-${item.key}`}
                      className="mb-2 relative flex flex-col items-center justify-center text-slate-200 focus:outline-none min-w-[44px] md:min-w-0"
                      onMouseEnter={() => !isMobile && setHovered(item.key)}
                      onMouseLeave={() => !isMobile && setHovered(null)}

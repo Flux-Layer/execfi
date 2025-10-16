@@ -1,0 +1,167 @@
+<svg width="800" height="400" viewBox="0 0 800 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bg-gradient-desktop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="emerald-gradient-desktop" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#34d399;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow-desktop">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="400" fill="url(#bg-gradient-desktop)"/>
+
+  <!-- Grid pattern -->
+  <pattern id="grid-desktop" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.3"/>
+  </pattern>
+  <rect width="800" height="400" fill="url(#grid-desktop)"/>
+
+  <!-- Desktop workspace representation -->
+  <!-- App window 1 (Terminal) -->
+  <g transform="translate(100, 60)">
+    <rect x="2" y="2" width="280" height="160" rx="8" fill="#000000" opacity="0.2"/>
+    <rect width="280" height="160" rx="8" fill="#1e293b" stroke="#10b981" stroke-width="1.5"/>
+    <rect width="280" height="24" rx="8" fill="#0f172a"/>
+    <rect y="24" width="280" height="1" fill="url(#emerald-gradient-desktop)" opacity="0.4"/>
+
+    <!-- Controls -->
+    <circle cx="12" cy="12" r="3" fill="#ef4444"/>
+    <circle cx="24" cy="12" r="3" fill="#f59e0b"/>
+    <circle cx="36" cy="12" r="3" fill="#10b981"/>
+
+    <!-- Title -->
+    <text x="140" y="16" font-family="monospace" font-size="10" fill="#94a3b8" text-anchor="middle">Terminal</text>
+
+    <!-- Content -->
+    <g transform="translate(12, 38)">
+      <text x="0" y="12" font-family="monospace" font-size="10" fill="#10b981">$</text>
+      <text x="12" y="12" font-family="monospace" font-size="10" fill="#e2e8f0">balance</text>
+      <text x="0" y="28" font-family="monospace" font-size="9" fill="#94a3b8">ETH: 2.5</text>
+      <text x="0" y="42" font-family="monospace" font-size="9" fill="#94a3b8">USDC: 1,250</text>
+      <rect x="0" y="52" width="8" height="12" fill="#10b981" opacity="0.6">
+        <animate attributeName="opacity" values="0.6;0.2;0.6" dur="1.5s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+  </g>
+
+  <!-- App window 2 (Notes) -->
+  <g transform="translate(420, 80)">
+    <rect x="2" y="2" width="240" height="140" rx="8" fill="#000000" opacity="0.2"/>
+    <rect width="240" height="140" rx="8" fill="#1e293b" stroke="#10b981" stroke-width="1.5" opacity="0.9"/>
+    <rect width="240" height="24" rx="8" fill="#0f172a"/>
+    <rect y="24" width="240" height="1" fill="url(#emerald-gradient-desktop)" opacity="0.4"/>
+
+    <!-- Controls -->
+    <circle cx="12" cy="12" r="3" fill="#ef4444"/>
+    <circle cx="24" cy="12" r="3" fill="#f59e0b"/>
+    <circle cx="36" cy="12" r="3" fill="#10b981"/>
+
+    <!-- Title -->
+    <text x="120" y="16" font-family="monospace" font-size="10" fill="#94a3b8" text-anchor="middle">Notes</text>
+
+    <!-- Content -->
+    <g transform="translate(12, 38)">
+      <rect width="216" height="8" rx="2" fill="#334155" opacity="0.5"/>
+      <rect y="16" width="180" height="8" rx="2" fill="#334155" opacity="0.4"/>
+      <rect y="32" width="200" height="8" rx="2" fill="#334155" opacity="0.3"/>
+    </g>
+  </g>
+
+  <!-- App window 3 (Profile) - minimized representation -->
+  <g transform="translate(140, 240)">
+    <rect x="2" y="2" width="200" height="100" rx="8" fill="#000000" opacity="0.2"/>
+    <rect width="200" height="100" rx="8" fill="#1e293b" stroke="#10b981" stroke-width="1.5" opacity="0.8"/>
+    <rect width="200" height="24" rx="8" fill="#0f172a"/>
+    <rect y="24" width="200" height="1" fill="url(#emerald-gradient-desktop)" opacity="0.4"/>
+
+    <!-- Controls -->
+    <circle cx="12" cy="12" r="3" fill="#ef4444"/>
+    <circle cx="24" cy="12" r="3" fill="#f59e0b"/>
+    <circle cx="36" cy="12" r="3" fill="#10b981"/>
+
+    <!-- Title -->
+    <text x="100" y="16" font-family="monospace" font-size="10" fill="#94a3b8" text-anchor="middle">Profile</text>
+
+    <!-- Avatar -->
+    <circle cx="100" cy="60" r="20" fill="#10b981" opacity="0.3"/>
+    <circle cx="100" cy="60" r="15" fill="url(#emerald-gradient-desktop)" opacity="0.5"/>
+  </g>
+
+  <!-- Dock at bottom -->
+  <g transform="translate(250, 350)">
+    <!-- Dock background -->
+    <rect x="-10" y="-5" width="320" height="50" rx="12" fill="#0f172a" opacity="0.8" stroke="#10b981" stroke-width="1.5"/>
+
+    <!-- Dock icons -->
+    <!-- Terminal icon -->
+    <g transform="translate(20, 12)">
+      <rect width="24" height="24" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="1"/>
+      <path d="M6 8 L12 12 L6 16" stroke="#10b981" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="14" y1="16" x2="18" y2="16" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Notes icon -->
+    <g transform="translate(70, 12)">
+      <rect width="24" height="24" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="1"/>
+      <rect x="6" y="6" width="12" height="2" rx="1" fill="#10b981"/>
+      <rect x="6" y="10" width="9" height="2" rx="1" fill="#10b981" opacity="0.7"/>
+      <rect x="6" y="14" width="10" height="2" rx="1" fill="#10b981" opacity="0.5"/>
+    </g>
+
+    <!-- Profile icon -->
+    <g transform="translate(120, 12)">
+      <rect width="24" height="24" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="1"/>
+      <circle cx="12" cy="10" r="3" stroke="#10b981" stroke-width="1.5" fill="none"/>
+      <path d="M6 18 Q6 14 12 14 Q18 14 18 18" stroke="#10b981" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    </g>
+
+    <!-- Settings icon -->
+    <g transform="translate(170, 12)">
+      <rect width="24" height="24" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="1"/>
+      <circle cx="12" cy="12" r="3" stroke="#10b981" stroke-width="1.5" fill="none"/>
+      <line x1="12" y1="6" x2="12" y2="8" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="12" y1="16" x2="12" y2="18" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="6" y1="12" x2="8" y2="12" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="16" y1="12" x2="18" y2="12" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Game icon -->
+    <g transform="translate(220, 12)">
+      <rect width="24" height="24" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="1"/>
+      <rect x="6" y="8" width="12" height="10" rx="2" stroke="#10b981" stroke-width="1.5" fill="none"/>
+      <circle cx="10" cy="14" r="1.5" fill="#10b981"/>
+      <circle cx="14" cy="14" r="1.5" fill="#10b981"/>
+    </g>
+
+    <!-- Active indicator -->
+    <rect x="17" y="40" width="30" height="3" rx="1.5" fill="url(#emerald-gradient-desktop)" filter="url(#glow-desktop)">
+      <animate attributeName="x" values="17;67;117;167;217;17" dur="10s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- Floating interaction indicators -->
+  <g filter="url(#glow-desktop)">
+    <circle cx="380" cy="90" r="2" fill="#10b981" opacity="0.8">
+      <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="660" cy="100" r="2" fill="#34d399" opacity="0.8">
+      <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2.3s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- Corner accent: "Drag, Resize, Maximize" hint -->
+  <g transform="translate(50, 30)" opacity="0.5">
+    <path d="M0 0 L8 8 M4 0 L12 8 M8 0 L16 8" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+</svg>

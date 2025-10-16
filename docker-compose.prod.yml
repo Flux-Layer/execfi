@@ -5,6 +5,10 @@ services:
       - "3290:3290"
     restart: unless-stopped
     container_name: execfi-app
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 

@@ -9,10 +9,13 @@ import { EOAProvider } from "@providers/EOAProvider";
 import { ChainSelectionProvider } from "@/hooks/useChainSelection";
 import { DockProvider } from "@/context/DockContext";
 import { TerminalStoreProvider } from "@/cli/hooks/useTerminalStore";
+import { OnboardingProvider } from "@/context/OnboardingContext";
 import { Toaster } from "react-hot-toast";
 import Dock from "@components/dock";
 import PathFinderLoader from "@/components/loader/path-finder";
 import BaseAccountStatus from "@/components/auth/BaseAccountStatus";
+import { OnboardingErrorBoundary } from "@/components/onboarding/OnboardingErrorBoundary";
+import { OnboardingOrchestrator } from "@/components/onboarding/OnboardingOrchestrator";
 
 interface ClientShellProps {
   children: React.ReactNode;
@@ -42,7 +45,8 @@ export default function ClientShell({ children }: ClientShellProps) {
             <ChainSelectionProvider>
               <WagmiAppProvider>
                 <QCProvider>
-                  <TerminalStoreProvider>
+                  <OnboardingProvider>
+                    <TerminalStoreProvider>
                   {/* Intro loader overlay for first 5s with smooth fade */}
                   {introMounted && (
                     <div
@@ -52,9 +56,18 @@ export default function ClientShell({ children }: ClientShellProps) {
                     </div>
                   )}
 
+                  {/* App-wide onboarding system (device-based, no wallet required) */}
+                  {/* Only show after intro loader is completely done */}
+                  {!introMounted && (
+                    <OnboardingErrorBoundary>
+                      <OnboardingOrchestrator />
+                    </OnboardingErrorBoundary>
+                  )}
+
                   {children}
                   <Dock />
                   <BaseAccountStatus />
+                  {/* TutorialModal moved to BombGame component for context-aware display */}
                   <Toaster
                     position="top-right"
                     toastOptions={{
@@ -78,7 +91,8 @@ export default function ClientShell({ children }: ClientShellProps) {
                       },
                     }}
                   />
-                  </TerminalStoreProvider>
+                    </TerminalStoreProvider>
+                  </OnboardingProvider>
                 </QCProvider>
               </WagmiAppProvider>
             </ChainSelectionProvider>
