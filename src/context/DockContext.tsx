@@ -17,6 +17,7 @@ type DockContextValue = {
    gameState: WindowState;
    aboutState: WindowState;
    settingsState: WindowState;
+   minimizeAllApps: () => void;
    openTerminal: () => void;
    closeTerminal: () => void;
    minimizeTerminal: () => void;
@@ -106,6 +107,33 @@ export function DockProvider({ children }: { children: ReactNode }) {
          gameState,
          aboutState,
          settingsState,
+         minimizeAllApps: () => {
+            const minimizeIfOpen = (setter: typeof setTerminalState) => {
+               setter((prev) => {
+                  if (!prev.open) {
+                     return prev;
+                  }
+
+                  if (prev.minimized && !prev.fullscreen) {
+                     return prev;
+                  }
+
+                  return {
+                     ...prev,
+                     minimized: true,
+                     fullscreen: false,
+                     lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+                  };
+               });
+            };
+
+            minimizeIfOpen(setTerminalState);
+            minimizeIfOpen(setDocsState);
+            minimizeIfOpen(setProfileState);
+            minimizeIfOpen(setGameState);
+            minimizeIfOpen(setAboutState);
+            minimizeIfOpen(setSettingsState);
+         },
          openTerminal: () => {
             // On mobile, minimize other apps
             if (isMobile) {

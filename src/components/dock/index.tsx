@@ -9,12 +9,11 @@ import {
    FiSettings,
    FiUser,
 } from "react-icons/fi";
-import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import HSMTerminalBody from "@/components/terminal/HSMTerminalBody";
 import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { useDock } from "@/context/DockContext";
-import ExecFiNotesWindow, { NotesApp } from "@/components/apps/ExecFiNotes";
+import { NotesApp } from "@/components/apps/ExecFiNotes";
 import { ProfilePreview } from "@/components/apps/Profile";
 import { AboutPreview } from "@/components/apps/About";
 import { SettingsPreview } from "@/components/apps/Settings";
@@ -46,6 +45,7 @@ export default function Dock() {
       profileState,
       aboutState,
       settingsState,
+      minimizeAllApps,
       openTerminal,
       openDocs,
       openProfile,
@@ -61,8 +61,6 @@ export default function Dock() {
    const [hovered, setHovered] = useState<string | null>(null);
    const previewContainerRef = useRef<HTMLDivElement | null>(null);
    const previewInputRef = useRef<HTMLInputElement | null>(null);
-   const router = useRouter();
-
    return (
       <div className="pointer-events-none fixed bottom-0 md:bottom-6 left-0 md:left-1/2 right-0 md:right-auto z-40 md:-translate-x-1/2">
          <nav
@@ -103,8 +101,13 @@ export default function Dock() {
                      onMouseLeave={() => !isMobile && setHovered(null)}
                      onFocus={() => !isMobile && setHovered(item.key)}
                      onBlur={() => !isMobile && setHovered(null)}
-                     aria-label={item.label}
-                     onClick={() => {
+                    aria-label={item.label}
+                    onClick={() => {
+                        if (item.key === "home") {
+                           minimizeAllApps();
+                           return;
+                        }
+
                         if (isTerminal) {
                            if (terminalState.open && !terminalState.minimized) {
                               minimizeTerminal();
@@ -138,9 +141,11 @@ export default function Dock() {
                         }
                      }}
                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                       if (e.key === "Enter" || e.key === " ") {
                            e.preventDefault();
-                           if (isTerminal) {
+                           if (item.key === "home") {
+                              minimizeAllApps();
+                           } else if (isTerminal) {
                               if (terminalState.open && !terminalState.minimized) {
                                  minimizeTerminal();
                               } else {
