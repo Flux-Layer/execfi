@@ -16,6 +16,8 @@ import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { useDock } from "@/context/DockContext";
 import ExecFiNotesWindow, { NotesApp } from "@/components/apps/ExecFiNotes";
 import { ProfilePreview } from "@/components/apps/Profile";
+import { AboutPreview } from "@/components/apps/About";
+import { SettingsPreview } from "@/components/apps/Settings";
 import { useResponsive } from "@/hooks/useResponsive";
 
 const DOCK_ITEMS = [
@@ -42,12 +44,18 @@ export default function Dock() {
       terminalState,
       docsState,
       profileState,
+      aboutState,
+      settingsState,
       openTerminal,
       openDocs,
       openProfile,
+      openAbout,
+      openSettings,
       minimizeTerminal,
       minimizeDocs,
       minimizeProfile,
+      minimizeAbout,
+      minimizeSettings,
    } = useDock();
    const { isMobile } = useResponsive();
    const [hovered, setHovered] = useState<string | null>(null);
@@ -76,7 +84,13 @@ export default function Dock() {
                const isProfile = item.key === "profile";
                const profileMinimized = isProfile && profileState.minimized;
                const profileActive = isProfile && profileState.open && !profileState.minimized;
-               const isActive = terminalActive || docsActive || profileActive;
+               const isAbout = item.key === "about";
+               const aboutMinimized = isAbout && aboutState.minimized;
+               const aboutActive = isAbout && aboutState.open && !aboutState.minimized;
+               const isSettings = item.key === "settings";
+               const settingsMinimized = isSettings && settingsState.minimized;
+               const settingsActive = isSettings && settingsState.open && !settingsState.minimized;
+               const isActive = terminalActive || docsActive || profileActive || aboutActive || settingsActive;
 
                return (
                   <div
@@ -109,6 +123,18 @@ export default function Dock() {
                            } else {
                               openProfile();
                            }
+                        } else if (isAbout) {
+                           if (aboutState.open && !aboutState.minimized) {
+                              minimizeAbout();
+                           } else {
+                              openAbout();
+                           }
+                        } else if (isSettings) {
+                           if (settingsState.open && !settingsState.minimized) {
+                              minimizeSettings();
+                           } else {
+                              openSettings();
+                           }
                         }
                      }}
                      onKeyDown={(e) => {
@@ -132,6 +158,18 @@ export default function Dock() {
                               } else {
                                  openProfile();
                               }
+                           } else if (isAbout) {
+                              if (aboutState.open && !aboutState.minimized) {
+                                 minimizeAbout();
+                              } else {
+                                 openAbout();
+                              }
+                           } else if (isSettings) {
+                              if (settingsState.open && !settingsState.minimized) {
+                                 minimizeSettings();
+                              } else {
+                                 openSettings();
+                              }
                            }
                         }
                      }}
@@ -139,17 +177,19 @@ export default function Dock() {
                      <motion.span
                         animate={{
                            scale:
-                              terminalMinimized || docsMinimized || profileMinimized
+                              terminalMinimized || docsMinimized || profileMinimized || aboutMinimized || settingsMinimized
                                  ? 1.2
                                  : isHover
                                     ? 1.15
                                     : (isTerminal && terminalState.open) ||
-                                       (isProfile && profileState.open)
+                                       (isProfile && profileState.open) ||
+                                       (isAbout && aboutState.open) ||
+                                       (isSettings && settingsState.open)
                                        ? 1.05
                                        : 1,
                            y: !isMobile && isHover
                               ? -6
-                              : !isMobile && (terminalMinimized || docsMinimized || profileMinimized)
+                              : !isMobile && (terminalMinimized || docsMinimized || profileMinimized || aboutMinimized || settingsMinimized)
                                  ? -3
                                  : 0,
                         }}
@@ -301,6 +341,62 @@ export default function Dock() {
                         >
                            <div className="h-full w-full font-mono text-left">
                               <ProfilePreview />
+                           </div>
+                        </div>
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+               {aboutState.minimized && hovered === "about" && (
+                  <motion.div
+                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                  >
+                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                        <div
+                           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                           style={{
+                              width: 768,
+                              height: 448,
+                              transform: "scale(0.55)",
+                              transformOrigin: "center",
+                           }}
+                        >
+                           <div className="h-full w-full font-mono text-left">
+                              <AboutPreview />
+                           </div>
+                        </div>
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+               {settingsState.minimized && hovered === "settings" && (
+                  <motion.div
+                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                  >
+                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                        <div
+                           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                           style={{
+                              width: 768,
+                              height: 512,
+                              transform: "scale(0.52)",
+                              transformOrigin: "center",
+                           }}
+                        >
+                           <div className="h-full w-full font-mono text-left">
+                              <SettingsPreview />
                            </div>
                         </div>
                      </div>

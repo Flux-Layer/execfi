@@ -1,0 +1,355 @@
+"use client";
+
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import TerminalHeader from "@/components/terminal/TerminalHeader";
+import { useDock } from "@/context/DockContext";
+import { useResponsive } from "@/hooks/useResponsive";
+import { APP_INFO } from "@/lib/constants/appInfo";
+import {
+  FiGithub,
+  FiBook,
+  FiTwitter,
+  FiMessageCircle,
+  FiExternalLink,
+  FiCheck,
+  FiShield,
+  FiActivity,
+  FiChevronRight,
+} from "react-icons/fi";
+
+export default function AboutWindow() {
+  const {
+    aboutState: { open, minimized, fullscreen, version },
+    closeAbout,
+    minimizeAbout,
+    toggleFullscreenAbout,
+  } = useDock();
+
+  if (!open) return null;
+
+  return (
+    <AboutContent
+      key={version}
+      minimized={minimized}
+      fullscreen={fullscreen}
+      onClose={closeAbout}
+      onMinimize={minimizeAbout}
+      onToggleFullscreen={toggleFullscreenAbout}
+    />
+  );
+}
+
+type Props = {
+  minimized: boolean;
+  fullscreen: boolean;
+  onClose: () => void;
+  onMinimize: () => void;
+  onToggleFullscreen: () => void;
+};
+
+function AboutContent({ minimized, fullscreen, onClose, onMinimize, onToggleFullscreen }: Props) {
+  const { isMobile } = useResponsive();
+  const windowRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  const effectiveFullscreen = fullscreen || isMobile;
+
+  const initPos = useCallback(() => {
+    if (typeof window === "undefined" || effectiveFullscreen) return;
+    const node = windowRef.current;
+    if (!node) return;
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+    setPos({ x: Math.max((window.innerWidth - w) / 2, 0), y: Math.max((window.innerHeight - h) / 2, 0) });
+    setIsReady(true);
+  }, [effectiveFullscreen]);
+
+  useEffect(() => {
+    const r = requestAnimationFrame(initPos);
+    return () => cancelAnimationFrame(r);
+  }, [initPos]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => {
+      if (effectiveFullscreen) return;
+      const node = windowRef.current;
+      if (!node) return;
+      const w = node.offsetWidth;
+      const h = node.offsetHeight;
+      const maxX = Math.max(window.innerWidth - w, 0);
+      const maxY = Math.max(window.innerHeight - h, 0);
+      setPos((p) => ({ x: Math.min(Math.max(p.x, 0), maxX), y: Math.min(Math.max(p.y, 0), maxY) }));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [effectiveFullscreen]);
+
+  useEffect(() => {
+    if (!effectiveFullscreen) setIsReady(false);
+  }, [effectiveFullscreen]);
+
+  if (minimized) return null;
+
+  return (
+    <div className="pointer-events-none">
+      <div
+        ref={windowRef}
+        className={effectiveFullscreen ? "fixed inset-0 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-[calc(7rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-center pt-safe" : "fixed px-4 z-40"}
+        style={effectiveFullscreen ? undefined : { left: pos.x, top: pos.y, visibility: isReady ? "visible" : "hidden" }}
+      >
+        <div
+          className={
+            effectiveFullscreen
+              ? "relative flex h-full w-full md:h-[calc(95vh-4rem)] md:w-[calc(100vw-4rem)] flex-col overflow-hidden md:rounded-2xl border-0 md:border md:border-slate-800 bg-slate-950/95 shadow-2xl pointer-events-auto"
+              : "mx-auto h-[34rem] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 shadow-xl pointer-events-auto"
+          }
+        >
+          <TerminalHeader
+            onDragHandle={(e) => {
+              if (effectiveFullscreen) return;
+              const rect = windowRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const offsetX = e.clientX - rect.left;
+              const offsetY = e.clientY - rect.top;
+              setDragging(true);
+              const onMove = (ev: PointerEvent) => {
+                setPos({ x: Math.max(0, ev.clientX - offsetX), y: Math.max(0, ev.clientY - offsetY) });
+              };
+              const onUp = () => {
+                setDragging(false);
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+              };
+              window.addEventListener("pointermove", onMove, { passive: true });
+              window.addEventListener("pointerup", onUp, { passive: true });
+            }}
+            isDragging={dragging}
+            onClose={onClose}
+            onMinimize={isMobile ? undefined : onMinimize}
+            onToggleFullscreen={isMobile ? undefined : onToggleFullscreen}
+            isFullscreen={fullscreen}
+            showClock={false}
+          />
+          <div className="h-[calc(100%-3rem)] overflow-auto">
+            <AboutApp />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const LINKS = [
+  {
+    label: "GitHub Repository",
+    description: "View source code and contribute",
+    url: "https://github.com/your-org/execfi",
+    icon: <FiGithub className="w-5 h-5" />,
+  },
+  {
+    label: "Documentation",
+    description: "Learn how to use ExecFi",
+    url: "https://docs.execfi.com",
+    icon: <FiBook className="w-5 h-5" />,
+  },
+  {
+    label: "Twitter/X",
+    description: "Follow for updates",
+    url: "https://twitter.com/execfi",
+    icon: <FiTwitter className="w-5 h-5" />,
+  },
+  {
+    label: "Discord Community",
+    description: "Get support and connect",
+    url: "https://discord.gg/execfi",
+    icon: <FiMessageCircle className="w-5 h-5" />,
+  },
+];
+
+function AboutApp() {
+  return (
+    <div className="pb-6">
+      {/* Hero Section */}
+      <section className="text-center py-8 px-6 bg-gradient-to-b from-emerald-900/20 to-transparent">
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <div className="text-4xl font-bold text-emerald-400">{APP_INFO.name}</div>
+        </div>
+        <p className="text-lg text-slate-300 mb-3">{APP_INFO.description}</p>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-xs text-slate-400">
+          <span>v{APP_INFO.version}</span>
+          <span className="text-slate-600">•</span>
+          <span>{APP_INFO.buildDate}</span>
+        </div>
+      </section>
+
+      {/* What is ExecFi */}
+      <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+        <h2 className="text-xl font-semibold text-slate-100 mb-4">What is ExecFi?</h2>
+        <p className="text-sm text-slate-300 leading-relaxed mb-4">
+          ExecFi transforms natural language commands into safe, verifiable blockchain transactions
+          using Privy Smart Accounts (ERC-4337). Execute DeFi operations through conversational
+          prompts with built-in safety policies and transparent verification.
+        </p>
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <FiCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-200">Intent Parsing</h3>
+              <p className="text-xs text-slate-400">AI-powered command interpretation with clarification prompts</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <FiShield className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-200">Policy Engine</h3>
+              <p className="text-xs text-slate-400">Configurable transaction limits and spending policies</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <FiActivity className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-200">Smart Execution</h3>
+              <p className="text-xs text-slate-400">Non-custodial ERC-4337 accounts with simulation before execution</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Technical Stack */}
+      <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+        <h2 className="text-xl font-semibold text-slate-100 mb-4">Technical Stack</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <h3 className="text-xs uppercase tracking-wider text-slate-400 mb-2">Frontend</h3>
+            <ul className="space-y-1.5 text-sm text-slate-300">
+              <li>• Next.js 15.5.2</li>
+              <li>• React 19.1.0</li>
+              <li>• Tailwind CSS 4</li>
+              <li>• Framer Motion</li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-xs uppercase tracking-wider text-slate-400 mb-2">Web3</h3>
+            <ul className="space-y-1.5 text-sm text-slate-300">
+              <li>• Wagmi 2.16.9</li>
+              <li>• Viem 2.37.8</li>
+              <li>• Privy 2.24.0</li>
+              <li>• LI.FI SDK 3.12.11</li>
+            </ul>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <h3 className="text-xs uppercase tracking-wider text-slate-400 mb-2">Blockchain</h3>
+          <ul className="space-y-1.5 text-sm text-slate-300">
+            <li>• Base / Base Sepolia (Chain ID: {APP_INFO.chains.mainnet.id} / {APP_INFO.chains.testnet.id})</li>
+            <li>• ERC-4337 Smart Accounts</li>
+            <li className="font-mono text-xs">• XP Registry: {APP_INFO.contracts.xpRegistry}</li>
+          </ul>
+        </div>
+      </section>
+
+      {/* Links */}
+      <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+        <h2 className="text-xl font-semibold text-slate-100 mb-4">Links & Resources</h2>
+        <div className="grid gap-3">
+          {LINKS.map(link => (
+            <a
+              key={link.url}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between p-3 rounded-xl border border-slate-700 bg-slate-800/40 hover:bg-slate-800/60 hover:border-emerald-500/30 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-slate-700/60 text-slate-300 group-hover:text-emerald-400 transition-colors">
+                  {link.icon}
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-slate-200">{link.label}</div>
+                  <div className="text-xs text-slate-400">{link.description}</div>
+                </div>
+              </div>
+              <FiExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors" />
+            </a>
+          ))}
+        </div>
+      </section>
+
+      {/* Credits */}
+      <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+        <h2 className="text-xl font-semibold text-slate-100 mb-4">Credits & Acknowledgments</h2>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-medium text-slate-200 mb-2">Built With</h3>
+            <div className="flex flex-wrap gap-2">
+              {["React", "Next.js", "Tailwind CSS", "Privy", "Wagmi", "LI.FI"].map(tech => (
+                <span key={tech} className="px-2 py-1 rounded-md bg-slate-800/60 border border-slate-700 text-xs text-slate-300">
+                  {tech}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-slate-200 mb-2">Open Source Libraries</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              This project is made possible by numerous open-source contributors.
+              See package.json for a complete list of dependencies.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Legal */}
+      <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+        <h2 className="text-xl font-semibold text-slate-100 mb-4">Legal & Compliance</h2>
+        <div className="space-y-3 text-sm">
+          <a href="/privacy" className="flex items-center justify-between text-slate-300 hover:text-emerald-400 transition-colors">
+            <span>Privacy Policy</span>
+            <FiChevronRight className="w-4 h-4" />
+          </a>
+          <a href="/terms" className="flex items-center justify-between text-slate-300 hover:text-emerald-400 transition-colors">
+            <span>Terms of Service</span>
+            <FiChevronRight className="w-4 h-4" />
+          </a>
+          <div className="pt-3 border-t border-white/10">
+            <p className="text-xs text-slate-400">
+              © {new Date().getFullYear()} ExecFi. All rights reserved.
+            </p>
+            <p className="text-xs text-slate-500 mt-1">Licensed under MIT License</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function AboutPreview() {
+  return (
+    <div className="flex h-full flex-col bg-slate-950/90 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="text-2xl font-bold text-emerald-400">{APP_INFO.name}</div>
+        <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] text-slate-400">
+          v{APP_INFO.version}
+        </span>
+      </div>
+      <p className="text-xs text-slate-400 leading-relaxed mb-3">
+        {APP_INFO.description}
+      </p>
+      <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500">
+        <div>React 19.1.0</div>
+        <div>Next.js 15.5.2</div>
+        <div>Wagmi 2.16.9</div>
+        <div>Privy 2.24.0</div>
+      </div>
+    </div>
+  );
+}

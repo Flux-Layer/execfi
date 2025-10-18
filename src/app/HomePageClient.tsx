@@ -7,6 +7,8 @@ import HSMPromptTerminal from "@/components/terminal/HSMPromptTerminal";
 import ExecFiNotesWindow from "@/components/apps/ExecFiNotes";
 import ProfileAppWindow from "@/components/apps/Profile";
 import BombGameWindow from "@/components/apps/BombGame";
+import AboutWindow from "@/components/apps/About";
+import SettingsWindow from "@/components/apps/Settings";
 import DesktopShortcut from "@/components/desktop/DesktopShortcut";
 import { FaBomb } from "react-icons/fa6";
 import { useDock } from "@/context/DockContext";
@@ -36,6 +38,10 @@ export default function HomePageClient() {
       <ProfileAppWindow />
       {/* Bomb game window (opens via desktop shortcut) */}
       <BombGameWindow />
+      {/* About app window (opens via Dock) */}
+      <AboutWindow />
+      {/* Settings app window (opens via Dock) */}
+      <SettingsWindow />
     </main>
   );
 }

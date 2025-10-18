@@ -15,6 +15,8 @@ type DockContextValue = {
    docsState: WindowState;
    profileState: WindowState;
    gameState: WindowState;
+   aboutState: WindowState;
+   settingsState: WindowState;
    openTerminal: () => void;
    closeTerminal: () => void;
    minimizeTerminal: () => void;
@@ -31,6 +33,14 @@ type DockContextValue = {
    closeGame: () => void;
    minimizeGame: () => void;
    toggleFullscreenGame: () => void;
+   openAbout: () => void;
+   closeAbout: () => void;
+   minimizeAbout: () => void;
+   toggleFullscreenAbout: () => void;
+   openSettings: () => void;
+   closeSettings: () => void;
+   minimizeSettings: () => void;
+   toggleFullscreenSettings: () => void;
 };
 
 const DockContext = createContext<DockContextValue | undefined>(undefined);
@@ -73,6 +83,20 @@ export function DockProvider({ children }: { children: ReactNode }) {
       version: 0,
       lastFullscreen: false,
    });
+   const [aboutState, setAboutState] = useState<WindowState>({
+      open: false,
+      minimized: false,
+      fullscreen: false,
+      version: 0,
+      lastFullscreen: false,
+   });
+   const [settingsState, setSettingsState] = useState<WindowState>({
+      open: false,
+      minimized: false,
+      fullscreen: false,
+      version: 0,
+      lastFullscreen: false,
+   });
 
    const value = useMemo<DockContextValue>(
       () => ({
@@ -80,12 +104,16 @@ export function DockProvider({ children }: { children: ReactNode }) {
          docsState,
          profileState,
          gameState,
+         aboutState,
+         settingsState,
          openTerminal: () => {
             // On mobile, minimize other apps
             if (isMobile) {
                setDocsState((prev) => ({ ...prev, minimized: true }));
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
+               setAboutState((prev) => ({ ...prev, minimized: true }));
+               setSettingsState((prev) => ({ ...prev, minimized: true }));
             }
             setTerminalState((prev) => ({
                ...prev,
@@ -118,6 +146,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setDocsState((d) => ({ ...d, minimized: true }));
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
+                  setAboutState((a) => ({ ...a, minimized: true }));
+                  setSettingsState((s) => ({ ...s, minimized: true }));
                }
                return {
                   ...prev,
@@ -133,6 +163,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setTerminalState((prev) => ({ ...prev, minimized: true }));
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
+               setAboutState((prev) => ({ ...prev, minimized: true }));
+               setSettingsState((prev) => ({ ...prev, minimized: true }));
             }
             setDocsState((prev) => ({
                ...prev,
@@ -164,6 +196,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setTerminalState((t) => ({ ...t, minimized: true }));
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
+                  setAboutState((a) => ({ ...a, minimized: true }));
+                  setSettingsState((s) => ({ ...s, minimized: true }));
                }
                return {
                   ...prev,
@@ -179,6 +213,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setTerminalState((prev) => ({ ...prev, minimized: true }));
                setDocsState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
+               setAboutState((prev) => ({ ...prev, minimized: true }));
+               setSettingsState((prev) => ({ ...prev, minimized: true }));
             }
             setProfileState((prev) => ({
                ...prev,
@@ -210,6 +246,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setTerminalState((t) => ({ ...t, minimized: true }));
                   setDocsState((d) => ({ ...d, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
+                  setAboutState((a) => ({ ...a, minimized: true }));
+                  setSettingsState((s) => ({ ...s, minimized: true }));
                }
                return {
                   ...prev,
@@ -224,6 +262,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setTerminalState((prev) => ({ ...prev, minimized: true }));
                setDocsState((prev) => ({ ...prev, minimized: true }));
                setProfileState((prev) => ({ ...prev, minimized: true }));
+               setAboutState((prev) => ({ ...prev, minimized: true }));
+               setSettingsState((prev) => ({ ...prev, minimized: true }));
             }
             setGameState((prev) => ({
                ...prev,
@@ -255,6 +295,106 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setTerminalState((t) => ({ ...t, minimized: true }));
                   setDocsState((d) => ({ ...d, minimized: true }));
                   setProfileState((p) => ({ ...p, minimized: true }));
+                  setAboutState((a) => ({ ...a, minimized: true }));
+                  setSettingsState ((s) => ({ ...s, minimized: true }));
+               }
+               return {
+                  ...prev,
+                  open: true,
+                  minimized: false,
+                  fullscreen: nextFullscreen,
+                  lastFullscreen: nextFullscreen,
+               };
+            }),
+         openAbout: () => {
+            if (isMobile) {
+               setTerminalState((prev) => ({ ...prev, minimized: true }));
+               setDocsState((prev) => ({ ...prev, minimized: true }));
+               setProfileState((prev) => ({ ...prev, minimized: true }));
+               setGameState((prev) => ({ ...prev, minimized: true }));
+               setSettingsState((prev) => ({ ...prev, minimized: true }));
+            }
+            setAboutState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: false,
+               fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
+            }));
+         },
+         closeAbout: () =>
+            setAboutState((prev) => ({
+               open: false,
+               minimized: false,
+               fullscreen: false,
+               version: prev.version + 1,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+            })),
+         minimizeAbout: () =>
+            setAboutState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: true,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+               fullscreen: false,
+            })),
+         toggleFullscreenAbout: () =>
+            setAboutState((prev) => {
+               const nextFullscreen = !prev.fullscreen;
+               if (nextFullscreen) {
+                  setTerminalState((t) => ({ ...t, minimized: true }));
+                  setDocsState((d) => ({ ...d, minimized: true }));
+                  setProfileState((p) => ({ ...p, minimized: true }));
+                  setGameState((g) => ({ ...g, minimized: true }));
+                  setSettingsState((s) => ({ ...s, minimized: true }));
+               }
+               return {
+                  ...prev,
+                  open: true,
+                  minimized: false,
+                  fullscreen: nextFullscreen,
+                  lastFullscreen: nextFullscreen,
+               };
+            }),
+         openSettings: () => {
+            if (isMobile) {
+               setTerminalState((prev) => ({ ...prev, minimized: true }));
+               setDocsState((prev) => ({ ...prev, minimized: true }));
+               setProfileState((prev) => ({ ...prev, minimized: true }));
+               setGameState((prev) => ({ ...prev, minimized: true }));
+               setAboutState((prev) => ({ ...prev, minimized: true }));
+            }
+            setSettingsState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: false,
+               fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
+            }));
+         },
+         closeSettings: () =>
+            setSettingsState((prev) => ({
+               open: false,
+               minimized: false,
+               fullscreen: false,
+               version: prev.version + 1,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+            })),
+         minimizeSettings: () =>
+            setSettingsState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: true,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+               fullscreen: false,
+            })),
+         toggleFullscreenSettings: () =>
+            setSettingsState((prev) => {
+               const nextFullscreen = !prev.fullscreen;
+               if (nextFullscreen) {
+                  setTerminalState((t) => ({ ...t, minimized: true }));
+                  setDocsState((d) => ({ ...d, minimized: true }));
+                  setProfileState((p) => ({ ...p, minimized: true }));
+                  setGameState((g) => ({ ...g, minimized: true }));
+                  setAboutState((a) => ({ ...a, minimized: true }));
                }
                return {
                   ...prev,
@@ -265,7 +405,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                };
             }),
       }),
-      [terminalState, docsState, profileState, gameState, isMobile],
+      [terminalState, docsState, profileState, gameState, aboutState, settingsState, isMobile],
    );
 
    return <DockContext.Provider value={value}>{children}</DockContext.Provider>;
