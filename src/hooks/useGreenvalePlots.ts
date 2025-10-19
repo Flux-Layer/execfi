@@ -130,8 +130,11 @@ export default function useGreenvalePlots(
         return;
       }
 
+      // TypeScript refinement: LAND721_ADDRESS is checked above, so it's not null here
+      const landAddress = LAND721_ADDRESS as `0x${string}`;
+
       const tokenCalls = Array.from({ length: count }, (_, index) => ({
-        address: LAND721_ADDRESS,
+        address: landAddress,
         abi: ERC721_ENUM_ABI,
         functionName: "tokenOfOwnerByIndex" as const,
         args: [activeAddress, BigInt(index)],
@@ -142,7 +145,8 @@ export default function useGreenvalePlots(
         allowFailure: false,
       });
 
-      const landIds = tokenResults.map((result) => Number(result.result));
+      // When allowFailure is false, results are returned directly (not wrapped in .result)
+      const landIds = tokenResults.map((result) => Number(result));
 
       let plotTuples: Array<
         readonly [
@@ -158,8 +162,11 @@ export default function useGreenvalePlots(
       > = [];
 
       if (FARMING_CORE_ADDRESS) {
+        // TypeScript refinement: FARMING_CORE_ADDRESS is checked above, so it's not null here
+        const farmingAddress = FARMING_CORE_ADDRESS as `0x${string}`;
+
         const plotCalls = landIds.map((landId) => ({
-          address: FARMING_CORE_ADDRESS,
+          address: farmingAddress,
           abi: FARMING_CORE_ABI,
           functionName: "getPlot" as const,
           args: [BigInt(landId)],
@@ -170,18 +177,11 @@ export default function useGreenvalePlots(
           allowFailure: false,
         });
 
-        plotTuples = plotResults.map(
-          (item) =>
-            (item.result as readonly [
-              `0x${string}`,
-              bigint,
-              bigint,
-              readonly (number | bigint)[],
-              bigint,
-              bigint,
-              boolean,
-              boolean,
-            ]) ?? ([
+        // When allowFailure is false, results are returned directly (not wrapped in .result)
+        // The result is an object with named fields, convert to tuple
+        plotTuples = plotResults.map((item) => {
+          if (!item) {
+            return [
               zeroAddress,
               0n,
               0n,
@@ -190,8 +190,19 @@ export default function useGreenvalePlots(
               0n,
               false,
               false,
-            ] as const),
-        );
+            ] as const;
+          }
+          return [
+            item.owner,
+            BigInt(item.seedCount),
+            BigInt(item.toolRarity),
+            item.seedTypes,
+            item.plantedAt,
+            item.readyAt,
+            item.harvested,
+            item.dug,
+          ] as const;
+        });
       } else {
         plotTuples = landIds.map(
           () =>
