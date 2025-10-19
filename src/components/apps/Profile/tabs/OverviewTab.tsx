@@ -1,9 +1,24 @@
 "use client";
 
+import useUserXp from "@/hooks/useUserXp";
 import { useProfileContext } from "../ProfileContext";
 
 export function OverviewTab() {
-  const { identity, authenticated, loading, smartAccount, chain, policy, activity, formatAddress } = useProfileContext();
+  const {
+    identity,
+    authenticated,
+    loading,
+    smartAccount,
+    chain,
+    policy,
+    activity,
+    formatAddress,
+    selectedEoa,
+  } = useProfileContext();
+
+  const xpAddress = (selectedEoa?.address ?? smartAccount.address) as `0x${string}` | undefined;
+  const xpAddressLabel = xpAddress ? formatAddress(xpAddress) : null;
+  const userXp = useUserXp({ address: xpAddress });
 
   const lastActivity = activity[0];
 
@@ -28,7 +43,7 @@ export function OverviewTab() {
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
           <p className="text-xs uppercase tracking-wider text-slate-400">Smart Account</p>
           <p className="mt-2 text-sm font-semibold text-slate-100">
@@ -49,6 +64,29 @@ export function OverviewTab() {
             </div>
           ) : (
             <p className="mt-2 text-sm text-slate-500">No activity yet</p>
+          )}
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-400">Degen Shooter XP</p>
+          {!userXp.hasRegistry ? (
+            <p className="mt-2 text-sm text-slate-500">XP registry address not configured</p>
+          ) : !userXp.enabled ? (
+            <p className="mt-2 text-sm text-slate-500">Connect a wallet to track your XP</p>
+          ) : userXp.isLoading ? (
+            <p className="mt-2 text-sm text-slate-400">Loading XP…</p>
+          ) : userXp.isError ? (
+            <p className="mt-2 text-sm text-rose-400">Failed to load XP</p>
+          ) : (
+            <div className="mt-2 space-y-1 text-sm text-slate-100">
+              <p className="text-2xl font-semibold text-slate-100">{userXp.formatted.game ?? "0"}</p>
+              <p className="text-xs text-slate-400">Total XP: {userXp.formatted.total ?? "0"}</p>
+              {xpAddressLabel && (
+                <p className="text-xs text-slate-500">
+                  Wallet {xpAddressLabel}
+                  {userXp.isFetching ? " • Refreshing…" : ""}
+                </p>
+              )}
+            </div>
           )}
         </div>
       </section>

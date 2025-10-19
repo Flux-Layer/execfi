@@ -9,25 +9,35 @@ import ProfileAppWindow from "@/components/apps/Profile";
 import BombGameWindow from "@/components/apps/BombGame";
 import AboutWindow from "@/components/apps/About";
 import SettingsWindow from "@/components/apps/Settings";
+import GreenvaleGameWindow from "@/components/apps/GreenvaleGame";
 import DesktopShortcut from "@/components/desktop/DesktopShortcut";
 import { FaBomb } from "react-icons/fa6";
 import { useDock } from "@/context/DockContext";
+import GreenvaleIcon from "@/components/icons/GreenvaleIcon";
 
 export default function HomePageClient() {
   const privyInstance = usePrivy();
-  const { openGame } = useDock();
+  const { openGame, openGreenvale } = useDock();
 
   const handleBombShortcut = useCallback(() => {
     openGame();
   }, [openGame]);
+  const handleGreenvaleShortcut = useCallback(() => {
+    openGreenvale();
+  }, [openGreenvale]);
 
   return (
     <main className="relative flex h-screen w-full items-center justify-center bg-black">
-      <div className="pointer-events-none absolute left-6 top-6 z-10">
+      <div className="pointer-events-none absolute left-6 top-6 z-10 flex flex-col gap-3">
         <DesktopShortcut
           icon={<FaBomb className="h-6 w-6" />}
           label="Degen Shooter"
           onActivate={handleBombShortcut}
+        />
+        <DesktopShortcut
+          icon={<GreenvaleIcon />}
+          label="Greenvale"
+          onActivate={handleGreenvaleShortcut}
         />
       </div>
 
@@ -42,6 +52,8 @@ export default function HomePageClient() {
       <AboutWindow />
       {/* Settings app window (opens via Dock) */}
       <SettingsWindow />
+      {/* Greenvale farming window */}
+      <GreenvaleGameWindow />
     </main>
   );
 }

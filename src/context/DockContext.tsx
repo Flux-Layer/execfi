@@ -18,6 +18,7 @@ type DockContextValue = {
    aboutState: WindowState;
    settingsState: WindowState;
    minimizeAllApps: () => void;
+   greenvaleState: WindowState;
    openTerminal: () => void;
    closeTerminal: () => void;
    minimizeTerminal: () => void;
@@ -42,6 +43,10 @@ type DockContextValue = {
    closeSettings: () => void;
    minimizeSettings: () => void;
    toggleFullscreenSettings: () => void;
+   openGreenvale: () => void;
+   closeGreenvale: () => void;
+   minimizeGreenvale: () => void;
+   toggleFullscreenGreenvale: () => void;
 };
 
 const DockContext = createContext<DockContextValue | undefined>(undefined);
@@ -98,6 +103,13 @@ export function DockProvider({ children }: { children: ReactNode }) {
       version: 0,
       lastFullscreen: false,
    });
+   const [greenvaleState, setGreenvaleState] = useState<WindowState>({
+      open: false,
+      minimized: false,
+      fullscreen: false,
+      version: 0,
+      lastFullscreen: false,
+   });
 
    const value = useMemo<DockContextValue>(
       () => ({
@@ -134,6 +146,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
             minimizeIfOpen(setAboutState);
             minimizeIfOpen(setSettingsState);
          },
+         greenvaleState,
          openTerminal: () => {
             // On mobile, minimize other apps
             if (isMobile) {
@@ -142,6 +155,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setGameState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
+               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
             }
             setTerminalState((prev) => ({
                ...prev,
@@ -176,6 +190,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setGameState((g) => ({ ...g, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
                   setSettingsState((s) => ({ ...s, minimized: true }));
+                  setGreenvaleState((g) => ({ ...g, minimized: true }));
                }
                return {
                   ...prev,
@@ -193,6 +208,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setGameState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
+               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
             }
             setDocsState((prev) => ({
                ...prev,
@@ -226,6 +242,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setGameState((g) => ({ ...g, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
                   setSettingsState((s) => ({ ...s, minimized: true }));
+                  setGreenvaleState((g) => ({ ...g, minimized: true }));
                }
                return {
                   ...prev,
@@ -243,6 +260,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setGameState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
+               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
             }
             setProfileState((prev) => ({
                ...prev,
@@ -276,6 +294,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setGameState((g) => ({ ...g, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
                   setSettingsState((s) => ({ ...s, minimized: true }));
+                  setGreenvaleState((g) => ({ ...g, minimized: true }));
                }
                return {
                   ...prev,
@@ -292,6 +311,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
+               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
             }
             setGameState((prev) => ({
                ...prev,
@@ -423,6 +443,54 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
+                  setGreenvaleState((g) => ({ ...g, minimized: true }));
+               }
+               return {
+                  ...prev,
+                  open: true,
+                  minimized: false,
+                  fullscreen: nextFullscreen,
+                  lastFullscreen: nextFullscreen,
+               };
+            }),
+         openGreenvale: () => {
+            if (isMobile) {
+               setTerminalState((prev) => ({ ...prev, minimized: true }));
+               setDocsState((prev) => ({ ...prev, minimized: true }));
+               setProfileState((prev) => ({ ...prev, minimized: true }));
+               setGameState((prev) => ({ ...prev, minimized: true }));
+            }
+            setGreenvaleState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: false,
+               fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
+            }));
+         },
+         closeGreenvale: () =>
+            setGreenvaleState((prev) => ({
+               open: false,
+               minimized: false,
+               fullscreen: false,
+               version: prev.version + 1,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+            })),
+         minimizeGreenvale: () =>
+            setGreenvaleState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: true,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+               fullscreen: false,
+            })),
+         toggleFullscreenGreenvale: () =>
+            setGreenvaleState((prev) => {
+               const nextFullscreen = !prev.fullscreen;
+               if (nextFullscreen) {
+                  setTerminalState((t) => ({ ...t, minimized: true }));
+                  setDocsState((d) => ({ ...d, minimized: true }));
+                  setProfileState((p) => ({ ...p, minimized: true }));
+                  setGameState((g) => ({ ...g, minimized: true }));
                }
                return {
                   ...prev,
@@ -433,7 +501,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                };
             }),
       }),
-      [terminalState, docsState, profileState, gameState, aboutState, settingsState, isMobile],
+      [terminalState, docsState, profileState, gameState, aboutState, settingsState, greenvaleState, isMobile],
    );
 
    return <DockContext.Provider value={value}>{children}</DockContext.Provider>;
