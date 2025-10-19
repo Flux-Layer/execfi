@@ -29,6 +29,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate environment variables
+    if (!QUEST_SIGNER_PRIVATE_KEY || !QUEST_SIGNER_PRIVATE_KEY.startsWith('0x')) {
+      console.error("[Claim API] QUEST_SIGNER_PRIVATE_KEY is missing or invalid");
+      return NextResponse.json(
+        { error: "Server configuration error: Missing signer key" },
+        { status: 500 }
+      );
+    }
+
+    if (!XP_REGISTRY_ADDRESS || !XP_REGISTRY_ADDRESS.startsWith('0x')) {
+      console.error("[Claim API] XP_REGISTRY_ADDRESS is missing or invalid");
+      return NextResponse.json(
+        { error: "Server configuration error: Missing registry address" },
+        { status: 500 }
+      );
+    }
+
+    console.log(`[Claim API] Processing claim for quest ${questId}, user ${userAddress}`);
+    console.log(`[Claim API] Game ID: ${SUNDAY_QUEST_GAME_ID}`);
+    console.log(`[Claim API] XP Registry: ${XP_REGISTRY_ADDRESS}`);
+
     const normalizedAddress = userAddress.toLowerCase() as `0x${string}`;
 
     // Find quest progress with template
@@ -72,6 +93,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Get nonce from XPRegistry
+    console.log(`[Claim API] Creating RPC client for Base Sepolia...`);
     const publicClient = createPublicClient({
       chain: baseSepolia,
       transport: http(
@@ -79,14 +101,17 @@ export async function POST(request: NextRequest) {
       ),
     });
 
+    console.log(`[Claim API] Reading nonce from XP Registry...`);
     const nonce = await publicClient.readContract({
       address: XP_REGISTRY_ADDRESS,
       abi: XP_REGISTRY_ABI,
       functionName: "getNonce",
       args: [normalizedAddress, BigInt(SUNDAY_QUEST_GAME_ID)],
     });
+    console.log(`[Claim API] Nonce: ${nonce}`);
 
     // Create EIP-712 signature
+    console.log(`[Claim API] Creating signature payload...`);
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 600); // 10 min expiry
 
     const payload = {
@@ -97,7 +122,18 @@ export async function POST(request: NextRequest) {
       deadline,
     };
 
+    console.log(`[Claim API] Payload:`, {
+      user: payload.user,
+      gameId: payload.gameId.toString(),
+      amount: payload.amount.toString(),
+      nonce: payload.nonce.toString(),
+      deadline: payload.deadline.toString(),
+    });
+
+    console.log(`[Claim API] Creating signer account...`);
     const questSigner = privateKeyToAccount(QUEST_SIGNER_PRIVATE_KEY);
+    console.log(`[Claim API] Signer address: ${questSigner.address}`);
+
     const walletClient = createWalletClient({
       account: questSigner,
       chain: baseSepolia,
@@ -106,12 +142,14 @@ export async function POST(request: NextRequest) {
       ),
     });
 
+    console.log(`[Claim API] Signing typed data...`);
     const signature = await walletClient.signTypedData({
       domain: XP_REGISTRY_DOMAIN,
       types: XP_ADD_TYPES,
       primaryType: "XPAdd",
       message: payload,
     });
+    console.log(`[Claim API] Signature generated: ${signature.substring(0, 20)}...`);
 
     // Update progress with XP amount (not claimed yet)
     await prisma.userQuestProgress.update({
@@ -132,9 +170,17 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Failed to generate claim signature:", error);
+    console.error("[Claim API] Failed to generate claim signature:", error);
+    
+    // Provide more specific error messages
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("[Claim API] Error details:", errorMessage);
+    
     return NextResponse.json(
-      { error: "Failed to generate claim signature" },
+      { 
+        error: "Failed to generate claim signature",
+        details: errorMessage,
+      },
       { status: 500 }
     );
   } finally {
