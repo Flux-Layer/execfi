@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+
+    console.log({XP_REGISTRY_ADDRESS, env: process.env.NEXT_PUBLIC_XP_REGISTRY_PROXY})
+
     if (!XP_REGISTRY_ADDRESS || !XP_REGISTRY_ADDRESS.startsWith('0x')) {
       console.error("[Claim API] XP_REGISTRY_ADDRESS is missing or invalid");
       return NextResponse.json(
