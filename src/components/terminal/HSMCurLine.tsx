@@ -1,7 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FormEvent, ChangeEvent, useEffect, useState, useRef } from "react";
+import {
+  FormEvent,
+  ChangeEvent,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import PageBarLoader from "@components/loader";
 import { useTerminalInput } from "@/cli/hooks/useTerminalStore";
 
@@ -12,6 +19,7 @@ interface HSMCurLineProps {
   onSubmit: (value: string) => void;
   isAuthFlow?: boolean;
   loading?: boolean;
+  lockInputWhileLoading?: boolean;
 }
 
 const HSMCurLine = ({
@@ -21,6 +29,7 @@ const HSMCurLine = ({
   onSubmit,
   isAuthFlow = false,
   loading = false,
+  lockInputWhileLoading = true,
 }: HSMCurLineProps) => {
   // For auth flow, use local state since it doesn't go through HSM
   const [localInputText, setLocalInputText] = useState("");
@@ -33,17 +42,17 @@ const HSMCurLine = ({
   const setInputText = isAuthFlow ? setLocalInputText : setHSMInputText;
 
   // Update cursor position when input changes or cursor moves
-  const updateCursorPosition = () => {
+  const updateCursorPosition = useCallback(() => {
     if (inputRef.current) {
       setCursorPosition(inputRef.current.selectionStart || 0);
     }
-  };
+  }, [inputRef]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  };
+  }, [containerRef]);
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -93,7 +102,7 @@ const HSMCurLine = ({
       inputRef.current.focus();
     }
     scrollToBottom();
-  }, [command, inputRef, loading]);
+  }, [command, inputRef, loading, scrollToBottom]);
 
   // Scroll when container changes or when content updates
   useEffect(() => {
@@ -101,7 +110,7 @@ const HSMCurLine = ({
       scrollToBottom();
     }, 50); // Small delay to ensure DOM updates are complete
     return () => clearTimeout(scrollTimer);
-  }, [containerRef]);
+  }, [containerRef, scrollToBottom]);
 
   // Auto-focus on page load
   useEffect(() => {
@@ -111,7 +120,7 @@ const HSMCurLine = ({
       }
     }, 200); // Longer delay for initial page load
     return () => clearTimeout(focusTimer);
-  }, []);
+  }, [inputRef, loading]);
 
   // Track cursor position on clicks and selection changes
   useEffect(() => {
@@ -131,7 +140,7 @@ const HSMCurLine = ({
       input.removeEventListener('keyup', handleSelectionChange);
       input.removeEventListener('select', handleSelectionChange);
     };
-  }, [inputRef]);
+  }, [inputRef, updateCursorPosition]);
 
   // Calculate cursor offset based on text width
   const textBeforeCursor = inputText.substring(0, cursorPosition);
@@ -190,10 +199,15 @@ const HSMCurLine = ({
 
   const isInputDisabled = (): boolean => {
     // Always allow input when typing /exit to escape stuck states
-    if (inputText.startsWith("/exit") || inputText.startsWith("/close")) {
+    if (
+      inputText.startsWith("/exit") ||
+      inputText.startsWith("/close") ||
+      inputText.startsWith("/cancel")
+    ) {
       return false;
     }
-    return loading || command === "processing";
+    const shouldLockForLoading = loading && lockInputWhileLoading;
+    return shouldLockForLoading || command === "processing";
   };
 
   return (

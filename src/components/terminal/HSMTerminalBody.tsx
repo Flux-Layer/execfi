@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import PageBarLoader from "@components/loader";
 import { LOGIN_WITH_EMAIL_QUESTIONS } from "@/constants/terminal-questions";
@@ -49,19 +49,30 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
    };
 
    // Auth state for login flow
-   const [questions, setQuestions] = useState(LOGIN_WITH_EMAIL_QUESTIONS);
-   const [curQuestion, setCurQuestion] = useState<any>(
-      LOGIN_WITH_EMAIL_QUESTIONS[0],
+   const [questions, setQuestions] = useState(() =>
+      LOGIN_WITH_EMAIL_QUESTIONS.map((q) => ({ ...q })),
    );
+   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+   const [authStatus, setAuthStatus] = useState<
+      "idle" | "sending-code" | "code-sent" | "verifying" | "awaiting-auth" | "error"
+   >("idle");
+   const [authError, setAuthError] = useState<string | null>(null);
+   const activeAuthRequestRef = useRef<number | null>(null);
 
    // Handle login flow (existing logic)
    useEffect(() => {
       if (ready && authenticated) {
+         activeAuthRequestRef.current = null;
          setQuestions([]);
-         setCurQuestion(null);
+         setCurrentQuestionIndex(0);
+         setAuthStatus("idle");
+         setAuthError(null);
       } else if (ready && !authenticated) {
-         setQuestions(LOGIN_WITH_EMAIL_QUESTIONS);
-         setCurQuestion(LOGIN_WITH_EMAIL_QUESTIONS[0]);
+         activeAuthRequestRef.current = null;
+         setQuestions(LOGIN_WITH_EMAIL_QUESTIONS.map((q) => ({ ...q })));
+         setCurrentQuestionIndex(0);
+         setAuthStatus("idle");
+         setAuthError(null);
       }
    }, [ready, authenticated]);
 
@@ -124,25 +135,124 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
       }
    }, [chatHistory, authenticated, logout, dispatch]);
 
-   const handleAuthSubmitLine = async (value: string) => {
-      if (curQuestion) {
-         if (curQuestion?.key === "email") {
-            sendCode({ email: value });
-         } else if (curQuestion?.key === "code") {
-            loginWithCode({ code: value });
-         }
+   const handleAuthSubmitLine = (value: string) => {
+      const trimmedValue = value.trim();
+      if (!trimmedValue) {
+         return;
+      }
 
-         setQuestions((pv) =>
-            pv.map((q) =>
-               q.key === curQuestion.key ? { ...q, complete: true, value } : q,
-            ),
-         );
-         setCurQuestion((prev: any) => {
-            const idx = questions.findIndex((q) => q.key === prev.key);
-            return questions[idx + 1] || null;
-         });
+      const normalizedValue = trimmedValue.toLowerCase();
+
+      if (normalizedValue === "/cancel") {
+         activeAuthRequestRef.current = null;
+         setQuestions(LOGIN_WITH_EMAIL_QUESTIONS.map((q) => ({ ...q })));
+         setCurrentQuestionIndex(0);
+         setAuthStatus("idle");
+         setAuthError(null);
+         dispatch({ type: "AUTH.CANCEL" });
+         return;
+      }
+
+      if (authStatus === "verifying" || authStatus === "awaiting-auth") {
+         setAuthError("We're verifying your code. Type /cancel to stop or wait a moment.");
+         return;
+      }
+
+      const curQuestion = questions[currentQuestionIndex];
+      if (!curQuestion) {
+         return;
+      }
+
+      setAuthError(null);
+
+      if (curQuestion.key === "email") {
+         const requestId = Date.now();
+         activeAuthRequestRef.current = requestId;
+         setAuthStatus("sending-code");
+         void sendCode({ email: trimmedValue })
+            .then(() => {
+               if (activeAuthRequestRef.current !== requestId) {
+                  return;
+               }
+
+               setQuestions((prev) =>
+                  prev.map((q) => {
+                     if (q.key === "email") {
+                        return { ...q, complete: true, value: trimmedValue };
+                     }
+                     if (q.key === "code") {
+                        return { ...q, complete: false, value: "" };
+                     }
+                     return q;
+                  }),
+               );
+               setCurrentQuestionIndex((prev) =>
+                  Math.min(prev + 1, LOGIN_WITH_EMAIL_QUESTIONS.length - 1),
+               );
+               setAuthStatus("code-sent");
+               activeAuthRequestRef.current = null;
+            })
+            .catch((error) => {
+               if (activeAuthRequestRef.current !== requestId) {
+                  return;
+               }
+
+               console.error("Error sending verification code from terminal:", error);
+               setAuthStatus("error");
+               setAuthError(
+                  "We couldn't send a code to that email. Please check the address and try again.",
+               );
+               activeAuthRequestRef.current = null;
+            });
+         return;
+      }
+
+      if (curQuestion.key === "code") {
+         const requestId = Date.now();
+         activeAuthRequestRef.current = requestId;
+         setAuthStatus("verifying");
+         void loginWithCode({ code: trimmedValue })
+            .then(() => {
+               if (activeAuthRequestRef.current !== requestId) {
+                  return;
+               }
+
+               setQuestions((prev) =>
+                  prev.map((q) =>
+                     q.key === "code"
+                        ? { ...q, complete: true, value: trimmedValue }
+                        : q,
+                  ),
+               );
+               setAuthStatus("awaiting-auth");
+               activeAuthRequestRef.current = null;
+            })
+            .catch((error) => {
+               if (activeAuthRequestRef.current !== requestId) {
+                  return;
+               }
+
+               console.error("Error logging in with verification code from terminal:", error);
+               setAuthStatus("error");
+               setAuthError("That code didn't work. Please try again.");
+               setQuestions((prev) =>
+                  prev.map((q) =>
+                     q.key === "code"
+                        ? { ...q, complete: false, value: "" }
+                        : q,
+                  ),
+               );
+               activeAuthRequestRef.current = null;
+            });
       }
    };
+
+   const curQuestion = questions[currentQuestionIndex] ?? null;
+
+   const isAuthLoading =
+      authStatus === "sending-code" ||
+      authStatus === "verifying" ||
+      authStatus === "awaiting-auth";
 
    // Show loading only while Privy is initializing
    if (!ready) {
@@ -163,13 +273,40 @@ const HSMTerminalBody = ({ containerRef, inputRef }: HSMTerminalBodyProps) => {
                <InitialText />
                <PreviousQuestions questions={questions} />
                <CurrentQuestion curQuestion={curQuestion} />
+               <p className="mt-2 text-sm text-slate-400 font-mono">
+                  Need to stop? Type /cancel anytime to exit this login flow.
+               </p>
                <HSMCurLine
                   inputRef={inputRef}
                   containerRef={containerRef}
                   command={curQuestion?.key || ""}
                   onSubmit={handleAuthSubmitLine}
                   isAuthFlow={true}
+                  loading={isAuthLoading}
+                  lockInputWhileLoading={
+                     authStatus !== "verifying" && authStatus !== "awaiting-auth"
+                  }
                />
+               {authStatus === "code-sent" && !authError && (
+                  <p className="mt-3 text-sm text-emerald-400 font-mono">
+                     Check your email for the verification code.
+                  </p>
+               )}
+               {authStatus === "verifying" && (
+                  <p className="mt-3 text-sm text-slate-400 font-mono">
+                     Verifying your code. Hang tight... (type /cancel to stop)
+                  </p>
+               )}
+               {authStatus === "awaiting-auth" && (
+                  <p className="mt-3 text-sm text-slate-400 font-mono">
+                     Waiting for confirmation from Privy... (type /cancel to stop)
+                  </p>
+               )}
+               {authError && (
+                  <p className="mt-3 text-sm text-rose-400 font-mono">
+                     {authError}
+                  </p>
+               )}
             </div>
          </ErrorBoundary>
       );

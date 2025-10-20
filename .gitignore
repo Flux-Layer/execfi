@@ -51,6 +51,7 @@ CLAUDE.md
 .codex/*
 plans-and-progress/*
 issues/*
+analysis/*
 
 # PWA service worker files
 /public/sw.js
@@ -58,5 +59,8 @@ issues/*
 /public/workbox-*.js
 /public/workbox-*.js.map
 /public/swe-worker-*.js
+
+
+indexer/*
 
 /src/generated/prisma

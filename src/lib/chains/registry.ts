@@ -52,7 +52,7 @@ function getRpcUrl(chainId: number, fallbackUrl?: string): string {
   const alchemyUrls: Record<number, string> = {
     // base
     8453: `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    84532: `https://base-sepolia.g.alchemy.com/v2/${alchemyKey}`,
+    84532: `https://holy-wiser-fog.base-sepolia.quiknode.pro/646da32894cdd82a4937d8fea8d65a16d754445f/`,
 
     // eth
     1: `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`,

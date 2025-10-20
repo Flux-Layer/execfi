@@ -22,7 +22,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     order: 1,
     skippable: true,
     component: 'modal',
-    image: '/onboarding/welcome.png',
+    image: '/onboarding/welcome.svg',
   },
   {
     id: 'desktop-overview',
@@ -33,7 +33,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     order: 2,
     skippable: true,
     component: 'modal',
-    image: '/onboarding/desktop.png',
+    image: '/onboarding/desktop.svg',
   },
   {
     id: 'dock-intro',

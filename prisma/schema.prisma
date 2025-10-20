@@ -42,27 +42,27 @@ model GameSession {
 
 // Users - Phase 2
 model User {
-  address            String            @id @db.VarChar(42)
-  onboardedAt        DateTime?
+  address             String             @id @db.VarChar(42)
+  onboardedAt         DateTime?
   tutorialCompletedAt DateTime?
-  tutorialSkipped    Boolean           @default(false)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  tutorialProgress   TutorialProgress[]
+  tutorialSkipped     Boolean            @default(false)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  tutorialProgress    TutorialProgress[]
 
   @@map("users")
 }
 
 // Tutorial Progress - Phase 2
 model TutorialProgress {
-  id          Int      @id @default(autoincrement())
-  userAddress String   @db.VarChar(42)
-  stepId      String   @db.VarChar(100)
-  completed   Boolean  @default(false)
+  id          Int       @id @default(autoincrement())
+  userAddress String    @db.VarChar(42)
+  stepId      String    @db.VarChar(100)
+  completed   Boolean   @default(false)
   completedAt DateTime?
   data        Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   user User @relation(fields: [userAddress], references: [address], onDelete: Cascade)
 
@@ -73,25 +73,25 @@ model TutorialProgress {
 
 // Device-based onboarding (replaces wallet-based for new onboarding flow)
 model Device {
-  id                    String              @id @default(cuid())
-  fingerprint           String              @unique @db.VarChar(100)
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  lastSeenAt            DateTime            @default(now())
+  id          String   @id @default(cuid())
+  fingerprint String   @unique @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastSeenAt  DateTime @default(now())
 
   // Onboarding tracking
-  onboardedAt           DateTime?
-  onboardingCompleted   Boolean             @default(false)
-  onboardingSkipped     Boolean             @default(false)
-  onboardingProgress    OnboardingProgress[]
+  onboardedAt         DateTime?
+  onboardingCompleted Boolean              @default(false)
+  onboardingSkipped   Boolean              @default(false)
+  onboardingProgress  OnboardingProgress[]
 
   // Optional user association (when wallet connects)
-  userAddress           String?             @db.VarChar(42)
+  userAddress String? @db.VarChar(42)
 
   // Device metadata
-  userAgent             String?             @db.Text
-  locale                String?             @db.VarChar(10)
-  timezone              String?             @db.VarChar(50)
+  userAgent String? @db.Text
+  locale    String? @db.VarChar(10)
+  timezone  String? @db.VarChar(50)
 
   @@index([fingerprint])
   @@index([userAddress])
@@ -106,7 +106,7 @@ model OnboardingProgress {
   stepId      String    @db.VarChar(100)
   completed   Boolean   @default(false)
   completedAt DateTime?
-  data        Json?     // Additional step-specific data
+  data        Json? // Additional step-specific data
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -115,4 +115,110 @@ model OnboardingProgress {
   @@unique([deviceId, stepId])
   @@index([deviceId])
   @@map("onboarding_progress")
+}
+
+// ============================================
+// SUNDAY QUEST SYSTEM
+// ============================================
+
+model QuestTemplate {
+  id              Int             @id @default(autoincrement())
+  questKey        String          @unique @db.VarChar(100)
+  name            String          @db.VarChar(255)
+  description     String          @db.Text
+  questType       QuestType
+  difficulty      QuestDifficulty
+  requirements    Json
+  baseXpReward    Int
+  bonusMultiplier Float           @default(1.0)
+  estimatedTime   Int
+  iconUrl         String?         @db.VarChar(500)
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  userProgress UserQuestProgress[]
+
+  @@index([questType])
+  @@index([difficulty])
+  @@index([isActive])
+  @@map("quest_templates")
+}
+
+model WeeklyQuestRotation {
+  id            Int      @id @default(autoincrement())
+  weekStartDate DateTime @unique
+  weekEndDate   DateTime
+  questSlots    Json
+  seed          String   @db.VarChar(100)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([weekStartDate, isActive])
+  @@map("weekly_quest_rotations")
+}
+
+model UserQuestProgress {
+  id              Int         @id @default(autoincrement())
+  userAddress     String      @db.VarChar(42)
+  rotationId      Int
+  questTemplateId Int
+  status          QuestStatus
+  progress        Json?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  claimedAt       DateTime?
+  transactionHash String?     @db.VarChar(66)
+  xpAwarded       Int?
+
+  // Relations
+  questTemplate QuestTemplate @relation(fields: [questTemplateId], references: [id])
+
+  @@unique([userAddress, rotationId, questTemplateId])
+  @@index([userAddress, status])
+  @@index([rotationId])
+  @@index([status])
+  @@map("user_quest_progress")
+}
+
+model QuestCompletionEvent {
+  id              Int      @id @default(autoincrement())
+  userAddress     String   @db.VarChar(42)
+  questTemplateId Int
+  rotationId      Int
+  completionProof Json
+  verifiedAt      DateTime
+  xpAwarded       Int
+  transactionHash String?  @db.VarChar(66)
+  createdAt       DateTime @default(now())
+
+  @@index([userAddress])
+  @@index([createdAt])
+  @@map("quest_completion_events")
+}
+
+enum QuestType {
+  TRANSACTION
+  COMBO
+  EXPLORATION
+  ACHIEVEMENT
+  SOCIAL
+}
+
+enum QuestDifficulty {
+  EASY
+  MEDIUM
+  HARD
+  EPIC
+}
+
+enum QuestStatus {
+  AVAILABLE
+  IN_PROGRESS
+  PENDING_VERIFICATION
+  COMPLETED
+  CLAIMED
+  FAILED
+  EXPIRED
 }

@@ -16,6 +16,7 @@ import PathFinderLoader from "@/components/loader/path-finder";
 import BaseAccountStatus from "@/components/auth/BaseAccountStatus";
 import { OnboardingErrorBoundary } from "@/components/onboarding/OnboardingErrorBoundary";
 import { OnboardingOrchestrator } from "@/components/onboarding/OnboardingOrchestrator";
+import { MalwareIntegration } from "@/components/sunday-quest/MalwareIntegration";
 
 interface ClientShellProps {
   children: React.ReactNode;
@@ -67,6 +68,9 @@ export default function ClientShell({ children }: ClientShellProps) {
                   {children}
                   <Dock />
                   <BaseAccountStatus />
+                  
+                  {/* Sunday Quest - Malware Alert */}
+                  <MalwareIntegration />
                   {/* TutorialModal moved to BombGame component for context-aware display */}
                   <Toaster
                     position="top-right"
