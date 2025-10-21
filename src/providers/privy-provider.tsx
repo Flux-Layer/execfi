@@ -1,6 +1,7 @@
 "use client";
 
-import { PrivyProvider } from "@privy-io/react-auth";
+import { useEffect, useState } from "react";
+import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import {
   base, // base mainnet
@@ -22,6 +23,46 @@ import {
   lisk, // lisk mainnet
   liskSepolia, // listk testnet sepolia
 } from "viem/chains";
+import { useLoading } from "@/context/LoadingContext";
+
+// Inner component to track Privy initialization
+function PrivyLoadingTracker({ children }: { children: React.ReactNode }) {
+  const { updateStepStatus, completeStep, updateStepProgress } = useLoading();
+  const { ready } = usePrivy();
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Track Privy initialization
+  useEffect(() => {
+    updateStepStatus('privy-init', 'loading', 0);
+    setIsInitializing(true);
+
+    // Simulate progress (Privy doesn't expose internal loading)
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress = Math.min(progress + 10, 90);
+      updateStepProgress('privy-init', progress);
+    }, 100);
+
+    return () => clearInterval(progressInterval);
+  }, [updateStepStatus, updateStepProgress]);
+
+  // Track when Privy is ready
+  useEffect(() => {
+    if (ready && isInitializing) {
+      completeStep('privy-init');
+      updateStepStatus('privy-ready', 'loading', 50);
+
+      // Small delay for SmartWalletsProvider to initialize
+      setTimeout(() => {
+        completeStep('privy-ready');
+      }, 200);
+
+      setIsInitializing(false);
+    }
+  }, [ready, isInitializing, completeStep, updateStepStatus]);
+
+  return <>{children}</>;
+}
 
 export default function PrivyAppProvider({
   children,
@@ -39,7 +80,7 @@ export default function PrivyAppProvider({
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
         },
-        appearance: { 
+        appearance: {
           theme: "dark",
           walletList: ['base_account'], // Base Account as primary wallet option
           showWalletLoginFirst: true, // Show wallet options first
@@ -67,7 +108,9 @@ export default function PrivyAppProvider({
         ],
       }}
     >
-      <SmartWalletsProvider>{children}</SmartWalletsProvider>
+      <PrivyLoadingTracker>
+        <SmartWalletsProvider>{children}</SmartWalletsProvider>
+      </PrivyLoadingTracker>
     </PrivyProvider>
   );
 }

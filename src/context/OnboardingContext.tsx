@@ -7,6 +7,7 @@ import { getDeviceMetadata } from '@/lib/device/fingerprint';
 import type { OnboardingState } from '@/lib/onboarding/types';
 import type { OnboardingStep } from '@/lib/onboarding/types';
 import { getStepById } from '@/lib/onboarding/config';
+import { useLoading } from '@/context/LoadingContext';
 
 interface OnboardingContextType {
   // Device identification
@@ -37,11 +38,13 @@ const OnboardingContext = createContext<OnboardingContextType | undefined>(undef
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { authenticated, user } = usePrivy();
   const { deviceId: fingerprint, loading: deviceLoading } = useDeviceId();
+  const { updateStepStatus, completeStep: completeLoadingStep, skipStep: skipLoadingStep, updateStepProgress } = useLoading();
 
   const [state, setState] = useState<OnboardingState | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState<OnboardingStep | null>(null);
   const [dbDeviceId, setDbDeviceId] = useState<string | null>(null); // Database device ID (cuid)
+  const [onboardingInitialized, setOnboardingInitialized] = useState(false);
 
   // Show onboarding if not completed and not skipped
   // Device-based: works WITHOUT authentication
@@ -66,11 +69,17 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       return;
     }
 
+    if (!onboardingInitialized) {
+      updateStepStatus('onboarding-api', 'loading', 0);
+      setOnboardingInitialized(true);
+    }
+
     setLoading(true);
 
     try {
       // Priority 1: Device-based onboarding (NEW)
       if (fingerprint) {
+        updateStepProgress('onboarding-api', 30);
         // Register device first and get database deviceId
         let deviceId = dbDeviceId;
         if (!deviceId) {
@@ -94,6 +103,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         }
 
         // Get device onboarding state using database deviceId
+        updateStepProgress('onboarding-api', 70);
         const res = await fetch('/api/onboarding/device/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -103,12 +113,16 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         const data = await res.json();
         setState(data.state);
 
+        updateStepProgress('onboarding-api', 90);
+
         // Update current step reference
         if (data.state.currentStep) {
           setCurrentStep(getStepById(data.state.currentStep) || null);
         } else {
           setCurrentStep(null);
         }
+
+        completeLoadingStep('onboarding-api');
 
         // If user is authenticated, link device to wallet (only if we have database deviceId)
         if (deviceId && authenticated && user?.wallet?.address) {
@@ -131,6 +145,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
       // Priority 2: User-based onboarding (LEGACY - backward compatibility)
       if (authenticated && user?.wallet?.address) {
+        updateStepProgress('onboarding-api', 50);
         const res = await fetch('/api/onboarding/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -138,6 +153,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         });
 
         const data = await res.json();
+
+        updateStepProgress('onboarding-api', 90);
 
         // Convert old state format to new format
         const convertedState: OnboardingState = {
@@ -155,8 +172,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
           convertedState.currentStep ? getStepById(convertedState.currentStep) || null : null
         );
 
+        completeLoadingStep('onboarding-api');
         return;
       }
+
+      // No device ID or authentication - skip onboarding API
+      skipLoadingStep('onboarding-api');
 
       // No deviceId and not authenticated - wait
       setState(null);
@@ -165,10 +186,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       console.error('[OnboardingContext] Failed to fetch state:', error);
       setState(null);
       setCurrentStep(null);
+      skipLoadingStep('onboarding-api');
     } finally {
       setLoading(false);
     }
-  }, [fingerprint, dbDeviceId, deviceLoading, authenticated, user?.wallet?.address]);
+  }, [fingerprint, dbDeviceId, deviceLoading, authenticated, user?.wallet?.address, onboardingInitialized, updateStepStatus, updateStepProgress, completeLoadingStep, skipLoadingStep]);
 
   useEffect(() => {
     fetchState();

@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { ConnectedWallet } from "@privy-io/react-auth";
+import { useLoading } from "@/context/LoadingContext";
 
 interface EOAContextType {
   // Wallet Management
@@ -36,6 +37,7 @@ interface EOAProviderProps {
 
 export function EOAProvider({ children }: EOAProviderProps) {
   const { wallets } = useWallets();
+  const { updateStepStatus, completeStep, updateStepProgress } = useLoading();
   const [selectedWalletIndex, setSelectedWalletIndex] = useState(0);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,21 +58,38 @@ export function EOAProvider({ children }: EOAProviderProps) {
     console.log({ selectedWallet });
   }, [selectedWallet]);
 
-  // Persist selected wallet index to localStorage
+  // Track loading state for EOA initialization
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize EOA provider and track loading
   useEffect(() => {
+    if (isInitialized) return;
+
+    updateStepStatus('eoa-wallet', 'loading', 0);
+
+    // Load from localStorage
     const savedIndex = localStorage.getItem("selectedWalletIndex");
+
+    updateStepProgress('eoa-wallet', 50);
+
     if (savedIndex && !isNaN(parseInt(savedIndex))) {
       const index = parseInt(savedIndex);
-      if (index < privyWallets.length) {
+      if (index >= 0 && index < privyWallets.length) {
         setSelectedWalletIndex(index);
       }
     }
-  }, [privyWallets.length]);
+
+    updateStepProgress('eoa-wallet', 100);
+    completeStep('eoa-wallet');
+    setIsInitialized(true);
+  }, [privyWallets.length, isInitialized, updateStepStatus, updateStepProgress, completeStep]);
 
   // Save selected wallet index to localStorage
   useEffect(() => {
-    localStorage.setItem("selectedWalletIndex", selectedWalletIndex.toString());
-  }, [selectedWalletIndex]);
+    if (isInitialized) {
+      localStorage.setItem("selectedWalletIndex", selectedWalletIndex.toString());
+    }
+  }, [selectedWalletIndex, isInitialized]);
 
   // Reset selected index if it's out of bounds
   useEffect(() => {

@@ -11,6 +11,7 @@ import type { AppState, Dispatch } from "../state/types";
 import { createPersistedStore, createStore } from "../state/store";
 import { FLOWS } from "../state/flows";
 import { loadPolicy, createDefaultPolicy } from "@/lib/policy/storage";
+import { useLoading } from "@/context/LoadingContext";
 
 // Context for the terminal store
 const TerminalStoreContext = createContext<{
@@ -30,14 +31,21 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   const { sendTransaction } = useSendTransaction();
   const { selectedChainId } = useChainSelection();
   const baseAccount = useBaseAccount();
+  const { updateStepStatus, completeStep, failStep, updateStepProgress } = useLoading();
+
+  // Track initialization state
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Create store once and persist it
   const storeRef = useRef<Store | null>(null);
   const [, forceUpdate] = useState({});
 
   if (!storeRef.current) {
+    updateStepStatus('terminal-store', 'loading', 0);
     try {
+      updateStepProgress('terminal-store', 20);
       storeRef.current = createPersistedStore(FLOWS);
+      updateStepProgress('terminal-store', 50);
     } catch (error) {
       console.error("Failed to create store, clearing storage and retrying:", error);
       // Clear potentially corrupted storage
@@ -48,6 +56,7 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
       } catch {}
       // Create fresh store
       storeRef.current = createStore(FLOWS, {});
+      updateStepProgress('terminal-store', 50);
     }
   }
 
@@ -65,7 +74,9 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
 
   // Initialize core context - allow basic initialization even when unauthenticated
   useEffect(() => {
-    if (ready) {
+    if (ready && !isInitialized) {
+      updateStepProgress('terminal-store', 70);
+
       // Load or create policy state
       const policy = loadPolicy() || createDefaultPolicy("moderate");
 
@@ -151,12 +162,18 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
             }),
       };
 
+      updateStepProgress('terminal-store', 90);
+
       store.dispatch({
         type: "APP.INIT",
         coreContext,
       });
+
+      updateStepProgress('terminal-store', 100);
+      completeStep('terminal-store');
+      setIsInitialized(true);
     }
-  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store, baseAccount]);
+  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store, baseAccount, isInitialized, updateStepProgress, completeStep]);
 
   // Dispatch chain updates when selectedChainId changes
   useEffect(() => {

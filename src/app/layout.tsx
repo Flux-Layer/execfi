@@ -83,6 +83,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" style={fontVariables as unknown as CSSProperties}>
+      <head>
+        {/* Preconnect to critical domains for faster loading */}
+        <link rel="preconnect" href="https://auth.privy.io" />
+        <link rel="preconnect" href="https://base-mainnet.g.alchemy.com" />
+
+        {/* DNS prefetch for other resources */}
+        <link rel="dns-prefetch" href="https://api.execfi.com" />
+      </head>
       <body>
         <ClientShell>{children}</ClientShell>
       </body>
