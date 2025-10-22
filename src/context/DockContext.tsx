@@ -15,10 +15,10 @@ type DockContextValue = {
    docsState: WindowState;
    profileState: WindowState;
    gameState: WindowState;
+   coinFlipState: WindowState;
    aboutState: WindowState;
    settingsState: WindowState;
    minimizeAllApps: () => void;
-   greenvaleState: WindowState;
    openTerminal: () => void;
    closeTerminal: () => void;
    minimizeTerminal: () => void;
@@ -35,6 +35,10 @@ type DockContextValue = {
    closeGame: () => void;
    minimizeGame: () => void;
    toggleFullscreenGame: () => void;
+   openCoinFlip: () => void;
+   closeCoinFlip: () => void;
+   minimizeCoinFlip: () => void;
+   toggleFullscreenCoinFlip: () => void;
    openAbout: () => void;
    closeAbout: () => void;
    minimizeAbout: () => void;
@@ -43,10 +47,6 @@ type DockContextValue = {
    closeSettings: () => void;
    minimizeSettings: () => void;
    toggleFullscreenSettings: () => void;
-   openGreenvale: () => void;
-   closeGreenvale: () => void;
-   minimizeGreenvale: () => void;
-   toggleFullscreenGreenvale: () => void;
 };
 
 const DockContext = createContext<DockContextValue | undefined>(undefined);
@@ -89,6 +89,13 @@ export function DockProvider({ children }: { children: ReactNode }) {
       version: 0,
       lastFullscreen: false,
    });
+   const [coinFlipState, setCoinFlipState] = useState<WindowState>({
+      open: false,
+      minimized: false,
+      fullscreen: false,
+      version: 0,
+      lastFullscreen: false,
+   });
    const [aboutState, setAboutState] = useState<WindowState>({
       open: false,
       minimized: false,
@@ -103,13 +110,6 @@ export function DockProvider({ children }: { children: ReactNode }) {
       version: 0,
       lastFullscreen: false,
    });
-   const [greenvaleState, setGreenvaleState] = useState<WindowState>({
-      open: false,
-      minimized: false,
-      fullscreen: false,
-      version: 0,
-      lastFullscreen: false,
-   });
 
    const value = useMemo<DockContextValue>(
       () => ({
@@ -117,6 +117,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
          docsState,
          profileState,
          gameState,
+         coinFlipState,
          aboutState,
          settingsState,
          minimizeAllApps: () => {
@@ -143,19 +144,19 @@ export function DockProvider({ children }: { children: ReactNode }) {
             minimizeIfOpen(setDocsState);
             minimizeIfOpen(setProfileState);
             minimizeIfOpen(setGameState);
+            minimizeIfOpen(setCoinFlipState);
             minimizeIfOpen(setAboutState);
             minimizeIfOpen(setSettingsState);
          },
-         greenvaleState,
          openTerminal: () => {
             // On mobile, minimize other apps
             if (isMobile) {
                setDocsState((prev) => ({ ...prev, minimized: true }));
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
+               setCoinFlipState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
-               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
             }
             setTerminalState((prev) => ({
                ...prev,
@@ -188,9 +189,9 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setDocsState((d) => ({ ...d, minimized: true }));
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
+                  setCoinFlipState((c) => ({ ...c, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
                   setSettingsState((s) => ({ ...s, minimized: true }));
-                  setGreenvaleState((g) => ({ ...g, minimized: true }));
                }
                return {
                   ...prev,
@@ -206,9 +207,9 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setTerminalState((prev) => ({ ...prev, minimized: true }));
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
+               setCoinFlipState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
-               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
             }
             setDocsState((prev) => ({
                ...prev,
@@ -240,9 +241,9 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setTerminalState((t) => ({ ...t, minimized: true }));
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
+                  setCoinFlipState((c) => ({ ...c, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
                   setSettingsState((s) => ({ ...s, minimized: true }));
-                  setGreenvaleState((g) => ({ ...g, minimized: true }));
                }
                return {
                   ...prev,
@@ -258,9 +259,9 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setTerminalState((prev) => ({ ...prev, minimized: true }));
                setDocsState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
+               setCoinFlipState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
-               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
             }
             setProfileState((prev) => ({
                ...prev,
@@ -292,9 +293,9 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setTerminalState((t) => ({ ...t, minimized: true }));
                   setDocsState((d) => ({ ...d, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
+                  setCoinFlipState((c) => ({ ...c, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
                   setSettingsState((s) => ({ ...s, minimized: true }));
-                  setGreenvaleState((g) => ({ ...g, minimized: true }));
                }
                return {
                   ...prev,
@@ -311,7 +312,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
-               setGreenvaleState((prev) => ({ ...prev, minimized: true }));
+               setCoinFlipState((prev) => ({ ...prev, minimized: true }));
             }
             setGameState((prev) => ({
                ...prev,
@@ -344,7 +345,59 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setDocsState((d) => ({ ...d, minimized: true }));
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
-                  setSettingsState ((s) => ({ ...s, minimized: true }));
+                  setSettingsState((s) => ({ ...s, minimized: true }));
+                  setCoinFlipState((c) => ({ ...c, minimized: true }));
+               }
+               return {
+                  ...prev,
+                  open: true,
+                  minimized: false,
+                  fullscreen: nextFullscreen,
+                  lastFullscreen: nextFullscreen,
+               };
+            }),
+         openCoinFlip: () => {
+            if (isMobile) {
+               setTerminalState((prev) => ({ ...prev, minimized: true }));
+               setDocsState((prev) => ({ ...prev, minimized: true }));
+               setProfileState((prev) => ({ ...prev, minimized: true }));
+               setGameState((prev) => ({ ...prev, minimized: true }));
+               setAboutState((prev) => ({ ...prev, minimized: true }));
+               setSettingsState((prev) => ({ ...prev, minimized: true }));
+            }
+            setCoinFlipState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: false,
+               fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
+            }));
+         },
+         closeCoinFlip: () =>
+            setCoinFlipState((prev) => ({
+               open: false,
+               minimized: false,
+               fullscreen: false,
+               version: prev.version + 1,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+            })),
+         minimizeCoinFlip: () =>
+            setCoinFlipState((prev) => ({
+               ...prev,
+               open: true,
+               minimized: true,
+               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
+               fullscreen: false,
+            })),
+         toggleFullscreenCoinFlip: () =>
+            setCoinFlipState((prev) => {
+               const nextFullscreen = !prev.fullscreen;
+               if (nextFullscreen) {
+                  setTerminalState((t) => ({ ...t, minimized: true }));
+                  setDocsState((d) => ({ ...d, minimized: true }));
+                  setProfileState((p) => ({ ...p, minimized: true }));
+                  setGameState((g) => ({ ...g, minimized: true }));
+                  setAboutState((a) => ({ ...a, minimized: true }));
+                  setSettingsState((s) => ({ ...s, minimized: true }));
                }
                return {
                   ...prev,
@@ -361,6 +414,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
                setSettingsState((prev) => ({ ...prev, minimized: true }));
+               setCoinFlipState((prev) => ({ ...prev, minimized: true }));
             }
             setAboutState((prev) => ({
                ...prev,
@@ -394,6 +448,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
                   setSettingsState((s) => ({ ...s, minimized: true }));
+                  setCoinFlipState((c) => ({ ...c, minimized: true }));
                }
                return {
                   ...prev,
@@ -410,6 +465,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                setProfileState((prev) => ({ ...prev, minimized: true }));
                setGameState((prev) => ({ ...prev, minimized: true }));
                setAboutState((prev) => ({ ...prev, minimized: true }));
+               setCoinFlipState((prev) => ({ ...prev, minimized: true }));
             }
             setSettingsState((prev) => ({
                ...prev,
@@ -443,54 +499,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                   setProfileState((p) => ({ ...p, minimized: true }));
                   setGameState((g) => ({ ...g, minimized: true }));
                   setAboutState((a) => ({ ...a, minimized: true }));
-                  setGreenvaleState((g) => ({ ...g, minimized: true }));
-               }
-               return {
-                  ...prev,
-                  open: true,
-                  minimized: false,
-                  fullscreen: nextFullscreen,
-                  lastFullscreen: nextFullscreen,
-               };
-            }),
-         openGreenvale: () => {
-            if (isMobile) {
-               setTerminalState((prev) => ({ ...prev, minimized: true }));
-               setDocsState((prev) => ({ ...prev, minimized: true }));
-               setProfileState((prev) => ({ ...prev, minimized: true }));
-               setGameState((prev) => ({ ...prev, minimized: true }));
-            }
-            setGreenvaleState((prev) => ({
-               ...prev,
-               open: true,
-               minimized: false,
-               fullscreen: prev.lastFullscreen ? true : prev.fullscreen,
-            }));
-         },
-         closeGreenvale: () =>
-            setGreenvaleState((prev) => ({
-               open: false,
-               minimized: false,
-               fullscreen: false,
-               version: prev.version + 1,
-               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
-            })),
-         minimizeGreenvale: () =>
-            setGreenvaleState((prev) => ({
-               ...prev,
-               open: true,
-               minimized: true,
-               lastFullscreen: prev.fullscreen || prev.lastFullscreen,
-               fullscreen: false,
-            })),
-         toggleFullscreenGreenvale: () =>
-            setGreenvaleState((prev) => {
-               const nextFullscreen = !prev.fullscreen;
-               if (nextFullscreen) {
-                  setTerminalState((t) => ({ ...t, minimized: true }));
-                  setDocsState((d) => ({ ...d, minimized: true }));
-                  setProfileState((p) => ({ ...p, minimized: true }));
-                  setGameState((g) => ({ ...g, minimized: true }));
+                  setCoinFlipState((c) => ({ ...c, minimized: true }));
                }
                return {
                   ...prev,
@@ -501,7 +510,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
                };
             }),
       }),
-      [terminalState, docsState, profileState, gameState, aboutState, settingsState, greenvaleState, isMobile],
+      [terminalState, docsState, profileState, gameState, coinFlipState, aboutState, settingsState, isMobile],
    );
 
    return <DockContext.Provider value={value}>{children}</DockContext.Provider>;

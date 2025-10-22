@@ -9,23 +9,22 @@ import ProfileAppWindow from "@/components/apps/Profile";
 import BombGameWindow from "@/components/apps/BombGame";
 import AboutWindow from "@/components/apps/About";
 import SettingsWindow from "@/components/apps/Settings";
-import GreenvaleGameWindow from "@/components/apps/GreenvaleGame";
+import CoinFlipGameWindow from "@/components/apps/CoinFlipGame";
 import DesktopShortcut from "@/components/desktop/DesktopShortcut";
 import { FaBomb } from "react-icons/fa6";
+import { TbCoin } from "react-icons/tb";
 import { useDock } from "@/context/DockContext";
-import GreenvaleIcon from "@/components/icons/GreenvaleIcon";
 
 export default function HomePageClient() {
   const privyInstance = usePrivy();
-  const { openGame, openGreenvale } = useDock();
+  const { openGame, openCoinFlip } = useDock();
 
   const handleBombShortcut = useCallback(() => {
     openGame();
   }, [openGame]);
-  const handleGreenvaleShortcut = useCallback(() => {
-    openGreenvale();
-  }, [openGreenvale]);
-
+  const handleCoinFlipShortcut = useCallback(() => {
+    openCoinFlip();
+  }, [openCoinFlip]);
   return (
     <main className="relative flex h-screen w-full items-center justify-center bg-black">
       <div className="pointer-events-none absolute left-6 top-6 z-10 flex flex-col gap-3">
@@ -35,9 +34,9 @@ export default function HomePageClient() {
           onActivate={handleBombShortcut}
         />
         <DesktopShortcut
-          icon={<GreenvaleIcon />}
-          label="Greenvale"
-          onActivate={handleGreenvaleShortcut}
+          icon={<TbCoin className="h-6 w-6" />}
+          label="CoinFlip"
+          onActivate={handleCoinFlipShortcut}
         />
       </div>
 
@@ -48,12 +47,11 @@ export default function HomePageClient() {
       <ProfileAppWindow />
       {/* Bomb game window (opens via desktop shortcut) */}
       <BombGameWindow />
+      <CoinFlipGameWindow />
       {/* About app window (opens via Dock) */}
       <AboutWindow />
       {/* Settings app window (opens via Dock) */}
       <SettingsWindow />
-      {/* Greenvale farming window */}
-      <GreenvaleGameWindow />
     </main>
   );
 }

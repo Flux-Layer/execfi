@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import seedrandom from "seedrandom";
-import { startOfWeek, addDays } from "date-fns";
+import { addDays } from "date-fns";
+import { createSeededRng } from "@/lib/utils/prng";
 
 const prisma = new PrismaClient();
 
@@ -74,7 +74,7 @@ export async function generateWeeklyQuests(
 
   // Generate seed
   const seed = generateWeekSeed(weekStartDate);
-  const rng = seedrandom(seed);
+  const rng = createSeededRng(seed);
 
   // Calculate week number to determine slot allocation
   const weekNumber = Math.floor(

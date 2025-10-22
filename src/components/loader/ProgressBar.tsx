@@ -12,7 +12,7 @@ export const ProgressBar = ({ progress, error }: ProgressBarProps) => {
       <div className="relative h-2 bg-neutral-800/50 rounded-full overflow-hidden backdrop-blur-sm">
         {/* Progress fill */}
         <div
-          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-300 ${
+          className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out ${
             error
               ? 'bg-gradient-to-r from-red-500 to-red-600'
               : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-magenta-500'

@@ -40,6 +40,28 @@ model GameSession {
   @@map("game_sessions")
 }
 
+model CoinFlipHistory {
+  id                 Int      @id @default(autoincrement())
+  userAddress        String   @db.VarChar(42)
+  sessionId          String?  @db.VarChar(32)
+  guess              String   @db.VarChar(10)
+  outcome            String   @db.VarChar(10)
+  wagerWei           String   @db.VarChar(100)
+  selectedMultiplier Int
+  payoutMultiplier   Int
+  xp                 Int
+  payoutTxHash       String?  @db.VarChar(66)
+  serverSeed         String?  @db.VarChar(128)
+  clientSeed         String?  @db.VarChar(64)
+  serverSeedHash     String?  @db.VarChar(100)
+  randomValue        BigInt?
+  revealedAt         DateTime?
+  createdAt          DateTime @default(now())
+
+  @@index([userAddress, createdAt])
+  @@map("coinflip_history")
+}
+
 // Users - Phase 2
 model User {
   address             String             @id @db.VarChar(42)

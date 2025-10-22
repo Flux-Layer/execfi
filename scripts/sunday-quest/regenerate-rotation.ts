@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import seedrandom from "seedrandom";
+import { createSeededRng } from "../../src/lib/utils/prng";
 
 const prisma = new PrismaClient();
 
@@ -49,7 +49,7 @@ async function regenerateRotation() {
   console.log(`   EPIC: ${allActiveQuests.filter((q) => q.difficulty === "EPIC").length}`);
 
   const seed = generateWeekSeed(weekStart);
-  const rng = seedrandom(seed);
+  const rng = createSeededRng(seed);
 
   const easyQuests = allActiveQuests.filter((q) => q.difficulty === "EASY");
   const mediumQuests = allActiveQuests.filter((q) => q.difficulty === "MEDIUM");
