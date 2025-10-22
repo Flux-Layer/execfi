@@ -35,6 +35,12 @@ export const DEGENSHOOT_ADDRESS =
 export const WAGER_VAULT_ADDRESS =
   normalizeAddress(process.env.NEXT_PUBLIC_WAGER_VAULT_ADDRESS);
 
+export const COINFLIP_ADDRESS =
+  normalizeAddress(process.env.NEXT_PUBLIC_COINFLIP_ADDRESS);
+
+export const COINFLIP_VAULT_ADDRESS =
+  normalizeAddress(process.env.NEXT_PUBLIC_COINFLIP_VAULT_ADDRESS);
+
 export const XP_REGISTRY_ADDRESS =
   normalizeAddress(process.env.NEXT_PUBLIC_XP_REGISTRY_PROXY);
 
@@ -43,11 +49,25 @@ export const DEGENSHOOT_CHAIN_ID = parseChainId(
   84532,
 );
 
+export const COINFLIP_CHAIN_ID = parseChainId(
+  process.env.NEXT_PUBLIC_COINFLIP_CHAIN_ID,
+  84532,
+);
+
 export const DEGENSHOOT_GAME_ID =
   Number(process.env.NEXT_PUBLIC_DEGENSHOOT_GAME_ID ?? process.env.GAME_ID ?? 1);
 
+export const COINFLIP_GAME_ID = Number(
+  process.env.NEXT_PUBLIC_COINFLIP_GAME_ID ??
+    process.env.COINFLIP_GAME_ID ??
+    4,
+);
+
 export const ONCHAIN_FEATURES_ENABLED =
   Boolean(DEGENSHOOT_ADDRESS && WAGER_VAULT_ADDRESS && XP_REGISTRY_ADDRESS);
+
+export const COINFLIP_FEATURES_ENABLED =
+  Boolean(COINFLIP_ADDRESS && COINFLIP_VAULT_ADDRESS && XP_REGISTRY_ADDRESS);
 
 export const PARAMETER_REGISTRY_ADDRESS = normalizeAddress(
   process.env.NEXT_PUBLIC_PARAMETER_REGISTRY_ADDRESS,

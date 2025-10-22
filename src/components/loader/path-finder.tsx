@@ -103,8 +103,19 @@ export const PathFinderLoader = ({
 
 // Particle system for floating digital elements
 const ParticleField = () => {
-  const particles = useMemo(() => {
-    return Array.from({ length: 30 }, (_, i) => ({
+  const [particles, setParticles] = useState<
+    Array<{
+      id: number;
+      x: number;
+      y: number;
+      size: number;
+      duration: number;
+      delay: number;
+    }>
+  >([]);
+
+  useEffect(() => {
+    const generated = Array.from({ length: 30 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
@@ -112,7 +123,12 @@ const ParticleField = () => {
       duration: Math.random() * 10 + 10,
       delay: Math.random() * 5,
     }));
+    setParticles(generated);
   }, []);
+
+  if (particles.length === 0) {
+    return null;
+  }
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">

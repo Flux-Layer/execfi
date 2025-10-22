@@ -38,14 +38,12 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
 
   // Create store once and persist it
   const storeRef = useRef<Store | null>(null);
+  const hasReportedInitialization = useRef(false);
   const [, forceUpdate] = useState({});
 
   if (!storeRef.current) {
-    updateStepStatus('terminal-store', 'loading', 0);
     try {
-      updateStepProgress('terminal-store', 20);
       storeRef.current = createPersistedStore(FLOWS);
-      updateStepProgress('terminal-store', 50);
     } catch (error) {
       console.error("Failed to create store, clearing storage and retrying:", error);
       // Clear potentially corrupted storage
@@ -56,11 +54,29 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
       } catch {}
       // Create fresh store
       storeRef.current = createStore(FLOWS, {});
-      updateStepProgress('terminal-store', 50);
     }
   }
 
   const store = storeRef.current;
+
+  useEffect(() => {
+    if (hasReportedInitialization.current) {
+      return;
+    }
+
+    hasReportedInitialization.current = true;
+    updateStepStatus("terminal-store", "loading", 0);
+
+    if (storeRef.current) {
+      updateStepProgress("terminal-store", 20);
+      updateStepProgress("terminal-store", 50);
+      updateStepProgress("terminal-store", 90);
+      updateStepProgress("terminal-store", 100);
+      completeStep("terminal-store");
+    } else {
+      failStep("terminal-store", new Error("Failed to initialize terminal store"));
+    }
+  }, [completeStep, failStep, updateStepProgress, updateStepStatus]);
 
   // Subscribe to store changes to trigger provider re-renders
   useEffect(() => {

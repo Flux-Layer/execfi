@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {WagerVault} from "../vault/WagerVault.sol";
-import {IDegenshoot} from "../interfaces/IDegenshoot.sol";
+import {WagerVault} from "../src/degenshoot/WagerVault.sol";
+import {IDegenshoot} from "../src/degenshoot/interfaces/IDegenshoot.sol";
 
 contract MockDegenshoot is IDegenshoot {
     uint256 public immutable GAME_ID_CONST;
@@ -51,6 +51,7 @@ contract WagerVaultTest is Test {
         vault = new WagerVault(admin, address(degenshoot), treasury, FEE_BPS);
 
         vm.deal(bettor, 10 ether);
+        vm.deal(admin, 0);
         vm.deal(treasury, 0);
     }
 
@@ -174,6 +175,27 @@ contract WagerVaultTest is Test {
         vm.prank(admin);
         vm.expectRevert(WagerVault.InvalidFee.selector);
         vault.setHouseFeeBps(10_001);
+    }
+
+    function testEmergencyWithdrawByAdmin() public {
+        vm.deal(address(this), 1 ether);
+        (bool ok, ) = address(vault).call{value: 1 ether}("");
+        require(ok);
+
+        vm.prank(admin);
+        vault.emergencyWithdraw(admin);
+
+        assertEq(admin.balance, 1 ether);
+    }
+
+    function testEmergencyWithdrawRestricted() public {
+        vm.deal(address(this), 1 ether);
+        (bool ok, ) = address(vault).call{value: 1 ether}("");
+        require(ok);
+
+        vm.prank(bettor);
+        vm.expectRevert();
+        vault.emergencyWithdraw(bettor);
     }
 
     function testFuzzSettleFeeCalculation(uint16 feeBps, uint256 multiplierX100) public {

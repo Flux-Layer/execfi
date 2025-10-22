@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Degenshoot} from "../degenshoot/Degenshoot.sol";
-import {IXPRegistry} from "../interfaces/IXPRegistry.sol";
-import {IWagerVault} from "../interfaces/IWagerVault.sol";
+import {Degenshoot} from "../src/degenshoot/Degenshoot.sol";
+import {IXPRegistry} from "../src/shared/IXPRegistry.sol";
+import {IWagerVault} from "../src/degenshoot/interfaces/IWagerVault.sol";
 
 contract MockXPRegistry is IXPRegistry {
     struct CallData {

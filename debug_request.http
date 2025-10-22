@@ -1,0 +1,4 @@
+POST http://localhost:3001/api/coinflip/reveal
+Content-Type: application/json
+
+{"sessionId":"123"}

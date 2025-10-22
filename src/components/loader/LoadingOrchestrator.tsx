@@ -6,7 +6,7 @@ import { PathFinderLoader } from './path-finder';
 
 const MIN_DISPLAY_TIME = 800; // Minimum time to show loader (prevents flash)
 const MAX_LOAD_TIME = 10000; // Maximum time before forcing show app
-const FADE_DURATION = 700; // Fade out animation duration
+const FADE_DURATION = 800; // Fade out animation duration (macOS-style)
 
 interface LoadingOrchestratorProps {
   children: ReactNode;
@@ -85,9 +85,7 @@ export const LoadingOrchestrator = ({ children }: LoadingOrchestratorProps) => {
       {/* Loader overlay - fades out when complete */}
       {showLoader && (
         <div
-          className={`fixed inset-0 z-50 bg-neutral-950 transition-all duration-700 ease-out ${
-            isFadingOut ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-          }`}
+          className={`fixed inset-0 z-50 macos-loader ${isFadingOut ? 'macos-loader-exit' : ''}`}
         >
           <PathFinderLoader
             variant="fullscreen"
@@ -104,9 +102,7 @@ export const LoadingOrchestrator = ({ children }: LoadingOrchestratorProps) => {
 
       {/* App content - always rendered, cross-fades in as loader fades out */}
       <div
-        className={`transition-opacity duration-700 ease-out ${
-          showLoader && !isFadingOut ? 'opacity-0' : 'opacity-100'
-        }`}
+        className={`macos-content ${(!showLoader || isFadingOut) ? 'macos-content-ready' : ''}`}
       >
         {children}
       </div>

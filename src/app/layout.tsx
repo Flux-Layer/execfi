@@ -91,7 +91,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* DNS prefetch for other resources */}
         <link rel="dns-prefetch" href="https://api.execfi.com" />
       </head>
-      <body>
+      <body className="bg-neutral-950 text-neutral-100 antialiased">
         <ClientShell>{children}</ClientShell>
       </body>
     </html>
