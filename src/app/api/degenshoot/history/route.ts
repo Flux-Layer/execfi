@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // Build where clause
     const where: any = {
       userAddress,
-      isActive: true,
+      // Removed isActive filter to show full lifetime history
     };
 
     if (status) {

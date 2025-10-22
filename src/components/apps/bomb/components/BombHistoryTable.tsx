@@ -93,8 +93,11 @@ export function BombHistoryTable({
                   {item.canVerify && (
                     <button
                       onClick={() => onVerifyClick(item.id)}
-                      className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                      disabled={item.isVerified}
+                      className={`rounded px-3 py-1 text-xs font-medium text-white ${
+                        item.isVerified
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
                     >
                       {item.isVerified ? '✓ Verified' : 'Verify'}
                     </button>

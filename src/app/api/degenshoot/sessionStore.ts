@@ -153,13 +153,16 @@ export async function getSessionRecord(
 ): Promise<DegenshootSessionRecord | undefined> {
   const db = await prisma.gameSession.findUnique({ where: { id } });
   if (!db) return undefined;
-  
-  // Check if expired
+
+  // Check if expired - only delete if it's an unfinished session
   if (new Date() > db.expiresAt) {
-    await prisma.gameSession.delete({ where: { id } });
-    return undefined;
+    // Preserve completed/finalized games even if expired
+    if (db.status === 'pending' || db.status === 'active') {
+      await prisma.gameSession.delete({ where: { id } });
+      return undefined;
+    }
   }
-  
+
   return dbToRecord(db);
 }
 
@@ -206,9 +209,15 @@ export async function pruneExpiredSessions(ttlMs = 15 * 60 * 1000): Promise<void
   const cutoffDate = new Date(Date.now() - ttlMs);
   await prisma.gameSession.deleteMany({
     where: {
-      OR: [
-        { expiresAt: { lt: new Date() } },
-        { createdAt: { lt: BigInt(Date.now() - ttlMs) } },
+      AND: [
+        {
+          OR: [
+            { expiresAt: { lt: new Date() } },
+            { createdAt: { lt: BigInt(Date.now() - ttlMs) } },
+          ],
+        },
+        // Only delete unfinished/abandoned games, preserve completed history
+        { status: { in: ['pending', 'active'] } },
       ],
     },
   });

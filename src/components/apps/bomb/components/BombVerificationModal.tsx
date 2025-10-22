@@ -1,8 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { verifyGameFairness, exportVerificationData } from '@/lib/games/bomb/verification';
-import type { VerificationResult, RowVerificationResult } from '@/lib/games/bomb/verification';
+import { verifyRow, sha256Hex } from '@/lib/games/bomb/fairness';
+import { exportVerificationData } from '@/lib/games/bomb/verification';
+
+interface VerificationResult {
+  isValid: boolean;
+  hashMatches: boolean;
+  rowResults: RowVerificationResult[];
+  error?: string;
+}
+
+interface RowVerificationResult {
+  rowIndex: number;
+  nonce: number;
+  expectedBombPosition: number;
+  actualBombPosition: number;
+  matches: boolean;
+  fairHash: string;
+}
 
 interface BombVerificationModalProps {
   sessionId: string;
@@ -44,20 +60,46 @@ export function BombVerificationModal({
       const data = await response.json();
       setSessionData(data);
 
-      // Perform verification
-      const rows = (data.rows as any[]).map(row => ({
-        rowIndex: row.rowIndex,
-        bombPosition: row.bombPosition,
-        tileCount: data.lockedTileCounts[row.rowIndex] || 5,
-      }));
+      // Perform verification using the correct algorithm from fairness.ts
+      // Step 1: Verify server seed hash
+      const computedServerSeedHash = await sha256Hex(data.serverSeed);
+      const hashMatches = computedServerSeedHash === data.serverSeedHash.toLowerCase();
 
-      const result = await verifyGameFairness(
-        data.serverSeed,
-        data.serverSeedHash,
-        data.clientSeed,
-        data.nonceBase,
-        rows
-      );
+      // Step 2: Verify each row using the same Fisher-Yates algorithm as game generation
+      const rowResults: RowVerificationResult[] = [];
+
+      for (const row of data.rows as any[]) {
+        const nonce = data.nonceBase + row.rowIndex;
+
+        // Use the correct verifyRow function that matches game generation
+        const verifyResult = await verifyRow({
+          serverSeed: data.serverSeed,
+          serverSeedHash: data.serverSeedHash,
+          clientSeed: data.clientSeed,
+          nonce,
+          tileCount: row.tileCount,
+          expectedBombIndex: row.bombIndex,
+          bombsPerRow: 1,
+        });
+
+        rowResults.push({
+          rowIndex: row.rowIndex,
+          nonce,
+          expectedBombPosition: verifyResult.recomputedBombIndex,
+          actualBombPosition: row.bombIndex,
+          matches: verifyResult.valid,
+          fairHash: verifyResult.recomputedHash,
+        });
+      }
+
+      // Overall validation
+      const isValid = hashMatches && rowResults.every(r => r.matches);
+
+      const result: VerificationResult = {
+        isValid,
+        hashMatches,
+        rowResults,
+      };
 
       setVerificationResult(result);
 
@@ -78,7 +120,8 @@ export function BombVerificationModal({
           }),
         });
         window.dispatchEvent(new CustomEvent('degenshoot-history-verified'));
-        onVerified();
+        // Don't auto-close modal - let user close it manually
+        // onVerified();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -256,7 +299,7 @@ function VerificationContent({
         </h3>
         <div className="space-y-2">
           {result.rowResults.map(row => (
-            <RowVerificationCard key={row.rowIndex} row={row} />
+            <RowVerificationCard key={row.rowIndex} row={row} rowData={sessionData.rows[row.rowIndex]} />
           ))}
         </div>
       </section>
@@ -291,7 +334,11 @@ function SeedDisplay({ label, value }: { label: string; value: string }) {
 }
 
 // Row Verification Card
-function RowVerificationCard({ row }: { row: RowVerificationResult }) {
+function RowVerificationCard({ row, rowData }: { row: RowVerificationResult; rowData: any }) {
+  const tileCount = rowData?.tileCount || 0;
+  const bombPosition = row.expectedBombPosition;
+  const selectedColumn = rowData?.selectedColumn;
+
   return (
     <div
       className={`rounded-lg border p-3 ${
@@ -319,6 +366,44 @@ function RowVerificationCard({ row }: { row: RowVerificationResult }) {
           )}
         </div>
       </div>
+
+      {/* Visual Tile Representation */}
+      <div className="mt-3 rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {Array.from({ length: tileCount }).map((_, idx) => {
+            const isBomb = idx === bombPosition;
+            const isSelected = idx === selectedColumn;
+
+            return (
+              <div
+                key={idx}
+                className={`
+                  relative flex h-12 w-12 items-center justify-center rounded-lg border transition
+                  ${isBomb
+                    ? 'border-red-500/80 bg-red-900/30 ring-2 ring-red-500/50'
+                    : 'border-gray-600 bg-gray-700/50'
+                  }
+                  ${isSelected && !isBomb ? 'border-green-500/80 bg-green-900/30 ring-2 ring-green-500/50' : ''}
+                  ${isSelected && isBomb ? 'border-red-500 bg-red-900/50 ring-2 ring-red-500' : ''}
+                `}
+              >
+                {isBomb && (
+                  <span className="text-2xl">💣</span>
+                )}
+                {isSelected && !isBomb && (
+                  <div className="h-2 w-2 rounded-full bg-green-400"></div>
+                )}
+                {/* Tile number label */}
+                <span className="absolute -bottom-4 text-[10px] text-gray-500">{idx}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-5 text-center text-xs text-gray-400">
+          {tileCount} tiles · {selectedColumn !== null && selectedColumn !== undefined ? `Selected: ${selectedColumn}` : 'No selection'}
+        </div>
+      </div>
+
       <details className="mt-2">
         <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-400">
           Show hash details

@@ -68,11 +68,34 @@ function BombGameContent({
   const activeAddress = (selectedWallet?.address ??
     smartAccountAddress) as `0x${string}` | undefined;
 
+  // Fetch balance first so it can be used in game state
+  const {
+    data: balanceData,
+    isLoading: isBalanceLoading,
+  } = useBalance({
+    address: activeAddress,
+    chainId: DEGENSHOOT_CHAIN_ID,
+    query: {
+      enabled: Boolean(activeAddress),
+      refetchInterval: 15_000,
+    },
+  });
+
+  const balanceNumeric = useMemo(() => {
+    if (!balanceData) return null;
+    try {
+      return Number(formatEther(balanceData.value));
+    } catch {
+      return null;
+    }
+  }, [balanceData]);
+
   const game = useBombGameState({
     fullscreen,
     isMobile,
     wallet: selectedWallet ?? null,
     activeAddress,
+    balanceNumeric,
   });
 
   // Tab navigation state
@@ -115,18 +138,6 @@ function BombGameContent({
     [game.status, game.fairnessState],
   );
 
-  const {
-    data: balanceData,
-    isLoading: isBalanceLoading,
-  } = useBalance({
-    address: activeAddress,
-    chainId: DEGENSHOOT_CHAIN_ID,
-    query: {
-      enabled: Boolean(activeAddress),
-      refetchInterval: 15_000,
-    },
-  });
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     // eslint-disable-next-line no-console
@@ -136,15 +147,6 @@ function BombGameContent({
       balanceData,
     });
   }, [activeAddress, balanceData, isBalanceLoading]);
-
-  const balanceNumeric = useMemo(() => {
-    if (!balanceData) return null;
-    try {
-      return Number(formatEther(balanceData.value));
-    } catch {
-      return null;
-    }
-  }, [balanceData]);
 
   const balanceDisplay = useMemo(() => {
     if (balanceNumeric === null || !Number.isFinite(balanceNumeric)) {
