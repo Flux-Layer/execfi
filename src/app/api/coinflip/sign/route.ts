@@ -131,6 +131,7 @@ export async function POST(request: Request) {
     });
 
     const account = getCoinFlipSignerAccount();
+    console.log({account})
 
     const finalDeadline =
       BigInt(deadline ?? Math.floor(Date.now() / 1000) + 600);
