@@ -48,7 +48,7 @@ const XP_TYPES = {
 const XP_DOMAIN = {
   name: "XPRegistry",
   version: "1",
-  chainId: BigInt(COINFLIP_CHAIN_ID),
+  chainId: COINFLIP_CHAIN_ID,
   verifyingContract: (XP_REGISTRY_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as `0x${string}`,
 };

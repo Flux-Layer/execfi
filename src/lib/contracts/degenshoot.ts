@@ -30,7 +30,7 @@ const DEFAULT_RPC_URL =
 export const DEGENSHOOT_DOMAIN = {
   name: "Degenshoot",
   version: "1",
-  chainId: BigInt(DEGENSHOOT_CHAIN_ID),
+  chainId: DEGENSHOOT_CHAIN_ID,
   verifyingContract: (DEGENSHOOT_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as Address,
 } as const;
