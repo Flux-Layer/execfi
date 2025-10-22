@@ -27,6 +27,11 @@ export type DegenshootSessionRecord = {
     completedRows: number;
   } | null;
   finalizedAt: number | null;
+
+  // Transaction tracking fields
+  wagerTxHash?: string;
+  resultTxHash?: string;
+  xpTxHash?: string;
 };
 
 export type StoredRow = RowFairnessMeta & {
@@ -56,6 +61,11 @@ function dbToRecord(db: GameSession): DegenshootSessionRecord {
     lockedTileCounts: db.lockedTileCounts as number[],
     roundSummary: db.roundSummary as DegenshootSessionRecord["roundSummary"],
     finalizedAt: db.finalizedAt ? Number(db.finalizedAt) : null,
+
+    // Transaction tracking fields
+    wagerTxHash: db.wagerTxHash || undefined,
+    resultTxHash: db.resultTxHash || undefined,
+    xpTxHash: db.xpTxHash || undefined,
   };
 }
 
@@ -63,7 +73,7 @@ function dbToRecord(db: GameSession): DegenshootSessionRecord {
 function recordToDb(record: DegenshootSessionRecord) {
   const expiresAt = new Date(record.createdAt);
   expiresAt.setHours(expiresAt.getHours() + SESSION_TTL_HOURS);
-  
+
   return {
     id: record.id,
     serverSeed: record.serverSeed,
@@ -83,6 +93,11 @@ function recordToDb(record: DegenshootSessionRecord) {
     finalizedAt: record.finalizedAt ? BigInt(record.finalizedAt) : null,
     expiresAt,
     isActive: true,
+
+    // Transaction tracking fields
+    wagerTxHash: record.wagerTxHash || null,
+    resultTxHash: record.resultTxHash || null,
+    xpTxHash: record.xpTxHash || null,
   };
 }
 
@@ -138,13 +153,16 @@ export async function getSessionRecord(
 ): Promise<DegenshootSessionRecord | undefined> {
   const db = await prisma.gameSession.findUnique({ where: { id } });
   if (!db) return undefined;
-  
-  // Check if expired
+
+  // Check if expired - only delete if it's an unfinished session
   if (new Date() > db.expiresAt) {
-    await prisma.gameSession.delete({ where: { id } });
-    return undefined;
+    // Preserve completed/finalized games even if expired
+    if (db.status === 'pending' || db.status === 'active') {
+      await prisma.gameSession.delete({ where: { id } });
+      return undefined;
+    }
   }
-  
+
   return dbToRecord(db);
 }
 
@@ -191,9 +209,15 @@ export async function pruneExpiredSessions(ttlMs = 15 * 60 * 1000): Promise<void
   const cutoffDate = new Date(Date.now() - ttlMs);
   await prisma.gameSession.deleteMany({
     where: {
-      OR: [
-        { expiresAt: { lt: new Date() } },
-        { createdAt: { lt: BigInt(Date.now() - ttlMs) } },
+      AND: [
+        {
+          OR: [
+            { expiresAt: { lt: new Date() } },
+            { createdAt: { lt: BigInt(Date.now() - ttlMs) } },
+          ],
+        },
+        // Only delete unfinished/abandoned games, preserve completed history
+        { status: { in: ['pending', 'active'] } },
       ],
     },
   });

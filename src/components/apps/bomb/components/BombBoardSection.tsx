@@ -1,6 +1,6 @@
 "use client";
 
-import type React from "react";
+import { type MutableRefObject, useEffect, useRef } from "react";
 import { BombRowCard } from "../BombRowCard";
 import type { GameStatus, RowLayout, RowMultiplierStat } from "../types";
 import type { SummaryVariant } from "../useBombGameState";
@@ -8,7 +8,7 @@ import { BombSummaryCard } from "./BombSummaryCard";
 
 type BombBoardSectionProps = {
   rowsForRender: Array<{ row: RowLayout; originalIndex: number }>;
-  rowRefs: React.MutableRefObject<Array<HTMLDivElement | null>>;
+  rowRefs: MutableRefObject<Array<HTMLDivElement | null>>;
   rowStats: RowMultiplierStat[];
   activeRowIndex: number;
   hasStarted: boolean;
@@ -35,8 +35,8 @@ export function BombBoardSection({
   summary,
 }: BombBoardSectionProps) {
   return (
-    <div className="flex-1 overflow-auto px-6 py-6">
-      <div className="flex flex-col items-center gap-5 pb-4">
+    <div className="flex-1 overflow-auto px-4 py-4 sm:px-6 sm:py-6">
+      <div className="flex flex-col items-center gap-4 pb-4 sm:gap-5">
         {rowsForRender.length === 0 ? (
           <div className="flex h-32 w-full max-w-3xl items-center justify-center text-xs text-slate-400">
             Initialising provably fair round...

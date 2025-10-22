@@ -74,6 +74,7 @@ export type UseBombGameStateOptions = {
   isMobile: boolean;
   wallet?: ConnectedWallet | null;
   activeAddress?: `0x${string}` | undefined;
+  balanceNumeric?: number | null;
 };
 
 export type UseBombGameStateReturn = {
@@ -160,6 +161,7 @@ export type UseBombGameStateReturn = {
   resultTxHash: string | null;
   withdrawTxHash: string | null;
   isOnchainBusy: boolean;
+  isWithdrawing: boolean;
   roundSummary: RoundSummary | null;
   canReveal: boolean;
   finalizedSessionId: string | null;
@@ -178,6 +180,7 @@ export function useBombGameState({
   isMobile,
   wallet,
   activeAddress,
+  balanceNumeric,
 }: UseBombGameStateOptions): UseBombGameStateReturn {
   const windowRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -821,9 +824,9 @@ export function useBombGameState({
   useEffect(() => {
     if (activeRowIndex < 0) return;
     const node = rowRefs.current[activeRowIndex];
-    if (node) {
-      node.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    if (!node) return;
+
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [activeRowIndex]);
 
   useEffect(() => {
@@ -850,7 +853,9 @@ export function useBombGameState({
   }, [effectiveFullscreen]);
 
   useEffect(() => {
-    if (effectiveFullscreen && containerRef.current) {
+    // Only scroll to bottom when game starts (hasStarted becomes true)
+    // After that, the activeRowIndex effect will handle scrolling to current row
+    if (effectiveFullscreen && containerRef.current && hasStarted && activeRowIndex === 0) {
       const scrollToBottom = () => {
         const scrollable = containerRef.current?.querySelector('[class*="overflow"]');
         if (scrollable instanceof HTMLElement) {
@@ -864,7 +869,7 @@ export function useBombGameState({
         setTimeout(scrollToBottom, 150);
       });
     }
-  }, [effectiveFullscreen, rows]);
+  }, [effectiveFullscreen, hasStarted, activeRowIndex]);
 
   const handleHeaderDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1615,6 +1620,12 @@ export function useBombGameState({
       return;
     }
 
+    // Check balance before attempting transaction
+    if (onchainReady && typeof balanceNumeric === "number" && balanceNumeric < parsed) {
+      setBetError("Insufficient balance. Please add more funds or reduce your bet amount.");
+      return;
+    }
+
     if (!onchainReady) {
       setBetError(null);
       setBetAmount(parsed);
@@ -1767,12 +1778,37 @@ export function useBombGameState({
       }
     } catch (error) {
       console.error("[Bomb Game] Failed to place bet:", error);
-      setBetError((error as Error).message ?? "Transaction failed");
+
+      // Extract user-friendly error message
+      let errorMessage = "Transaction failed";
+      const errorString = error instanceof Error ? error.message : String(error);
+      const errorStringLower = errorString.toLowerCase();
+
+      if (errorStringLower.includes("insufficient funds") ||
+          errorStringLower.includes("exceeds the balance")) {
+        errorMessage = "Insufficient balance. Please add more funds or reduce your bet amount.";
+      } else if (errorStringLower.includes("user rejected") ||
+                 errorStringLower.includes("user denied")) {
+        errorMessage = "Transaction cancelled by user.";
+      } else if (errorStringLower.includes("network") ||
+                 errorStringLower.includes("connection")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (errorStringLower.includes("gas")) {
+        errorMessage = "Gas estimation failed. Please try again.";
+      } else {
+        // For other errors, use a shortened version if the message is too long
+        errorMessage = errorString.length > 100
+          ? `${errorString.substring(0, 100)}...`
+          : errorString;
+      }
+
+      setBetError(errorMessage);
     } finally {
       setIsOnchainBusy(false);
     }
   }, [
     betInput,
+    balanceNumeric,
     onchainReady,
     wallet,
     activeAddress,
@@ -2128,6 +2164,7 @@ export function useBombGameState({
     resultTxHash,
     withdrawTxHash,
     isOnchainBusy,
+    isWithdrawing,
     roundSummary,
     canReveal,
     isRoundInProgress,

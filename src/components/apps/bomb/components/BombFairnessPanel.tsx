@@ -1,5 +1,6 @@
 "use client";
 
+import clsx from "clsx";
 import type {
   FairnessState,
   GameStatus,
@@ -25,6 +26,7 @@ type BombFairnessPanelProps = {
   isVerifying: boolean;
   verificationStatus: "idle" | "valid" | "invalid" | "error";
   verificationOutput: VerificationRowOutput[] | null;
+  className?: string;
 };
 
 export function BombFairnessPanel({
@@ -42,13 +44,19 @@ export function BombFairnessPanel({
   isVerifying,
   verificationStatus,
   verificationOutput,
+  className,
 }: BombFairnessPanelProps) {
   if (status === "idle" || !fairnessState) return null;
 
   const revealed = Boolean(fairnessState.revealed && fairnessState.serverSeed);
 
   return (
-    <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-200">
+    <div
+      className={clsx(
+        "mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-200",
+        className,
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm font-semibold text-emerald-300">Provably Fair Verification</div>
         <button
