@@ -27,6 +27,11 @@ export type DegenshootSessionRecord = {
     completedRows: number;
   } | null;
   finalizedAt: number | null;
+
+  // Transaction tracking fields
+  wagerTxHash?: string;
+  resultTxHash?: string;
+  xpTxHash?: string;
 };
 
 export type StoredRow = RowFairnessMeta & {
@@ -56,6 +61,11 @@ function dbToRecord(db: GameSession): DegenshootSessionRecord {
     lockedTileCounts: db.lockedTileCounts as number[],
     roundSummary: db.roundSummary as DegenshootSessionRecord["roundSummary"],
     finalizedAt: db.finalizedAt ? Number(db.finalizedAt) : null,
+
+    // Transaction tracking fields
+    wagerTxHash: db.wagerTxHash || undefined,
+    resultTxHash: db.resultTxHash || undefined,
+    xpTxHash: db.xpTxHash || undefined,
   };
 }
 
@@ -63,7 +73,7 @@ function dbToRecord(db: GameSession): DegenshootSessionRecord {
 function recordToDb(record: DegenshootSessionRecord) {
   const expiresAt = new Date(record.createdAt);
   expiresAt.setHours(expiresAt.getHours() + SESSION_TTL_HOURS);
-  
+
   return {
     id: record.id,
     serverSeed: record.serverSeed,
@@ -83,6 +93,11 @@ function recordToDb(record: DegenshootSessionRecord) {
     finalizedAt: record.finalizedAt ? BigInt(record.finalizedAt) : null,
     expiresAt,
     isActive: true,
+
+    // Transaction tracking fields
+    wagerTxHash: record.wagerTxHash || null,
+    resultTxHash: record.resultTxHash || null,
+    xpTxHash: record.xpTxHash || null,
   };
 }
 

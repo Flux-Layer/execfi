@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useBalance } from "wagmi";
 import { formatEther } from "viem";
 import { useDock } from "@/context/DockContext";
@@ -16,6 +16,10 @@ import { BombFairnessPanel } from "./bomb/components/BombFairnessPanel";
 import { GameOverBanner, GameOverModal } from "./bomb/components/BombGameOver";
 import { BombTileCustomizerModal } from "./bomb/components/BombTileCustomizerModal";
 import { BombWindowFrame } from "./bomb/components/BombWindowFrame";
+import { BombTabNavigation } from "./bomb/components/BombTabNavigation";
+import { BombHistoryTab } from "./bomb/components/BombHistoryTab";
+import { BombStatsTab } from "./bomb/components/BombStatsTab";
+import { BombVerificationModal } from "./bomb/components/BombVerificationModal";
 import { useBombGameState } from "./bomb/useBombGameState";
 import { DEGENSHOOT_CHAIN_ID } from "@/lib/contracts/addresses";
 
@@ -70,6 +74,11 @@ function BombGameContent({
     wallet: selectedWallet ?? null,
     activeAddress,
   });
+
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState<'game' | 'history' | 'stats'>('game');
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [verificationSessionId, setVerificationSessionId] = useState<string | null>(null);
 
   const {
     data: balanceData,
@@ -185,6 +194,14 @@ function BombGameContent({
 
       <HowItWorksModal open={game.showInfo} onClose={game.closeInfo} />
 
+      {/* Tab Navigation */}
+      <BombTabNavigation
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
+
+      {/* Game Tab */}
+      {activeTab === 'game' && (
       <div className="flex h-full flex-col justify-between overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)]">
         <BombBoardSection
           rowsForRender={game.rowsForRender}
@@ -272,6 +289,30 @@ function BombGameContent({
           />
         )}
       </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === 'history' && (
+        <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)]">
+          <BombHistoryTab
+            onVerifyClick={(sessionId) => {
+              setVerificationSessionId(sessionId);
+              setVerificationModalOpen(true);
+            }}
+            onDetailsClick={(sessionId) => {
+              // Optional: Could open a details modal in the future
+              console.log('Details for session:', sessionId);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Stats Tab */}
+      {activeTab === 'stats' && (
+        <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)]">
+          <BombStatsTab />
+        </div>
+      )}
 
       <BombTileCustomizerModal
         open={game.showCustomizer}
@@ -291,6 +332,19 @@ function BombGameContent({
           void game.playAgain();
         }}
         onClose={game.dismissGameOver}
+      />
+
+      {/* Verification Modal */}
+      <BombVerificationModal
+        sessionId={verificationSessionId || ''}
+        isOpen={verificationModalOpen}
+        onClose={() => {
+          setVerificationModalOpen(false);
+          setVerificationSessionId(null);
+        }}
+        onVerified={() => {
+          // Modal closed, history will auto-refresh
+        }}
       />
     </BombWindowFrame>
   );

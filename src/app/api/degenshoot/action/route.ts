@@ -333,7 +333,16 @@ export async function POST(request: Request) {
         );
       }
 
-      await updateSessionRecord(session.id, { wagerWei: normalizedWager });
+      // Store wagerTxHash if provided
+      const txHashInput =
+        typeof body?.txHash === "string" && body.txHash.startsWith("0x")
+          ? body.txHash
+          : undefined;
+
+      await updateSessionRecord(session.id, {
+        wagerWei: normalizedWager,
+        wagerTxHash: txHashInput,
+      });
 
       return NextResponse.json({
         success: true,

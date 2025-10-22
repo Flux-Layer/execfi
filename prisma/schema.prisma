@@ -32,11 +32,21 @@ model GameSession {
   isActive          Boolean  @default(true)
   updatedAt         DateTime @updatedAt
 
+  // Transaction tracking fields
+  wagerTxHash       String?  @db.VarChar(66)   // 0x + 64 hex chars
+  resultTxHash      String?  @db.VarChar(66)   // Result submission TX
+  xpTxHash          String?  @db.VarChar(66)   // XP claim TX
+  verifiedAt        DateTime?                   // Client verification timestamp
+  verifiedBy        String?  @db.VarChar(42)   // Address who verified
+
   @@index([userAddress])
   @@index([isActive])
   @@index([expiresAt])
   @@index([userAddress, isActive])
   @@index([status])
+  @@index([createdAt])                          // For sorting history by date
+  @@index([finalizedAt])                        // For filtering completed games
+  @@index([userAddress, createdAt(sort: Desc)]) // Optimized for history queries
   @@map("game_sessions")
 }
 
