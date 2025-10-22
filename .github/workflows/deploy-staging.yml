@@ -135,6 +135,7 @@ jobs:
             NEXT_PUBLIC_COINFLIP_VAULT_ADDRESS=${{ secrets.NEXT_PUBLIC_COINFLIP_VAULT_ADDRESS }}
             NEXT_PUBLIC_SHOW_BOMBS=${{ secrets.NEXT_PUBLIC_SHOW_BOMBS }}
             XP_REGISTRY_ADMIN_PRIVATE_KEY=${{ secrets.XP_REGISTRY_ADMIN_PRIVATE_KEY }}
+            RPC_URL_BASE_SEPOLIA=${{ secrets.RPC_URL_BASE_SEPOLIA }}
 
       - name: Deployment complete
         run: |
