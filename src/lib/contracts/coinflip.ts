@@ -30,7 +30,7 @@ const DEFAULT_RPC_URL =
 export const COINFLIP_DOMAIN = {
   name: "CoinFlipGame",
   version: "1",
-  chainId: BigInt(COINFLIP_CHAIN_ID),
+  chainId: COINFLIP_CHAIN_ID,
   verifyingContract: (COINFLIP_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as Address,
 } as const;

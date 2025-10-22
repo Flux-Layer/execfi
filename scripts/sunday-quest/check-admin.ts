@@ -1,6 +1,6 @@
 import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
-import XPRegistryArtifact from "../../contracts/xp-registry/out/XPRegistry.sol/XPRegistry.json";
+import XPRegistryArtifact from "../../contracts/out/XPRegistry.sol/XPRegistry.json";
 
 const XPRegistryAbi = XPRegistryArtifact.abi;
 const XP_REGISTRY_ADDRESS = "0xBf227816Afc11b5DD720d601ECC14Fc5901C380b" as `0x${string}`;
