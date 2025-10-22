@@ -713,6 +713,7 @@ function CoinFlipGameContent({
       const deadline = BigInt(payload?.deadline ?? Math.floor(Date.now() / 1000) + 600);
       const xpDeadline = BigInt(payload?.xpDeadline ?? Math.floor(Date.now() / 1000) + 900);
 
+      console.log({COINFLIP_ADDRESS},{COINFLIP_GAME_ID_BIGINT},{activeAddress},{wagerValue},{payloadsignature: payload.resultSignature},{xpDeadline},{payloadxpsignature: payload.xpSignature} )
       try {
         await coinFlipPublicClient.simulateContract({
           address: COINFLIP_ADDRESS,
