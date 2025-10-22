@@ -47,7 +47,13 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(session);
+    const safeSession = JSON.parse(
+      JSON.stringify(session, (_key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      )
+    );
+
+    return NextResponse.json(safeSession);
   } catch (error) {
     console.error('Error fetching session details:', error);
     return NextResponse.json(

@@ -821,9 +821,9 @@ export function useBombGameState({
   useEffect(() => {
     if (activeRowIndex < 0) return;
     const node = rowRefs.current[activeRowIndex];
-    if (node) {
-      node.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    if (!node) return;
+
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [activeRowIndex]);
 
   useEffect(() => {
@@ -2128,6 +2128,7 @@ export function useBombGameState({
     resultTxHash,
     withdrawTxHash,
     isOnchainBusy,
+    isWithdrawing,
     roundSummary,
     canReveal,
     isRoundInProgress,

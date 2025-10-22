@@ -77,21 +77,19 @@ function BetControlsComponent({
     balanceNumericValue < betAmountValue;
 
   return (
-    <div className="flex flex-col gap-4 border-t border-slate-900/60 bg-slate-950/80 px-6 py-5">
+    <div className="flex flex-col gap-4 border-t border-slate-900/60 bg-slate-950/80 px-4 py-4 sm:px-6 sm:py-5">
       {balanceLabel && (
-        <div className="flex items-center justify-between rounded-2xl border border-slate-800/60 bg-slate-900/70 px-4 py-3 text-xs font-medium text-slate-200 shadow-inner shadow-black/30">
-          <span className="uppercase tracking-wide text-slate-400">
-            {balanceLabel}
-          </span>
+        <div className="flex flex-col gap-1 rounded-2xl border border-slate-800/60 bg-slate-900/70 px-4 py-3 text-xs font-medium text-slate-200 shadow-inner shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
+          <span className="uppercase tracking-wide text-slate-400">{balanceLabel}</span>
           <span className="font-mono text-base text-slate-100">
             {balanceIsLoading ? "Fetching..." : balanceValue ?? "—"}
           </span>
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-900/60 bg-slate-950/80 px-6 py-5">
-        <div className="flex flex-col gap-3 text-[11px] text-slate-300">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="uppercase tracking-wide text-slate-400">Bet amount (ETH)</span>
+      <div className="flex flex-col gap-5 rounded-2xl border border-slate-900/60 bg-slate-950/60 p-4 text-[11px] text-slate-300 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <label className="flex w-full flex-col gap-2 text-[11px] uppercase tracking-wide text-slate-400 sm:max-w-xs">
+            <span>Bet amount (ETH)</span>
             <input
               type="text"
               inputMode="decimal"
@@ -99,13 +97,15 @@ function BetControlsComponent({
               value={betInput}
               onChange={(event) => onBetChange(event.target.value)}
               placeholder={MIN_BET_AMOUNT.toFixed(3)}
-              className="w-32 rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none transition focus:border-emerald-400"
+              className="w-full rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 font-mono text-sm text-slate-100 outline-none transition focus:border-emerald-400"
             />
+          </label>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
             <button
               type="button"
               onClick={onCashOut}
               disabled={cashOutDisabled || insufficientBalance || balanceIsLoading}
-              className={`rounded-full border px-5 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`w-full rounded-full border px-5 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${
                 cashOutDisabled
                   ? "border-slate-700 bg-slate-900/80 text-slate-400"
                   : "border-amber-500 bg-amber-500/20 text-amber-200 hover:border-amber-400 hover:text-amber-100"
@@ -117,26 +117,26 @@ function BetControlsComponent({
               type="button"
               onClick={onStartRound}
               disabled={startDisabled || insufficientBalance || balanceIsLoading}
-              className={`rounded-full border px-5 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`w-full rounded-full border px-5 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${
                 insufficientBalance
                   ? "border-red-500 bg-red-500/20 text-red-200"
                   : startDisabled
-                    ? "border-slate-700 bg-slate-900/80 text-slate-400"
-                    : "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:border-emerald-400 hover:text-emerald-100"
+                  ? "border-slate-700 bg-slate-900/80 text-slate-400"
+                  : "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:border-emerald-400 hover:text-emerald-100"
               }`}
             >
               {insufficientBalance
                 ? "Insufficient balance"
                 : balanceIsLoading
-                  ? "Checking balance..."
-                  : startLabel}
+                ? "Checking balance..."
+                : startLabel}
             </button>
             {showSwitchChain && (
               <button
                 type="button"
                 onClick={onSwitchChain}
                 disabled={switchChainDisabled}
-                className="rounded-full border border-sky-500 bg-sky-500/20 px-5 py-2 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:text-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-full border border-sky-500 bg-sky-500/20 px-5 py-2 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:text-sky-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {switchChainLabel ?? "Switch Chain"}
               </button>
@@ -146,37 +146,43 @@ function BetControlsComponent({
                 type="button"
                 onClick={onRestart}
                 disabled={restartDisabled}
-                className="rounded-full border border-amber-500 bg-amber-500/10 px-5 py-2 text-xs font-semibold text-amber-200 transition hover:border-amber-400 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-full border border-amber-500 bg-amber-500/10 px-5 py-2 text-xs font-semibold text-amber-200 transition hover:border-amber-400 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {restartLabel ?? "Restart Game"}
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {QUICK_BETS.map((bet) => (
-              <button
-                type="button"
-                key={`quick-bet-${bet}`}
-                onClick={() => onQuickBet(bet)}
-                className={`${CHIP_BUTTON_CLASS} ${parseFloat(betInput) === bet ? "border-emerald-400 text-emerald-200" : ""}`}
-              >
-                {bet.toFixed(3)}
-              </button>
-            ))}
-          </div>
-          {betError && <span className="text-[10px] text-red-400">{betError}</span>}
-          {insufficientBalance && (
-            <span className="text-[10px] text-red-400">
-              Insufficient balance. Adjust your bet or top up.
-            </span>
-          )}
-          {startHelperText && (
-            <span className="text-[10px] text-amber-300">{startHelperText}</span>
-          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={onShowInfo} className={CONTROL_BUTTON_CLASS}>
+        <div className="flex flex-wrap gap-2">
+          {QUICK_BETS.map((bet) => (
+            <button
+              type="button"
+              key={`quick-bet-${bet}`}
+              onClick={() => onQuickBet(bet)}
+              className={`${CHIP_BUTTON_CLASS} ${parseFloat(betInput) === bet ? "border-emerald-400 text-emerald-200" : ""}`}
+            >
+              {bet.toFixed(3)}
+            </button>
+          ))}
+        </div>
+
+        {(betError || insufficientBalance || startHelperText) && (
+          <div className="space-y-1 text-[10px]">
+            {betError && <p className="text-red-400">{betError}</p>}
+            {insufficientBalance && (
+              <p className="text-red-400">Insufficient balance. Adjust your bet or top up.</p>
+            )}
+            {startHelperText && <p className="text-amber-300">{startHelperText}</p>}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={onShowInfo}
+            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] sm:flex-none`}
+          >
             <FiInfo className="text-sm" />
             How It Works
           </button>
@@ -184,7 +190,7 @@ function BetControlsComponent({
             type="button"
             onClick={onShowCustomizer}
             disabled={disableCustomize}
-            className={`${CONTROL_BUTTON_CLASS} disabled:opacity-60`}
+            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] disabled:opacity-60 sm:flex-none`}
           >
             <FiSliders className="text-sm" />
             Customize Tiles
@@ -193,11 +199,15 @@ function BetControlsComponent({
             type="button"
             onClick={onReroll}
             disabled={disableReroll}
-            className={`${CONTROL_BUTTON_CLASS} disabled:opacity-60`}
+            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] disabled:opacity-60 sm:flex-none`}
           >
             Reroll Layout
           </button>
-          <button type="button" onClick={onToggleSound} className={CONTROL_BUTTON_CLASS}>
+          <button
+            type="button"
+            onClick={onToggleSound}
+            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] sm:flex-none`}
+          >
             {soundOn ? (
               <>
                 <FiVolume2 className="text-sm" />

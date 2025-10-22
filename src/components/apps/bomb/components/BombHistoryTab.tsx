@@ -1,16 +1,19 @@
 'use client';
 
+import { memo, useEffect } from 'react';
 import { useGameHistory } from '@/hooks/bomb/useGameHistory';
 import { BombHistoryTable } from './BombHistoryTable';
 import { BombHistoryCard } from './BombHistoryCard';
 import { BombPagination } from './BombPagination';
 
 interface BombHistoryTabProps {
+  activeAddress?: `0x${string}` | undefined;
   onVerifyClick: (sessionId: string) => void;
   onDetailsClick: (sessionId: string) => void;
 }
 
-export function BombHistoryTab({
+function BombHistoryTabComponent({
+  activeAddress,
   onVerifyClick,
   onDetailsClick,
 }: BombHistoryTabProps) {
@@ -20,7 +23,16 @@ export function BombHistoryTab({
     historyError,
     pagination,
     fetchHistory,
-  } = useGameHistory();
+    refetchHistory,
+  } = useGameHistory(activeAddress);
+
+  useEffect(() => {
+    const handleVerified = () => {
+      void refetchHistory();
+    };
+    window.addEventListener('degenshoot-history-verified', handleVerified);
+    return () => window.removeEventListener('degenshoot-history-verified', handleVerified);
+  }, [refetchHistory]);
 
   const handlePageChange = (newOffset: number) => {
     fetchHistory({ limit: pagination.limit, offset: newOffset });
@@ -102,3 +114,6 @@ export function BombHistoryTab({
     </div>
   );
 }
+
+export const BombHistoryTab = memo(BombHistoryTabComponent);
+BombHistoryTab.displayName = 'BombHistoryTab';

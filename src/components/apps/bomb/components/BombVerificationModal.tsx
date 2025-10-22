@@ -9,6 +9,7 @@ interface BombVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onVerified: () => void;
+  currentUserAddress?: `0x${string}` | null;
 }
 
 export function BombVerificationModal({
@@ -16,6 +17,7 @@ export function BombVerificationModal({
   isOpen,
   onClose,
   onVerified,
+  currentUserAddress,
 }: BombVerificationModalProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,15 +63,21 @@ export function BombVerificationModal({
 
       // Mark as verified if successful
       if (result.isValid) {
+        const addressToVerify = (currentUserAddress ?? data.userAddress ?? '').toLowerCase();
+        if (!addressToVerify) {
+          throw new Error('Wallet address is required to mark this session as verified.');
+        }
+
         await fetch('/api/degenshoot/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sessionId,
-            userAddress: data.userAddress,
+            userAddress: addressToVerify,
             verifiedHash: data.serverSeedHash,
           }),
         });
+        window.dispatchEvent(new CustomEvent('degenshoot-history-verified'));
         onVerified();
       }
     } catch (err) {

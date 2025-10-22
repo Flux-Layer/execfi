@@ -3,8 +3,12 @@
 import { useGameHistory } from '@/hooks/bomb/useGameHistory';
 import { BombStatCard } from './BombStatCard';
 
-export function BombStatsTab() {
-  const { stats, isLoadingStats, statsError, fetchStats } = useGameHistory();
+interface BombStatsTabProps {
+  activeAddress?: `0x${string}` | undefined;
+}
+
+export function BombStatsTab({ activeAddress }: BombStatsTabProps) {
+  const { stats, isLoadingStats, statsError, fetchStats } = useGameHistory(activeAddress);
 
   if (statsError) {
     return (

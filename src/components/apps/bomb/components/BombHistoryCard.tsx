@@ -11,7 +11,7 @@ interface BombHistoryCardProps {
 
 // Simple time ago formatter (same as in BombHistoryTable)
 function formatTimeAgo(date: Date): string {
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
 
   if (seconds < 60) return 'just now';
   const minutes = Math.floor(seconds / 60);
