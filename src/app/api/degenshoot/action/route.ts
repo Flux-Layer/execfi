@@ -57,6 +57,7 @@ export async function POST(request: Request) {
 
     const session = await getSessionRecord(sessionId);
     if (!session) {
+      console.log(`[API] Session not found for ID: ${sessionId}`);
       return NextResponse.json({ success: false, error: "SESSION_NOT_FOUND" }, { status: 404 });
     }
 

@@ -120,26 +120,21 @@ export function BombFairnessPanel({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            void revealFairness();
-          }}
-          disabled={revealed || isBuildingRound || isRevealing || !canReveal}
-          className="rounded border border-emerald-500/40 px-3 py-1.5 text-[11px] font-medium text-emerald-200 transition hover:border-emerald-400/70 hover:text-emerald-100 disabled:opacity-60"
-        >
-          {revealed ? "Fairness revealed" : isRevealing ? "Revealing..." : "Reveal Fairness"}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            void verifyRound();
-          }}
-          disabled={!revealed || isVerifying || isBuildingRound}
-          className="rounded border border-white/10 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-60"
-        >
-          {isVerifying ? "Verifying..." : "Verify Hashes"}
-        </button>
+        {revealed && (
+          <button
+            type="button"
+            onClick={() => {
+              void verifyRound();
+            }}
+            disabled={!revealed || isVerifying || isBuildingRound}
+            className="rounded border border-white/10 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-60"
+          >
+            {isVerifying ? "Verifying..." : "Verify Hashes"}
+          </button>
+        )}
+        {!revealed && isRevealing && (
+          <div className="text-[11px] text-emerald-200">Revealing fairness...</div>
+        )}
       </div>
 
       {roundSummary && (

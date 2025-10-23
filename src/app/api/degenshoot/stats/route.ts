@@ -16,10 +16,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all finalized sessions for this user
+    // Note: Removed isActive filter to match history and show full lifetime stats
     const sessions = await prisma.gameSession.findMany({
       where: {
         userAddress,
-        isActive: true,
         finalizedAt: { not: null },
       },
       select: {
@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
         wagerWei: true,
         currentMultiplier: true,
         completedRows: true,
+        rows: true,
       },
       orderBy: {
         createdAt: 'asc', // For streak calculation
@@ -53,7 +54,20 @@ export async function GET(request: NextRequest) {
       const wagerWei = session.wagerWei ? BigInt(session.wagerWei) : BigInt(0);
       totalWageredWei += wagerWei;
 
-      if (session.status === 'completed') {
+      // Check if game was lost by looking for a crashed row
+      const hasCrashedRow = Array.isArray(session.rows) &&
+        session.rows.some((row: any) => row.crashed === true);
+
+      // Determine if this is a win or loss using same logic as history route
+      const isWin =
+        session.status === 'completed' ||
+        session.status === 'cashout' ||
+        session.status === 'submitted' ||
+        session.status === 'revealed';
+
+      const isLoss = session.status === 'lost' || hasCrashedRow;
+
+      if (isWin && !isLoss) {
         gamesWon++;
         currentStreak++;
 
@@ -63,7 +77,7 @@ export async function GET(request: NextRequest) {
         if (payoutWei > highestPayoutWei) {
           highestPayoutWei = payoutWei;
         }
-      } else if (session.status === 'lost') {
+      } else if (isLoss) {
         gamesLost++;
         if (currentStreak > longestStreak) {
           longestStreak = currentStreak;

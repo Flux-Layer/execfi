@@ -64,15 +64,20 @@ CHAT SCHEMA (for casual conversation/questions):
 
 SUPPORTED:
 - Actions: "transfer" only (MVP)
-- Chains: "base" (8453), "ethereum" (1), "polygon" (137), "arbitrum" (42161), "optimism" (10), "avalanche" (43114), "baseSepolia" (84532), "sepolia" (11155111)
+- Chains:
+  * Mainnets: "base" (8453), "ethereum" (1), "polygon" (137), "arbitrum" (42161), "optimism" (10), "avalanche" (43114), "bsc" (56), "abstract" (2741), "lisk" (1135)
+  * Testnets: "base-sepolia" (84532), "sepolia" (11155111), "polygon-amoy" (80002), "arbitrum-sepolia" (421614), "optimism-sepolia" (11155420), "avalanche-fuji" (43113), "bsc-testnet" (97), "lisk-sepolia" (4202)
+  * Note: Use kebab-case for testnet names (e.g., "base-sepolia", not "baseSepolia")
 - Tokens:
   * Native tokens per chain:
-    - Base: {"type": "native", "symbol": "ETH", "decimals": 18}
-    - Ethereum: {"type": "native", "symbol": "ETH", "decimals": 18}
-    - Polygon: {"type": "native", "symbol": "MATIC", "decimals": 18}
-    - Arbitrum: {"type": "native", "symbol": "ETH", "decimals": 18}
-    - Optimism: {"type": "native", "symbol": "ETH", "decimals": 18}
-    - Avalanche: {"type": "native", "symbol": "AVAX", "decimals": 18}
+    - Base/Base Sepolia: {"type": "native", "symbol": "ETH", "decimals": 18}
+    - Ethereum/Sepolia: {"type": "native", "symbol": "ETH", "decimals": 18}
+    - Polygon/Polygon Amoy: {"type": "native", "symbol": "MATIC", "decimals": 18}
+    - Arbitrum/Arbitrum Sepolia: {"type": "native", "symbol": "ETH", "decimals": 18}
+    - Optimism/Optimism Sepolia: {"type": "native", "symbol": "ETH", "decimals": 18}
+    - Avalanche/Avalanche Fuji: {"type": "native", "symbol": "AVAX", "decimals": 18}
+    - BSC/BSC Testnet: {"type": "native", "symbol": "BNB", "decimals": 18}
+    - Lisk/Lisk Sepolia: {"type": "native", "symbol": "ETH", "decimals": 18}
   * ERC-20: {"type": "erc20", "symbol": "USDC"} or {"type": "erc20", "symbol": "WETH"}, etc.
 - Amount: decimal string or "MAX"
 - Session: useSession is true when user uses keywords like "auto", "automatically", "without approval", "session", "silent"
@@ -89,6 +94,9 @@ EXAMPLES:
 TRANSACTION EXAMPLES:
 Input: "send 0.01 ETH to 0x1234..."
 Output: {"ok":true,"intent":{"action":"transfer","chain":"base","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.01","recipient":"0x1234...","useSession":false}}
+
+Input: "send 0.00001 eth on base-sepolia to 0x1234..."
+Output: {"ok":true,"intent":{"action":"transfer","chain":"base-sepolia","token":{"type":"native","symbol":"ETH","decimals":18},"amount":"0.00001","recipient":"0x1234...","useSession":false}}
 
 Input: "send 0.001 AVAX on avalanche to 0x1234..."
 Output: {"ok":true,"intent":{"action":"transfer","chain":"avalanche","token":{"type":"native","symbol":"AVAX","decimals":18},"amount":"0.001","recipient":"0x1234...","useSession":false}}

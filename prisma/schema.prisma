@@ -35,6 +35,7 @@ model GameSession {
   // Transaction tracking fields
   wagerTxHash       String?  @db.VarChar(66)   // 0x + 64 hex chars
   resultTxHash      String?  @db.VarChar(66)   // Result submission TX
+  withdrawTxHash    String?  @db.VarChar(66)   // Vault withdrawal TX (actual payout)
   xpTxHash          String?  @db.VarChar(66)   // XP claim TX
   verifiedAt        DateTime?                   // Client verification timestamp
   verifiedBy        String?  @db.VarChar(42)   // Address who verified

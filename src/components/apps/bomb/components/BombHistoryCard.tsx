@@ -84,16 +84,16 @@ export function BombHistoryCard({
             </div>
           </div>
 
-          {item.payoutTxHash && (
+          {item.withdrawTxHash && item.result === 'win' && (
             <div>
-              <p className="text-xs text-gray-400">Transaction</p>
+              <p className="text-xs text-gray-400">Cashout Transaction</p>
               <a
-                href={`https://basescan.org/tx/${item.payoutTxHash}`}
+                href={`https://sepolia.basescan.org/tx/${item.withdrawTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-1 block truncate font-mono text-xs text-blue-400 hover:underline"
               >
-                {item.payoutTxHash}
+                {item.withdrawTxHash}
               </a>
             </div>
           )}

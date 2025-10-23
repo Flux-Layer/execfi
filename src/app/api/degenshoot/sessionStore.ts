@@ -37,6 +37,7 @@ export type DegenshootSessionRecord = {
   // Transaction tracking fields
   wagerTxHash?: string;
   resultTxHash?: string;
+  withdrawTxHash?: string;
   xpTxHash?: string;
 };
 
@@ -167,6 +168,7 @@ function dbToRecord(db: PrismaGameSession): DegenshootSessionRecord {
     // Transaction tracking fields
     wagerTxHash: db.wagerTxHash || undefined,
     resultTxHash: db.resultTxHash || undefined,
+    withdrawTxHash: db.withdrawTxHash || undefined,
     xpTxHash: db.xpTxHash || undefined,
   };
 }
@@ -199,6 +201,7 @@ function recordToDb(record: DegenshootSessionRecord) {
     // Transaction tracking fields
     wagerTxHash: record.wagerTxHash || null,
     resultTxHash: record.resultTxHash || null,
+    withdrawTxHash: record.withdrawTxHash || null,
     xpTxHash: record.xpTxHash || null,
   };
 }
@@ -265,8 +268,22 @@ export async function createSessionRecord(
 export async function getSessionRecord(
   id: string,
 ): Promise<DegenshootSessionRecord | undefined> {
-  if (!databaseAvailable) {
-    return getFromMemory(id);
+
+  const db = await prisma.gameSession.findUnique({ where: { id } });
+  if (!db) {
+    console.log(`[SessionStore] Session ${id} not found in database`);
+    return undefined;
+  }
+
+  // Check if expired - only delete if it's an unfinished session
+  if (new Date() > db.expiresAt) {
+    console.log(`[SessionStore] Session ${id} expired. ExpiresAt: ${db.expiresAt}, Now: ${new Date()}, Status: ${db.status}`);
+    // Preserve completed/finalized games even if expired
+    if (db.status === 'pending' || db.status === 'active') {
+      console.log(`[SessionStore] Deleting expired session ${id}`);
+      await prisma.gameSession.delete({ where: { id } });
+      return undefined;
+    }
   }
 
   try {
@@ -393,43 +410,37 @@ export async function pruneExpiredSessions(ttlMs = 15 * 60 * 1000): Promise<void
 
 // New function for auth-based session restoration
 export async function restoreUserSession(userAddress: string): Promise<DegenshootSessionRecord | null> {
-  if (!databaseAvailable) {
-    const normalized = userAddress.toLowerCase();
-    const candidates = Array.from(inMemorySessions.values()).filter(
-      (record) =>
-        record.userAddress?.toLowerCase() === normalized &&
-        ACTIVE_STATUSES.has(record.status) &&
-        !shouldRemoveRecord(record, SESSION_TTL_MS),
-    );
-    if (!candidates.length) return null;
-    candidates.sort((a, b) => b.createdAt - a.createdAt);
-    return cloneRecord(candidates[0]);
+  const sessions = await prisma.gameSession.findMany({
+    where: {
+      userAddress,
+      isActive: true,
+      status: { in: ['pending', 'active'] },
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 1,
+  });
+
+  if (sessions.length === 0) return null;
+
+  const session = sessions[0];
+  if (new Date() > session.expiresAt) {
+    await prisma.gameSession.delete({ where: { id: session.id } });
+    return null;
   }
 
-  try {
-    const sessions = await prisma.gameSession.findMany({
-      where: { 
-        userAddress, 
-        isActive: true,
-        status: { in: ['pending', 'active'] },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 1,
-    });
+  // Extend the expiration time when restoring to give user a fresh TTL window
+  const newExpiresAt = new Date();
+  newExpiresAt.setHours(newExpiresAt.getHours() + SESSION_TTL_HOURS);
 
-    if (sessions.length === 0) return null;
+  console.log(`[SessionStore] Restoring session ${session.id}. Old expiresAt: ${session.expiresAt}, New expiresAt: ${newExpiresAt}`);
 
-    const session = sessions[0] as PrismaGameSession;
-    if (new Date() > session.expiresAt) {
-      await prisma.gameSession.delete({ where: { id: session.id } });
-      return null;
-    }
+  const updatedSession = await prisma.gameSession.update({
+    where: { id: session.id },
+    data: { expiresAt: newExpiresAt },
+  });
 
-    return dbToRecord(session);
-  } catch (error) {
-    markDatabaseUnavailable(error);
-    return restoreUserSession(userAddress);
-  }
+  console.log(`[SessionStore] Session ${session.id} restored with new expiresAt: ${updatedSession.expiresAt}`);
+  return dbToRecord(updatedSession);
 }
 
 // New function for clearing user sessions on logout

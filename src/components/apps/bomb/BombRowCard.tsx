@@ -66,7 +66,7 @@ export const BombRowCard = forwardRef<HTMLDivElement, BombRowCardProps>(
             {layout.activeColumns.map((sourceColumn, idx) => {
               const isDisabled =
                 !hasStarted || status !== "idle" || originalIndex !== activeRowIndex || layout.selectedColumn !== null;
-              const isSelected = layout.selectedColumn === sourceColumn;
+              const isSelected = layout.selectedColumn === idx;
               const isBombTile = shouldRevealBomb && sourceColumn === bombColumn;
               const tileClass = isSelected ? revealedClass : activeClass;
 

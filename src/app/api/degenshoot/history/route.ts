@@ -54,6 +54,24 @@ export async function GET(request: NextRequest) {
         orderBy: { [sortBy]: sortOrder },
         take: limit,
         skip: offset,
+        select: {
+          id: true,
+          createdAt: true,
+          finalizedAt: true,
+          status: true,
+          wagerWei: true,
+          currentMultiplier: true,
+          completedRows: true,
+          resultTxHash: true,
+          withdrawTxHash: true,
+          wagerTxHash: true,
+          serverSeedHash: true,
+          serverSeed: true,
+          verifiedAt: true,
+          verifiedBy: true,
+          roundSummary: true,
+          rows: true,
+        },
       }),
       prisma.gameSession.count({ where }),
     ]);
@@ -71,12 +89,16 @@ export async function GET(request: NextRequest) {
         ? formatEther(BigInt(session.wagerWei))
         : '0';
 
+      // Check if game was lost by looking for a crashed row
+      const hasCrashedRow = Array.isArray(session.rows) &&
+        session.rows.some((row: any) => row.crashed === true);
+
       const result =
+        session.status === 'lost' || hasCrashedRow ? 'loss' :
         session.status === 'completed' ||
         session.status === 'cashout' ||
         session.status === 'submitted' ||
         session.status === 'revealed' ? 'win' :
-        session.status === 'lost' ? 'loss' :
         'active';
 
       return {
@@ -87,7 +109,8 @@ export async function GET(request: NextRequest) {
         result: result as 'win' | 'loss' | 'active',
         multiplier: session.currentMultiplier,
         rows: session.completedRows,
-        payoutTxHash: session.resultTxHash ?? null,
+        payoutTxHash: session.resultTxHash,
+        withdrawTxHash: session.withdrawTxHash || session.resultTxHash,
         serverSeedHash: session.serverSeedHash,
         serverSeed: session.serverSeed,
         isVerified: !!session.verifiedAt,

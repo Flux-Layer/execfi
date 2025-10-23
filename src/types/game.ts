@@ -67,6 +67,7 @@ export interface GameHistoryItem {
   multiplier: number;
   rows: number;
   payoutTxHash: string | null;
+  withdrawTxHash: string | null;  // Cashout transaction hash
   serverSeedHash: string;
   serverSeed: string | null;
   isVerified: boolean;
