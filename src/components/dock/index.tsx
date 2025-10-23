@@ -94,15 +94,11 @@ export default function Dock() {
       [coinFlipState.minimized, coinFlipState.open, gameState.minimized, gameState.open],
    );
    return (
-      <div className="pointer-events-none fixed bottom-0 md:bottom-6 left-0 md:left-1/2 right-0 md:right-auto z-40 md:-translate-x-1/2">
+      <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 md:bottom-6 md:left-1/2 md:right-auto md:px-0 md:pb-0 md:-translate-x-1/2">
          <nav
             data-onboarding-id="dock"
-            className="pointer-events-auto flex items-end md:gap-4
-                         md:rounded-3xl md:border md:border-white/10 md:bg-slate-900/70 md:px-6 md:py-3
-                         bg-slate-950/95 border-t border-white/10 md:border-t-0
-                         md:shadow-2xl md:shadow-black/40 backdrop-blur-xl relative
-                         justify-around md:justify-start py-2 md:py-3
-                         safe-area-inset-bottom ">
+            className="pointer-events-auto relative flex w-full flex-nowrap items-end justify-center gap-2 overflow-x-auto rounded-t-2xl border-t border-white/10 bg-slate-950/95 px-3 py-2 text-slate-200 backdrop-blur-xl scrollbar-hide safe-area-inset-bottom sm:justify-between md:w-auto md:flex-wrap md:justify-center md:gap-4 md:rounded-3xl md:border md:border-white/10 md:border-t-0 md:bg-slate-900/70 md:px-6 md:py-3 md:shadow-2xl md:shadow-black/40"
+         >
             {dockItems.map((item) => {
                const isHover = hovered === item.key && !isMobile;
                const isTerminal = item.key === "terminal";
@@ -141,7 +137,7 @@ export default function Dock() {
                      tabIndex={0}
                      key={item.key}
                      data-onboarding-id={`dock-${item.key}`}
-                     className="mb-2 relative flex flex-col items-center justify-center text-slate-200 focus:outline-none min-w-[44px] md:min-w-0"
+                     className="relative flex min-w-[54px] flex-shrink-0 flex-col items-center justify-center text-slate-200 focus:outline-none md:min-w-[46px]"
                      onMouseEnter={() => !isMobile && setHovered(item.key)}
                      onMouseLeave={() => !isMobile && setHovered(null)}
                      onFocus={() => !isMobile && setHovered(item.key)}
