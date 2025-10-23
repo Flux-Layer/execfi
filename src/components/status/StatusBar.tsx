@@ -1,10 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
+import { motion } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
 import useUserXp from "@/hooks/useUserXp";
 import { useDock } from "@/context/DockContext";
 import { useTerminalInput } from "@/cli/hooks/useTerminalStore";
+import { TbPlugConnected, TbPlugConnectedX } from "react-icons/tb";
+import { FaWallet } from "react-icons/fa6";
 
 const timeFormatter = new Intl.DateTimeFormat("id-ID", {
   hour: "2-digit",
@@ -24,6 +34,102 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 };
 
+const SCRAMBLE_CHARS = "!@#$%^&*():{};|,.<>/?";
+const SCRAMBLE_CYCLES_PER_LETTER = 2;
+const SCRAMBLE_INTERVAL_MS = 50;
+
+type ScrambleActionButtonProps = {
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+};
+
+function ScrambleActionButton({
+  label,
+  icon,
+  onClick,
+}: ScrambleActionButtonProps) {
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [displayText, setDisplayText] = useState(label);
+
+  const stopScramble = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setDisplayText(label);
+  }, [label]);
+
+  const scramble = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    let iteration = 0;
+    intervalRef.current = setInterval(() => {
+      const scrambled = label
+        .split("")
+        .map((char, index) => {
+          if (iteration / SCRAMBLE_CYCLES_PER_LETTER > index) {
+            return char;
+          }
+          const randomChar =
+            SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+          return randomChar;
+        })
+        .join("");
+
+      setDisplayText(scrambled);
+      iteration += 1;
+
+      if (iteration >= label.length * SCRAMBLE_CYCLES_PER_LETTER) {
+        stopScramble();
+      }
+    }, SCRAMBLE_INTERVAL_MS);
+  }, [label, stopScramble]);
+
+  useEffect(() => {
+    setDisplayText(label);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [label]);
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={scramble}
+      onMouseLeave={stopScramble}
+      onFocus={scramble}
+      onBlur={stopScramble}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="group relative flex w-full items-center justify-center overflow-hidden rounded-lg border border-neutral-500/50 bg-neutral-800/80 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-300 transition-colors hover:text-indigo-300"
+    >
+      <div className="relative z-10 flex items-center gap-2">
+        {icon}
+        <span>{displayText}</span>
+      </div>
+      <motion.span
+        initial={{ y: "100%" }}
+        animate={{ y: "-100%" }}
+        transition={{
+          repeat: Infinity,
+          repeatType: "mirror",
+          duration: 1,
+          ease: "linear",
+        }}
+        className="absolute inset-0 z-0 scale-125 bg-gradient-to-t from-indigo-400/0 from-40% via-indigo-400/70 to-indigo-400/0 to-60% opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+      />
+    </motion.button>
+  );
+}
+
 export default function StatusBar() {
   const { ready, authenticated, user, logout } = usePrivy();
   const { openTerminal } = useDock();
@@ -36,13 +142,21 @@ export default function StatusBar() {
   const [xpTooltipOpen, setXpTooltipOpen] = useState(false);
   const xpTooltipRef = useRef<HTMLDivElement>(null);
 
-  const walletAddress = ready && authenticated ? user?.wallet?.address ?? null : null;
-  const normalizedAddress = walletAddress ? (walletAddress as `0x${string}`) : null;
+  const walletAddress =
+    ready && authenticated ? user?.wallet?.address ?? null : null;
+  const normalizedAddress = walletAddress
+    ? (walletAddress as `0x${string}`)
+    : null;
   const walletConnected = Boolean(normalizedAddress);
-  const walletLabel = walletConnected ? truncateAddress(normalizedAddress!) : "Wallet not connected";
+  const walletLabel = walletConnected
+    ? truncateAddress(normalizedAddress!)
+    : "Wallet not connected";
 
   const {
-    formatted: { total: formattedTotalXp, breakdown: formattedXpBreakdown = [] },
+    formatted: {
+      total: formattedTotalXp,
+      breakdown: formattedXpBreakdown = [],
+    },
     isLoading: xpLoading,
     isFetching: xpFetching,
     isError: xpError,
@@ -67,7 +181,10 @@ export default function StatusBar() {
   useEffect(() => {
     if (!walletMenuOpen) return;
     const handleClick = (event: MouseEvent) => {
-      if (walletMenuRef.current && !walletMenuRef.current.contains(event.target as Node)) {
+      if (
+        walletMenuRef.current &&
+        !walletMenuRef.current.contains(event.target as Node)
+      ) {
         setWalletMenuOpen(false);
       }
     };
@@ -131,8 +248,8 @@ export default function StatusBar() {
     ? xpLoading && !formattedTotalXp
       ? "Loading…"
       : xpError
-        ? "Unavailable"
-        : formattedTotalXp ?? "0"
+      ? "Unavailable"
+      : formattedTotalXp ?? "0"
     : "—";
 
   const xpBreakdownItems = walletConnected
@@ -142,8 +259,8 @@ export default function StatusBar() {
           xpLoading && !item.value
             ? "Loading…"
             : xpError
-              ? "Unavailable"
-              : item.value ?? "0",
+            ? "Unavailable"
+            : item.value ?? "0",
       }))
     : [];
 
@@ -151,15 +268,12 @@ export default function StatusBar() {
     <div className="pointer-events-none fixed top-0 right-0 z-30 flex justify-end px-3 pt-2 md:px-5 md:pt-3">
       <div className="pointer-events-auto flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-xs font-medium text-slate-200 shadow-lg backdrop-blur-md md:gap-5 md:px-5 md:text-sm">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-[0.3em] text-slate-400 md:text-xs">
-            ExecFi
+          <span className="text-[11px] tracking-[0.3em] text-slate-400 md:text-xs">
+            ExecFi OS
           </span>
           <div className="hidden h-4 w-px bg-white/10 md:block" aria-hidden />
           <div className="relative flex items-center gap-2" ref={walletMenuRef}>
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${walletConnected ? "bg-emerald-400" : "bg-amber-400"}`}
-              aria-hidden
-            />
+            <FaWallet className={walletConnected ? "text-emerald-400" : ""}/>
             <button
               type="button"
               onClick={toggleWalletMenu}
@@ -174,22 +288,17 @@ export default function StatusBar() {
             {walletMenuOpen && (
               <div className="absolute right-0 top-full mt-4 w-44 rounded-xl border border-white/10 bg-slate-900/95 p-2 text-xs text-slate-200 shadow-lg">
                 {walletConnected ? (
-                  <button
-                    type="button"
+                  <ScrambleActionButton
+                    label="Disconnect"
+                    icon={<TbPlugConnected className="h-3.5 w-3.5" />}
                     onClick={handleLogout}
-                    className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/10"
-                  >
-                    <span className="font-medium">Logout</span>
-                    <span className="text-[10px] uppercase tracking-[0.2em] text-rose-300/80">CTRL+K</span>
-                  </button>
+                  />
                 ) : (
-                  <button
-                    type="button"
+                  <ScrambleActionButton
+                    label="Connect"
+                    icon={<TbPlugConnectedX className="h-3.5 w-3.5" />}
                     onClick={handleLogin}
-                    className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/10"
-                  >
-                    Login
-                  </button>
+                  />
                 )}
               </div>
             )}
@@ -208,7 +317,9 @@ export default function StatusBar() {
           onKeyDown={handleXpKeyDown}
         >
           <span className="text-slate-400">Total XP</span>
-          <span className={xpFetching ? "opacity-70" : "font-semibold"}>{xpDisplay}</span>
+          <span className={xpFetching ? "opacity-70" : "font-semibold"}>
+            {xpDisplay}
+          </span>
           {xpTooltipOpen && (
             <div className="absolute right-0 top-full z-10 mt-2 w-56 rounded-xl border border-white/10 bg-slate-900/95 p-3 text-xs text-slate-200 shadow-lg">
               <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-slate-400">
@@ -223,17 +334,23 @@ export default function StatusBar() {
                         className="flex items-center justify-between gap-3 rounded-lg px-2 py-1"
                       >
                         <dt className="text-slate-300">{item.label}</dt>
-                        <dd className="font-medium text-slate-100">{item.value}</dd>
+                        <dd className="font-medium text-slate-100">
+                          {item.value}
+                        </dd>
                       </div>
                     ))}
                   </dl>
                   <div className="flex items-center justify-between border-t border-white/10 pt-2">
                     <span className="text-slate-400">Total</span>
-                    <span className="font-semibold text-slate-50">{xpDisplay}</span>
+                    <span className="font-semibold text-slate-50">
+                      {xpDisplay}
+                    </span>
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-400">Connect wallet to view per-game breakdown.</p>
+                <p className="text-slate-400">
+                  Connect wallet to view per-game breakdown.
+                </p>
               )}
             </div>
           )}
