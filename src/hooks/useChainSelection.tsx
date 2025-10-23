@@ -17,6 +17,7 @@ import {
   type ChainConfig,
 } from "@/lib/chains/registry";
 import { useEOA } from "./useEOA";
+import { useLoading } from "@/context/LoadingContext";
 
 interface ChainSelectionContextType {
   // Current chain state
@@ -58,9 +59,11 @@ export function ChainSelectionProvider({
     useState<number>(defaultChainId);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSwitchError, setLastSwitchError] = useState<string | null>(null);
+  const { updateStepStatus, completeStep, skipStep } = useLoading();
 
   const { selectedWallet } = useEOA();
   const [isChainInitialized, setIsChainInitialized] = useState<boolean>(false);
+  const [loadingTracked, setLoadingTracked] = useState(false);
 
   // Helper: try to switch chain on the selected wallet, swallow unsupported errors
   const trySwitchEOAChain = useCallback(
@@ -84,7 +87,10 @@ export function ChainSelectionProvider({
 
   // Load saved chain preference from localStorage
   useEffect(() => {
-    if (!isChainInitialized)
+    if (!isChainInitialized && !loadingTracked) {
+      updateStepStatus('chain-selection', 'loading', 0);
+      setLoadingTracked(true);
+
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -92,25 +98,30 @@ export function ChainSelectionProvider({
           if (!isNaN(chainId) && isChainSupported(chainId)) {
             setSelectedChainId(chainId);
             trySwitchEOAChain(chainId);
+            completeStep('chain-selection');
             console.log(
               `🔗 Loaded saved chain: ${getChainConfig(chainId)?.name} (${chainId})`,
             );
           } else {
             // Clean up invalid saved value
             localStorage.removeItem(STORAGE_KEY);
+            completeStep('chain-selection');
             console.log(`🔗 Defaulting to Base (${DEFAULT_CHAIN_ID})`);
           }
         } else {
           console.log(
             `🔗 No saved chain, defaulting to Base (${DEFAULT_CHAIN_ID})`,
           );
+          completeStep('chain-selection');
         }
       } catch (error) {
         console.warn("Failed to load chain preference:", error);
         setSelectedChainId(DEFAULT_CHAIN_ID);
         trySwitchEOAChain(DEFAULT_CHAIN_ID);
+        skipStep('chain-selection');
       }
-  }, [selectedWallet, isChainInitialized, trySwitchEOAChain]);
+    }
+  }, [selectedWallet, isChainInitialized, trySwitchEOAChain, loadingTracked, updateStepStatus, completeStep, skipStep]);
 
   // Save chain preference to localStorage
   useEffect(() => {

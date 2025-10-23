@@ -1,16 +1,17 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode, useCallback } from "react";
 import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import useSmartWallet from "@/hooks/useSmartWallet";
 import { useEOA } from "@/providers/EOAProvider";
 import { useChainSelection } from "@/hooks/useChainSelection";
 import { useBaseAccount } from "@/providers/base-account-context";
 import type { Store } from "../state/store";
-import type { AppState, Dispatch } from "../state/types";
+import type { AppState, CoreContext, Dispatch } from "../state/types";
 import { createPersistedStore, createStore } from "../state/store";
 import { FLOWS } from "../state/flows";
 import { loadPolicy, createDefaultPolicy } from "@/lib/policy/storage";
+import { useLoading } from "@/context/LoadingContext";
 
 // Context for the terminal store
 const TerminalStoreContext = createContext<{
@@ -30,9 +31,14 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   const { sendTransaction } = useSendTransaction();
   const { selectedChainId } = useChainSelection();
   const baseAccount = useBaseAccount();
+  const { updateStepStatus, completeStep, failStep, updateStepProgress } = useLoading();
+
+  // Track initialization state
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Create store once and persist it
   const storeRef = useRef<Store | null>(null);
+  const hasReportedInitialization = useRef(false);
   const [, forceUpdate] = useState({});
 
   if (!storeRef.current) {
@@ -53,6 +59,40 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
 
   const store = storeRef.current;
 
+  const mergeCoreContext = useCallback(
+    (updates: Partial<CoreContext>) => {
+      const current = store.getState().core;
+      if (!current) return;
+      store.dispatch({
+        type: "APP.INIT",
+        coreContext: {
+          ...current,
+          ...updates,
+        },
+      });
+    },
+    [store]
+  );
+
+  useEffect(() => {
+    if (hasReportedInitialization.current) {
+      return;
+    }
+
+    hasReportedInitialization.current = true;
+    updateStepStatus("terminal-store", "loading", 0);
+
+    if (storeRef.current) {
+      updateStepProgress("terminal-store", 20);
+      updateStepProgress("terminal-store", 50);
+      updateStepProgress("terminal-store", 90);
+      updateStepProgress("terminal-store", 100);
+      completeStep("terminal-store");
+    } else {
+      failStep("terminal-store", new Error("Failed to initialize terminal store"));
+    }
+  }, [completeStep, failStep, updateStepProgress, updateStepStatus]);
+
   // Subscribe to store changes to trigger provider re-renders
   useEffect(() => {
     const unsubscribe = store.subscribe(() => {
@@ -65,7 +105,9 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
 
   // Initialize core context - allow basic initialization even when unauthenticated
   useEffect(() => {
-    if (ready) {
+    if (ready && !isInitialized) {
+      updateStepProgress('terminal-store', 70);
+
       // Load or create policy state
       const policy = loadPolicy() || createDefaultPolicy("moderate");
 
@@ -151,12 +193,84 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
             }),
       };
 
+      updateStepProgress('terminal-store', 90);
+
       store.dispatch({
         type: "APP.INIT",
         coreContext,
       });
+
+      updateStepProgress('terminal-store', 100);
+      completeStep('terminal-store');
+      setIsInitialized(true);
     }
-  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store, baseAccount]);
+  }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store, baseAccount, isInitialized, updateStepProgress, completeStep]);
+
+  // Update context when wallet becomes available after initialization
+  useEffect(() => {
+    if (isInitialized && ready) {
+      mergeCoreContext(
+        selectedWallet
+          ? {
+              selectedWallet,
+              eoaSendTransaction: sendTransaction,
+            }
+          : {
+              selectedWallet: undefined,
+              eoaSendTransaction: undefined,
+            }
+      );
+    }
+  }, [selectedWallet, sendTransaction, isInitialized, ready, mergeCoreContext]);
+
+  // Update context when smart wallet becomes available after initialization
+  useEffect(() => {
+    if (isInitialized && ready && authenticated && user) {
+      mergeCoreContext(
+        smartWalletReady && user
+          ? {
+              userId: user.id,
+              saAddress: smartAccountAddress,
+              smartWalletClient: smartWalletClient,
+            }
+          : {
+              userId: undefined,
+              saAddress: undefined,
+              smartWalletClient: undefined,
+            }
+      );
+    }
+  }, [
+    smartWalletReady,
+    smartAccountAddress,
+    smartWalletClient,
+    user,
+    authenticated,
+    isInitialized,
+    ready,
+    mergeCoreContext,
+  ]);
+
+  // Update context when Base Account becomes available after initialization
+  useEffect(() => {
+    if (isInitialized && ready) {
+      mergeCoreContext(
+        baseAccount.isConnected
+          ? {
+              baseAccountClients: {
+                sdk: baseAccount.sdk,
+                provider: baseAccount.provider,
+                address: baseAccount.baseAccountAddress as `0x${string}`,
+                subAccountAddress: undefined,
+                isConnected: true,
+              },
+            }
+          : {
+              baseAccountClients: undefined,
+            }
+      );
+    }
+  }, [baseAccount, isInitialized, ready, mergeCoreContext]);
 
   // Dispatch chain updates when selectedChainId changes
   useEffect(() => {

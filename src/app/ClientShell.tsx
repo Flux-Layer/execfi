@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { LoadingProvider } from "@/context/LoadingContext";
+import { LoadingOrchestrator } from "@/components/loader/LoadingOrchestrator";
+import { FinalPreparation } from "@/components/loader/FinalPreparation";
 import PrivyAppProvider from "@providers/privy-provider";
 import { BaseAccountProvider } from "@providers/base-account-context";
 import { WagmiAppProvider } from "@providers/wagmi-provider";
@@ -12,7 +15,6 @@ import { TerminalStoreProvider } from "@/cli/hooks/useTerminalStore";
 import { OnboardingProvider } from "@/context/OnboardingContext";
 import { Toaster } from "react-hot-toast";
 import Dock from "@components/dock";
-import PathFinderLoader from "@/components/loader/path-finder";
 import BaseAccountStatus from "@/components/auth/BaseAccountStatus";
 import { OnboardingErrorBoundary } from "@/components/onboarding/OnboardingErrorBoundary";
 import { OnboardingOrchestrator } from "@/components/onboarding/OnboardingOrchestrator";
@@ -23,86 +25,66 @@ interface ClientShellProps {
 }
 
 export default function ClientShell({ children }: ClientShellProps) {
-  // Intro loader: show for 5s, then fade out smoothly
-  const [introVisible, setIntroVisible] = useState(true);
-  const [introMounted, setIntroMounted] = useState(true);
-
-  useEffect(() => {
-    const t = setTimeout(() => setIntroVisible(false), 5000);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    if (introVisible) return;
-    const t = setTimeout(() => setIntroMounted(false), 700); // match fade/scale duration
-    return () => clearTimeout(t);
-  }, [introVisible]);
-
   return (
-    <PrivyAppProvider>
-      <BaseAccountProvider>
-        <EOAProvider>
-          <DockProvider>
-            <ChainSelectionProvider>
-              <WagmiAppProvider>
-                <QCProvider>
-                  <OnboardingProvider>
-                    <TerminalStoreProvider>
-                  {/* Intro loader overlay for first 5s with smooth fade */}
-                  {introMounted && (
-                    <div
-                      className={`fixed inset-0 z-50 transition-[opacity,transform] duration-600 ease-out ${introVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
-                    >
-                      <PathFinderLoader caption="Initializing" />
-                    </div>
-                  )}
+    <LoadingProvider>
+      <PrivyAppProvider>
+        <BaseAccountProvider>
+          <EOAProvider>
+            <DockProvider>
+              <ChainSelectionProvider>
+                <WagmiAppProvider>
+                  <QCProvider>
+                    <OnboardingProvider>
+                      <TerminalStoreProvider>
+                        <FinalPreparation>
+                          <LoadingOrchestrator>
+                            {/* App-wide onboarding system (device-based, no wallet required) */}
+                            <OnboardingErrorBoundary>
+                              <OnboardingOrchestrator />
+                            </OnboardingErrorBoundary>
 
-                  {/* App-wide onboarding system (device-based, no wallet required) */}
-                  {/* Only show after intro loader is completely done */}
-                  {!introMounted && (
-                    <OnboardingErrorBoundary>
-                      <OnboardingOrchestrator />
-                    </OnboardingErrorBoundary>
-                  )}
+                            {children}
+                            <Dock />
+                            <BaseAccountStatus />
 
-                  {children}
-                  <Dock />
-                  <BaseAccountStatus />
-                  
-                  {/* Sunday Quest - Malware Alert */}
-                  <MalwareIntegration />
-                  {/* TutorialModal moved to BombGame component for context-aware display */}
-                  <Toaster
-                    position="top-right"
-                    toastOptions={{
-                      duration: 4000,
-                      style: {
-                        background: "#1f2937",
-                        color: "#f9fafb",
-                        border: "1px solid #374151",
-                      },
-                      success: {
-                        iconTheme: {
-                          primary: "#10b981",
-                          secondary: "#f9fafb",
-                        },
-                      },
-                      error: {
-                        iconTheme: {
-                          primary: "#ef4444",
-                          secondary: "#f9fafb",
-                        },
-                      },
-                    }}
-                  />
-                    </TerminalStoreProvider>
-                  </OnboardingProvider>
-                </QCProvider>
-              </WagmiAppProvider>
-            </ChainSelectionProvider>
-          </DockProvider>
-        </EOAProvider>
-      </BaseAccountProvider>
-    </PrivyAppProvider>
+                            {/* Sunday Quest - Malware Alert */}
+                            <MalwareIntegration />
+                            {/* TutorialModal moved to BombGame component for context-aware display */}
+                            <Toaster
+                              position="top-right"
+                              toastOptions={{
+                                duration: 4000,
+                                style: {
+                                  background: "#1f2937",
+                                  color: "#f9fafb",
+                                  border: "1px solid #374151",
+                                },
+                                success: {
+                                  iconTheme: {
+                                    primary: "#10b981",
+                                    secondary: "#f9fafb",
+                                  },
+                                },
+                                error: {
+                                  iconTheme: {
+                                    primary: "#ef4444",
+                                    secondary: "#f9fafb",
+                                  },
+                                },
+                              }}
+                            />
+                          </LoadingOrchestrator>
+                        </FinalPreparation>
+                      </TerminalStoreProvider>
+                    </OnboardingProvider>
+                  </QCProvider>
+                </WagmiAppProvider>
+              </ChainSelectionProvider>
+            </DockProvider>
+          </EOAProvider>
+        </BaseAccountProvider>
+      </PrivyAppProvider>
+    </LoadingProvider>
   );
 }
+

@@ -74,6 +74,7 @@ export type UseBombGameStateOptions = {
   isMobile: boolean;
   wallet?: ConnectedWallet | null;
   activeAddress?: `0x${string}` | undefined;
+  balanceNumeric?: number | null;
 };
 
 export type UseBombGameStateReturn = {
@@ -160,6 +161,7 @@ export type UseBombGameStateReturn = {
   resultTxHash: string | null;
   withdrawTxHash: string | null;
   isOnchainBusy: boolean;
+  isWithdrawing: boolean;
   roundSummary: RoundSummary | null;
   canReveal: boolean;
   finalizedSessionId: string | null;
@@ -178,6 +180,7 @@ export function useBombGameState({
   isMobile,
   wallet,
   activeAddress,
+  balanceNumeric,
 }: UseBombGameStateOptions): UseBombGameStateReturn {
   const windowRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -237,6 +240,10 @@ export function useBombGameState({
   >(null);
   const [isSessionStuck, setIsSessionStuck] = useState(false);
   const resultSubmittedRef = useRef(false);
+  const gameCompletionRef = useRef<{ status: GameStatus; sessionId: string | null }>({
+    status: "idle",
+    sessionId: null,
+  });
 
   const effectiveFullscreen = fullscreen || isMobile;
   const normalizedActiveAddress = activeAddress?.toLowerCase() ?? null;
@@ -246,6 +253,14 @@ export function useBombGameState({
   useEffect(() => {
     tileRangeRef.current = tileRange;
   }, [tileRange]);
+
+  // Track game completion to preserve status after cash out
+  useEffect(() => {
+    gameCompletionRef.current = {
+      status,
+      sessionId: finalizedSessionId,
+    };
+  }, [status, finalizedSessionId]);
 
   const hasInitialisedRef = useRef(false);
 
@@ -448,11 +463,17 @@ export function useBombGameState({
           setCurrentMultiplier(sessionMatch.currentMultiplier ?? 1);
         } else {
           setActiveRowIndex(0);
-          setStatus("idle");
-          setLostRow(null);
-          setShowGameOver(false);
-          setHasStarted(false);
-          setBetAmount(null);
+          // Don't reset status if the game was completed (won or lost) and finalized
+          const completion = gameCompletionRef.current;
+          const isCompleted = (completion.status === "won" || completion.status === "lost") && completion.sessionId;
+          if (!isCompleted) {
+            setStatus("idle");
+            setLostRow(null);
+            setShowGameOver(false);
+            setHasStarted(false);
+            setBetAmount(null);
+          }
+          // Always reset these regardless of completion status
           pendingSessionRef.current = null;
           setPendingSession(null);
           setCurrentMultiplier(1);
@@ -477,6 +498,10 @@ export function useBombGameState({
       rangeOverride?: { min: number; max: number },
       lockedCountsOverride?: number[] | null,
     ): Promise<string | null> => {
+      if (!activeAddress) {
+        setBetError("Connect wallet to start a session.");
+        return null;
+      }
       const range = rangeOverride ?? tileRangeRef.current;
       const lockedCounts =
         typeof lockedCountsOverride !== "undefined"
@@ -520,8 +545,9 @@ export function useBombGameState({
       setBetError((prev) => (prev && prev.includes("Session") ? null : prev));
 
       setSessionId(nextSessionId);
-      setFinalizedSessionId(null);
-      setRoundSummary(null);
+      // Note: We intentionally don't clear finalizedSessionId here
+      // This preserves the finalized session after cash out, allowing Reveal Fairness to work
+      console.log("[DEBUG] requestSessionSeeds - NOT clearing finalizedSessionId");
       pendingSessionRef.current = null;
       setPendingSession(null);
       setCurrentMultiplier(1);
@@ -590,6 +616,7 @@ export function useBombGameState({
       setLostRow(null);
       setShowGameOver(false);
       setSessionId(null);
+      console.log("[DEBUG] restartStuckSession - Clearing finalizedSessionId");
       setFinalizedSessionId(null);
       setRoundSummary(null);
       setRows([]);
@@ -792,7 +819,8 @@ export function useBombGameState({
     if (!fairnessState || fairnessState.revealed) return false;
     const sessionKey = finalizedSessionId ?? sessionId;
     if (!sessionKey) return false;
-    return status === "lost" || status === "won";
+    // Allow reveal if status is lost/won, OR if there's a finalized session (game is complete)
+    return status === "lost" || status === "won" || Boolean(finalizedSessionId);
   }, [fairnessState, finalizedSessionId, sessionId, status]);
 
   const cashOutAmount = useMemo(() => {
@@ -821,9 +849,9 @@ export function useBombGameState({
   useEffect(() => {
     if (activeRowIndex < 0) return;
     const node = rowRefs.current[activeRowIndex];
-    if (node) {
-      node.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    if (!node) return;
+
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [activeRowIndex]);
 
   useEffect(() => {
@@ -850,7 +878,9 @@ export function useBombGameState({
   }, [effectiveFullscreen]);
 
   useEffect(() => {
-    if (effectiveFullscreen && containerRef.current) {
+    // Only scroll to bottom when game starts (hasStarted becomes true)
+    // After that, the activeRowIndex effect will handle scrolling to current row
+    if (effectiveFullscreen && containerRef.current && hasStarted && activeRowIndex === 0) {
       const scrollToBottom = () => {
         const scrollable = containerRef.current?.querySelector('[class*="overflow"]');
         if (scrollable instanceof HTMLElement) {
@@ -864,7 +894,7 @@ export function useBombGameState({
         setTimeout(scrollToBottom, 150);
       });
     }
-  }, [effectiveFullscreen, rows]);
+  }, [effectiveFullscreen, hasStarted, activeRowIndex]);
 
   const handleHeaderDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -955,6 +985,7 @@ export function useBombGameState({
     setRows([]);
     setActiveRowIndex(-1);
     setFairnessState(null);
+    console.log("[DEBUG] Address change useEffect - Clearing finalizedSessionId for address:", normalizedActiveAddress);
     setFinalizedSessionId(null);
     setRoundSummary(null);
   }, [normalizedActiveAddress]);
@@ -964,44 +995,152 @@ export function useBombGameState({
     let cancelled = false;
     (async () => {
       try {
-        const stored = loadStoredSession(normalizedActiveAddress);
-        if (stored && stored.fairness) {
+        // First, try to restore session from database if wallet is connected
+        let dbSession = null;
+        if (normalizedActiveAddress) {
+          try {
+            const restoreResponse = await fetch("/api/degenshoot/restore", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userAddress: normalizedActiveAddress }),
+            });
+            if (restoreResponse.ok) {
+              const restoreData = await restoreResponse.json();
+              if (restoreData.restored && restoreData.session) {
+                dbSession = restoreData.session;
+                console.log("[Bomb Game] Restored active session from database:", dbSession.id);
+              }
+            }
+          } catch (restoreError) {
+            console.warn("[Bomb Game] Failed to restore session from database:", restoreError);
+          }
+        }
+
+        // If database session exists, use it
+        if (dbSession && dbSession.rows && dbSession.rows.length > 0) {
           if (cancelled) return;
           const storedFairness: FairnessState = {
-            ...stored.fairness,
-            revealed: Boolean(stored.fairness.revealed ?? stored.fairness.serverSeed),
+            serverSeed: null,
+            serverSeedHash: dbSession.serverSeedHash,
+            clientSeed: dbSession.clientSeed,
+            nonceBase: dbSession.nonceBase,
+            revealed: false,
+            rowsMeta: dbSession.rows.map((row: any) => ({
+              rowIndex: row.rowIndex,
+              nonce: row.nonce,
+              gameHash: row.fairHash || row.gameHash || "",
+              tileCount: row.tileCount,
+              bombIndex: row.bombIndex,
+              rowMultiplier: row.rowMultiplier,
+              bombsPerRow: row.bombsPerRow || 1,
+              probabilities: row.probabilities || [],
+            })),
           };
 
+          const betAmountETH = dbSession.wagerWei
+            ? Number(BigInt(dbSession.wagerWei)) / 1e18
+            : 0.001;
+
+          setBetInput(betAmountETH.toString());
+          setBetAmount(betAmountETH);
+          setSessionId(dbSession.id);
+          setCurrentMultiplier(dbSession.currentMultiplier ?? 1);
+          setActiveRowIndex(dbSession.currentRow ?? 0);
+
+          // Map database status to component GameStatus
+          const componentStatus: GameStatus =
+            dbSession.status === "lost" ? "lost" :
+            dbSession.status === "completed" || dbSession.status === "cashout" || dbSession.status === "revealed" ? "won" :
+            "idle";
+          setStatus(componentStatus);
+
+          // Only set hasStarted to true if the session is active (has wager and not finished)
+          const isActiveSession = dbSession.status === "active" && !!dbSession.wagerWei;
+          setHasStarted(isActiveSession);
+
+          lockedTileCountsRef.current = dbSession.lockedTileCounts || storedFairness.rowsMeta.map((meta) => meta.tileCount);
+
+          // Set pending session ref so buildRowsWithSeeds can restore row states
           const sessionSnapshot: StoredSession = {
-            ...stored,
+            sessionId: dbSession.id,
+            betAmount: betAmountETH,
             fairness: storedFairness,
+            rowsState: dbSession.rows.map((row: any) => ({
+              selectedColumn: row.selectedColumn ?? null,
+              crashed: row.crashed ?? false,
+              isCompleted: row.isCompleted ?? false,
+            })),
+            hasStarted: isActiveSession,
+            status: componentStatus,
+            activeRowIndex: dbSession.currentRow ?? 0,
+            lostRow: componentStatus === "lost" ? (dbSession.currentRow ?? 0) : null,
+            currentMultiplier: dbSession.currentMultiplier ?? 1,
+            roundSummary: null,
+            finalizedSessionId: null,
           };
-
-          setPendingSession(sessionSnapshot);
           pendingSessionRef.current = sessionSnapshot;
-          setBetInput(stored.betAmount.toString());
-          setBetAmount(stored.betAmount);
-          setSessionId(stored.sessionId ?? null);
-          setFinalizedSessionId(stored.finalizedSessionId ?? null);
-          setCurrentMultiplier(stored.currentMultiplier ?? 1);
-          setRoundSummary(stored.roundSummary ?? null);
-          lockedTileCountsRef.current = storedFairness.rowsMeta.map((meta) => meta.tileCount);
+
           await buildRowsWithSeeds(
             {
-              serverSeed: storedFairness.serverSeed,
-              serverSeedHash: storedFairness.serverSeedHash,
-              clientSeed: storedFairness.clientSeed,
-              nonceBase: storedFairness.nonceBase,
+              serverSeed: null,
+              serverSeedHash: dbSession.serverSeedHash,
+              clientSeed: dbSession.clientSeed,
+              nonceBase: dbSession.nonceBase,
             },
             tileRangeRef.current,
             lockedTileCountsRef.current,
             storedFairness.rowsMeta,
           );
+
+          setFairnessState(storedFairness);
           setIsSessionStuck(false);
         } else {
-          if (cancelled) return;
-          lockedTileCountsRef.current = null;
-          await requestSessionSeeds(undefined, undefined, null);
+          // No active session in database - clear localStorage to avoid stale data
+          if (normalizedActiveAddress) {
+            console.log("[Bomb Game] No active session in database, clearing localStorage");
+            saveStoredSession(null, normalizedActiveAddress);
+          }
+
+          // Fallback to localStorage (should be cleared now for most cases)
+          const stored = loadStoredSession(normalizedActiveAddress);
+          if (stored && stored.fairness) {
+            if (cancelled) return;
+            const storedFairness: FairnessState = {
+              ...stored.fairness,
+              revealed: Boolean(stored.fairness.revealed ?? stored.fairness.serverSeed),
+            };
+
+            const sessionSnapshot: StoredSession = {
+              ...stored,
+              fairness: storedFairness,
+            };
+
+            setPendingSession(sessionSnapshot);
+            pendingSessionRef.current = sessionSnapshot;
+            setBetInput(stored.betAmount.toString());
+            setBetAmount(stored.betAmount);
+            setSessionId(stored.sessionId ?? null);
+            setFinalizedSessionId(stored.finalizedSessionId ?? null);
+            setCurrentMultiplier(stored.currentMultiplier ?? 1);
+            setRoundSummary(stored.roundSummary ?? null);
+            lockedTileCountsRef.current = storedFairness.rowsMeta.map((meta) => meta.tileCount);
+            await buildRowsWithSeeds(
+              {
+                serverSeed: storedFairness.serverSeed,
+                serverSeedHash: storedFairness.serverSeedHash,
+                clientSeed: storedFairness.clientSeed,
+                nonceBase: storedFairness.nonceBase,
+              },
+              tileRangeRef.current,
+              lockedTileCountsRef.current,
+              storedFairness.rowsMeta,
+            );
+            setIsSessionStuck(false);
+          } else {
+            if (cancelled) return;
+            lockedTileCountsRef.current = null;
+            await requestSessionSeeds(undefined, undefined, null);
+          }
         }
       } catch (error) {
         console.error("[Bomb Game] Unable to initialise round:", error);
@@ -1233,6 +1372,19 @@ export function useBombGameState({
         });
 
         setResultTxHash(txHash);
+
+        // Save result transaction hash to database
+        try {
+          await fetch(`/api/degenshoot/session/${activeSessionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resultTxHash: txHash }),
+          });
+          console.log("[Bomb Game] Result transaction hash saved to database:", txHash);
+        } catch (dbError) {
+          console.error("[Bomb Game] Failed to save result transaction hash:", dbError);
+        }
+
         try {
           await degenshootPublicClient.waitForTransactionReceipt({ hash: txHash });
         } catch (receiptError) {
@@ -1268,6 +1420,19 @@ export function useBombGameState({
               });
               console.log("[Bomb Game] Withdraw transaction submitted:", withdrawHash);
               setWithdrawTxHash(withdrawHash);
+
+              // Save withdraw transaction hash to database
+              try {
+                await fetch(`/api/degenshoot/session/${activeSessionId}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ withdrawTxHash: withdrawHash }),
+                });
+                console.log("[Bomb Game] Withdraw transaction hash saved to database:", withdrawHash);
+              } catch (dbError) {
+                console.error("[Bomb Game] Failed to save withdraw transaction hash:", dbError);
+              }
+
               try {
                 await wagerVaultPublicClient.waitForTransactionReceipt({ hash: withdrawHash });
                 console.log("[Bomb Game] Withdraw transaction confirmed");
@@ -1289,9 +1454,12 @@ export function useBombGameState({
 
         setHasStarted(false);
         setSessionId(null);
-        setFinalizedSessionId(null);
+        // DON'T clear finalizedSessionId here! Users need it to verify the round after cashing out
+        // setFinalizedSessionId(null);
+        console.log("[DEBUG] finalizeResult - Preserving finalizedSessionId for verification");
         setCurrentMultiplier(1);
-        setRoundSummary(null);
+        // DON'T clear roundSummary either, users might want to see it
+        // setRoundSummary(null);
         saveStoredSession(null, normalizedActiveAddress);
       } catch (error) {
         console.error("[Bomb Game] Failed to finalise result:", error);
@@ -1346,6 +1514,7 @@ export function useBombGameState({
     setHasStarted(false);
     setActiveRowIndex(0);
     setSessionId(null);
+    console.log("[DEBUG] playAgain - Clearing finalizedSessionId (user starting new game)");
     setFinalizedSessionId(null);
     setRoundSummary(null);
     pendingSessionRef.current = null;
@@ -1604,6 +1773,18 @@ export function useBombGameState({
     }
   }, [fairnessState, finalizedSessionId, sessionId]);
 
+  // Auto-reveal tiles when game session ends
+  useEffect(() => {
+    const gameEnded = status === "lost" || status === "won";
+    const hasNotRevealed = fairnessState && !fairnessState.revealed && !isRevealing;
+    const hasSession = finalizedSessionId || sessionId;
+
+    if (gameEnded && hasNotRevealed && hasSession && !isRevealing) {
+      console.log("[Bomb Game] Auto-revealing tiles after game end");
+      void revealFairness();
+    }
+  }, [status, fairnessState, finalizedSessionId, sessionId, isRevealing, revealFairness]);
+
   const handleStartGame = useCallback(async () => {
     if (isWithdrawing) {
       setBetError("Finishing previous payout, please wait.");
@@ -1612,6 +1793,12 @@ export function useBombGameState({
     const parsed = Number(betInput);
     if (!Number.isFinite(parsed) || parsed < MIN_BET_AMOUNT) {
       setBetError(`Minimum bet is ${MIN_BET_AMOUNT} ETH`);
+      return;
+    }
+
+    // Check balance before attempting transaction
+    if (onchainReady && typeof balanceNumeric === "number" && balanceNumeric < parsed) {
+      setBetError("Insufficient balance. Please add more funds or reduce your bet amount.");
       return;
     }
 
@@ -1767,12 +1954,37 @@ export function useBombGameState({
       }
     } catch (error) {
       console.error("[Bomb Game] Failed to place bet:", error);
-      setBetError((error as Error).message ?? "Transaction failed");
+
+      // Extract user-friendly error message
+      let errorMessage = "Transaction failed";
+      const errorString = error instanceof Error ? error.message : String(error);
+      const errorStringLower = errorString.toLowerCase();
+
+      if (errorStringLower.includes("insufficient funds") ||
+          errorStringLower.includes("exceeds the balance")) {
+        errorMessage = "Insufficient balance. Please add more funds or reduce your bet amount.";
+      } else if (errorStringLower.includes("user rejected") ||
+                 errorStringLower.includes("user denied")) {
+        errorMessage = "Transaction cancelled by user.";
+      } else if (errorStringLower.includes("network") ||
+                 errorStringLower.includes("connection")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (errorStringLower.includes("gas")) {
+        errorMessage = "Gas estimation failed. Please try again.";
+      } else {
+        // For other errors, use a shortened version if the message is too long
+        errorMessage = errorString.length > 100
+          ? `${errorString.substring(0, 100)}...`
+          : errorString;
+      }
+
+      setBetError(errorMessage);
     } finally {
       setIsOnchainBusy(false);
     }
   }, [
     betInput,
+    balanceNumeric,
     onchainReady,
     wallet,
     activeAddress,
@@ -1837,14 +2049,12 @@ export function useBombGameState({
               typeof payload.selectedColumn === "number" && payload.selectedColumn >= 0
                 ? payload.selectedColumn
                 : relativeColumn;
-            const selectedBoardColumn =
-              currentRow.activeColumns[selectedRelative] ?? column;
             setRows((prev) =>
               prev.map((row, idx) =>
                 idx === rowIndex
                   ? {
                       ...row,
-                      selectedColumn: selectedBoardColumn,
+                      selectedColumn: selectedRelative,
                       crashed: false,
                       isCompleted: true,
                     }
@@ -1877,7 +2087,7 @@ export function useBombGameState({
                 idx === rowIndex
                   ? {
                       ...row,
-                      selectedColumn: currentRow.activeColumns[relativeColumn] ?? column,
+                      selectedColumn: relativeColumn,
                       crashed: true,
                       isCompleted: false,
                       fairness: {
@@ -1985,6 +2195,7 @@ export function useBombGameState({
         setShowGameOver(true);
         setActiveRowIndex(-1);
         setHasStarted(true);
+        console.log("[DEBUG] handleCashOut - Setting finalizedSessionId to:", sessionId);
         setFinalizedSessionId(sessionId);
         setSessionId(null);
 
@@ -2128,6 +2339,7 @@ export function useBombGameState({
     resultTxHash,
     withdrawTxHash,
     isOnchainBusy,
+    isWithdrawing,
     roundSummary,
     canReveal,
     isRoundInProgress,

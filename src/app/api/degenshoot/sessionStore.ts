@@ -3,6 +3,12 @@ import type { RowFairnessMeta } from "@/lib/games/bomb/fairness";
 import { prisma } from "@/lib/db/client";
 import { Prisma, type GameSession } from "@prisma/client";
 
+type PrismaGameSession = GameSession & {
+  wagerTxHash?: string | null;
+  resultTxHash?: string | null;
+  xpTxHash?: string | null;
+};
+
 export type DegenshootSessionRecord = {
   id: string;
   serverSeed: string;
@@ -27,6 +33,12 @@ export type DegenshootSessionRecord = {
     completedRows: number;
   } | null;
   finalizedAt: number | null;
+
+  // Transaction tracking fields
+  wagerTxHash?: string;
+  resultTxHash?: string;
+  withdrawTxHash?: string;
+  xpTxHash?: string;
 };
 
 export type StoredRow = RowFairnessMeta & {
@@ -36,9 +48,105 @@ export type StoredRow = RowFairnessMeta & {
 };
 
 const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
+const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
+const ACTIVE_STATUSES = new Set(["pending", "active"]);
+
+type GlobalWithDegenshootStore = typeof globalThis & {
+  __DEGENSHOOT_SESSIONS__?: Map<string, DegenshootSessionRecord>;
+};
+
+const globalStore = globalThis as GlobalWithDegenshootStore;
+const inMemorySessions =
+  globalStore.__DEGENSHOOT_SESSIONS__ ?? new Map<string, DegenshootSessionRecord>();
+if (!globalStore.__DEGENSHOOT_SESSIONS__) {
+  globalStore.__DEGENSHOOT_SESSIONS__ = inMemorySessions;
+}
+
+let databaseAvailable = Boolean(process.env.DATABASE_URL);
+let databaseFailureLogged = false;
+
+function logDatabaseFallback(error: unknown) {
+  if (databaseFailureLogged) return;
+  databaseFailureLogged = true;
+  console.warn(
+    "[SessionStore] Database unavailable, falling back to in-memory session storage.",
+    error,
+  );
+}
+
+function markDatabaseUnavailable(error: unknown) {
+  if (!databaseAvailable) return;
+  databaseAvailable = false;
+  logDatabaseFallback(error);
+}
+
+function cloneRow(row: StoredRow): StoredRow {
+  return {
+    ...row,
+    probabilities: row.probabilities.map((prob) => ({ ...prob })),
+  };
+}
+
+function cloneRecord(record: DegenshootSessionRecord): DegenshootSessionRecord {
+  return {
+    ...record,
+    rows: record.rows.map((row) => cloneRow(row)),
+    lockedTileCounts: [...record.lockedTileCounts],
+    roundSummary: record.roundSummary ? { ...record.roundSummary } : null,
+  };
+}
+
+function isRecordExpired(record: DegenshootSessionRecord, ttlMs = SESSION_TTL_MS): boolean {
+  const now = Date.now();
+  const expiredByCreatedAt = now - record.createdAt > ttlMs;
+  return expiredByCreatedAt;
+}
+
+function shouldRemoveRecord(record: DegenshootSessionRecord, ttlMs: number): boolean {
+  return ACTIVE_STATUSES.has(record.status) && isRecordExpired(record, ttlMs);
+}
+
+function getFromMemory(id: string): DegenshootSessionRecord | undefined {
+  const record = inMemorySessions.get(id);
+  if (!record) return undefined;
+  if (shouldRemoveRecord(record, SESSION_TTL_MS)) {
+    inMemorySessions.delete(id);
+    return undefined;
+  }
+  return cloneRecord(record);
+}
+
+function upsertMemoryRecord(record: DegenshootSessionRecord) {
+  inMemorySessions.set(record.id, cloneRecord(record));
+}
+
+function updateMemoryRecord(
+  current: DegenshootSessionRecord,
+  updates: Partial<DegenshootSessionRecord>,
+): DegenshootSessionRecord {
+  const next: DegenshootSessionRecord = {
+    ...current,
+    ...updates,
+    rows: updates.rows ? updates.rows.map((row) => cloneRow(row)) : current.rows.map((row) => cloneRow(row)),
+    lockedTileCounts: updates.lockedTileCounts
+      ? [...updates.lockedTileCounts]
+      : [...current.lockedTileCounts],
+    roundSummary:
+      typeof updates.roundSummary !== "undefined"
+        ? updates.roundSummary
+          ? { ...updates.roundSummary }
+          : null
+        : current.roundSummary
+        ? { ...current.roundSummary }
+        : null,
+  };
+
+  upsertMemoryRecord(next);
+  return next;
+}
 
 // Helper to convert DB record to DegenshootSessionRecord
-function dbToRecord(db: GameSession): DegenshootSessionRecord {
+function dbToRecord(db: PrismaGameSession): DegenshootSessionRecord {
   return {
     id: db.id,
     serverSeed: db.serverSeed,
@@ -56,6 +164,12 @@ function dbToRecord(db: GameSession): DegenshootSessionRecord {
     lockedTileCounts: db.lockedTileCounts as number[],
     roundSummary: db.roundSummary as DegenshootSessionRecord["roundSummary"],
     finalizedAt: db.finalizedAt ? Number(db.finalizedAt) : null,
+
+    // Transaction tracking fields
+    wagerTxHash: db.wagerTxHash || undefined,
+    resultTxHash: db.resultTxHash || undefined,
+    withdrawTxHash: db.withdrawTxHash || undefined,
+    xpTxHash: db.xpTxHash || undefined,
   };
 }
 
@@ -63,7 +177,7 @@ function dbToRecord(db: GameSession): DegenshootSessionRecord {
 function recordToDb(record: DegenshootSessionRecord) {
   const expiresAt = new Date(record.createdAt);
   expiresAt.setHours(expiresAt.getHours() + SESSION_TTL_HOURS);
-  
+
   return {
     id: record.id,
     serverSeed: record.serverSeed,
@@ -83,6 +197,12 @@ function recordToDb(record: DegenshootSessionRecord) {
     finalizedAt: record.finalizedAt ? BigInt(record.finalizedAt) : null,
     expiresAt,
     isActive: true,
+
+    // Transaction tracking fields
+    wagerTxHash: record.wagerTxHash || null,
+    resultTxHash: record.resultTxHash || null,
+    withdrawTxHash: record.withdrawTxHash || null,
+    xpTxHash: record.xpTxHash || null,
   };
 }
 
@@ -129,81 +249,170 @@ export async function createSessionRecord(
     finalizedAt: overrides.finalizedAt ?? null,
   };
 
-  await prisma.gameSession.create({ data: recordToDb(record) });
-  return record;
+  if (!databaseAvailable) {
+    upsertMemoryRecord(record);
+    return record;
+  }
+
+  try {
+    await prisma.gameSession.create({ data: recordToDb(record) });
+    upsertMemoryRecord(record);
+    return record;
+  } catch (error) {
+    markDatabaseUnavailable(error);
+    upsertMemoryRecord(record);
+    return record;
+  }
 }
 
 export async function getSessionRecord(
   id: string,
 ): Promise<DegenshootSessionRecord | undefined> {
+
   const db = await prisma.gameSession.findUnique({ where: { id } });
-  if (!db) return undefined;
-  
-  // Check if expired
-  if (new Date() > db.expiresAt) {
-    await prisma.gameSession.delete({ where: { id } });
+  if (!db) {
+    console.log(`[SessionStore] Session ${id} not found in database`);
     return undefined;
   }
-  
-  return dbToRecord(db);
+
+  // Check if expired - only delete if it's an unfinished session
+  if (new Date() > db.expiresAt) {
+    console.log(`[SessionStore] Session ${id} expired. ExpiresAt: ${db.expiresAt}, Now: ${new Date()}, Status: ${db.status}`);
+    // Preserve completed/finalized games even if expired
+    if (db.status === 'pending' || db.status === 'active') {
+      console.log(`[SessionStore] Deleting expired session ${id}`);
+      await prisma.gameSession.delete({ where: { id } });
+      return undefined;
+    }
+  }
+
+  try {
+    const db = await prisma.gameSession.findUnique({ where: { id } });
+    if (!db) return undefined;
+
+    // Check if expired - only delete if it's an unfinished session
+    if (new Date() > db.expiresAt) {
+      // Preserve completed/finalized games even if expired
+      if (db.status === 'pending' || db.status === 'active') {
+        await prisma.gameSession.delete({ where: { id } });
+        return undefined;
+      }
+    }
+
+    const record = dbToRecord(db as PrismaGameSession);
+    upsertMemoryRecord(record);
+    return record;
+  } catch (error) {
+    markDatabaseUnavailable(error);
+    return getFromMemory(id);
+  }
 }
 
 export async function updateSessionRecord(
   id: string,
   updates: Partial<DegenshootSessionRecord>,
 ): Promise<DegenshootSessionRecord | undefined> {
+  if (!databaseAvailable) {
+    const current = inMemorySessions.get(id);
+    if (!current) return undefined;
+    return cloneRecord(updateMemoryRecord(current, updates));
+  }
+
   try {
     const current = await getSessionRecord(id);
     if (!current) return undefined;
-    
+
     const next: DegenshootSessionRecord = {
       ...current,
       ...updates,
-      rows: updates.rows ? updates.rows.map((row) => ({ ...row })) : current.rows,
+      rows: updates.rows ? updates.rows.map((row) => cloneRow(row)) : current.rows.map((row) => cloneRow(row)),
       lockedTileCounts: updates.lockedTileCounts
         ? [...updates.lockedTileCounts]
-        : current.lockedTileCounts,
+        : [...current.lockedTileCounts],
       roundSummary:
         typeof updates.roundSummary !== "undefined"
           ? updates.roundSummary
-          : current.roundSummary,
+            ? { ...updates.roundSummary }
+            : null
+          : current.roundSummary
+          ? { ...current.roundSummary }
+          : null,
       finalizedAt:
         typeof updates.finalizedAt !== "undefined" ? updates.finalizedAt : current.finalizedAt,
     };
-    
+
     await prisma.gameSession.update({
       where: { id },
       data: recordToDb(next),
     });
-    
+
+    upsertMemoryRecord(next);
     return next;
   } catch (error) {
-    console.error('[SessionStore] Update failed:', error);
-    return undefined;
+    console.error('[SessionStore] Update failed, attempting in-memory fallback:', error);
+    markDatabaseUnavailable(error);
+    const current = inMemorySessions.get(id);
+    if (!current) return undefined;
+    return cloneRecord(updateMemoryRecord(current, updates));
   }
 }
 
 export async function removeSessionRecord(id: string): Promise<void> {
-  await prisma.gameSession.delete({ where: { id } }).catch(() => {});
+  if (!databaseAvailable) {
+    inMemorySessions.delete(id);
+    return;
+  }
+  try {
+    await prisma.gameSession.delete({ where: { id } });
+    inMemorySessions.delete(id);
+  } catch (error) {
+    markDatabaseUnavailable(error);
+    inMemorySessions.delete(id);
+  }
 }
 
 export async function pruneExpiredSessions(ttlMs = 15 * 60 * 1000): Promise<void> {
-  const cutoffDate = new Date(Date.now() - ttlMs);
-  await prisma.gameSession.deleteMany({
-    where: {
-      OR: [
-        { expiresAt: { lt: new Date() } },
-        { createdAt: { lt: BigInt(Date.now() - ttlMs) } },
-      ],
-    },
-  });
+  if (!databaseAvailable) {
+    for (const [id, record] of inMemorySessions.entries()) {
+      if (shouldRemoveRecord(record, ttlMs)) {
+        inMemorySessions.delete(id);
+      }
+    }
+    return;
+  }
+
+  try {
+    const cutoffDate = new Date(Date.now() - ttlMs);
+    await prisma.gameSession.deleteMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { expiresAt: { lt: new Date() } },
+              { createdAt: { lt: BigInt(Date.now() - ttlMs) } },
+            ],
+          },
+          // Only delete unfinished/abandoned games, preserve completed history
+          { status: { in: ['pending', 'active'] } },
+        ],
+      },
+    });
+    for (const [id, record] of inMemorySessions.entries()) {
+      if (shouldRemoveRecord(record, ttlMs)) {
+        inMemorySessions.delete(id);
+      }
+    }
+  } catch (error) {
+    markDatabaseUnavailable(error);
+    await pruneExpiredSessions(ttlMs);
+  }
 }
 
 // New function for auth-based session restoration
 export async function restoreUserSession(userAddress: string): Promise<DegenshootSessionRecord | null> {
   const sessions = await prisma.gameSession.findMany({
-    where: { 
-      userAddress, 
+    where: {
+      userAddress,
       isActive: true,
       status: { in: ['pending', 'active'] },
     },
@@ -219,14 +428,43 @@ export async function restoreUserSession(userAddress: string): Promise<Degenshoo
     return null;
   }
 
-  return dbToRecord(session);
+  // Extend the expiration time when restoring to give user a fresh TTL window
+  const newExpiresAt = new Date();
+  newExpiresAt.setHours(newExpiresAt.getHours() + SESSION_TTL_HOURS);
+
+  console.log(`[SessionStore] Restoring session ${session.id}. Old expiresAt: ${session.expiresAt}, New expiresAt: ${newExpiresAt}`);
+
+  const updatedSession = await prisma.gameSession.update({
+    where: { id: session.id },
+    data: { expiresAt: newExpiresAt },
+  });
+
+  console.log(`[SessionStore] Session ${session.id} restored with new expiresAt: ${updatedSession.expiresAt}`);
+  return dbToRecord(updatedSession);
 }
 
 // New function for clearing user sessions on logout
 export async function clearUserSessions(userAddress: string): Promise<number> {
-  const result = await prisma.gameSession.updateMany({
-    where: { userAddress, isActive: true },
-    data: { isActive: false },
-  });
-  return result.count;
+  if (!databaseAvailable) {
+    const normalized = userAddress.toLowerCase();
+    let cleared = 0;
+    for (const [id, record] of inMemorySessions.entries()) {
+      if (record.userAddress?.toLowerCase() === normalized) {
+        inMemorySessions.delete(id);
+        cleared += 1;
+      }
+    }
+    return cleared;
+  }
+
+  try {
+    const result = await prisma.gameSession.updateMany({
+      where: { userAddress, isActive: true },
+      data: { isActive: false },
+    });
+    return result.count;
+  } catch (error) {
+    markDatabaseUnavailable(error);
+    return clearUserSessions(userAddress);
+  }
 }

@@ -1,6 +1,7 @@
 // RPC Balance Fetcher - Direct blockchain balance queries for testnet support
 import { createPublicClient, http, formatUnits, type Address } from 'viem';
 import { getChainConfig } from '@/lib/chains/registry';
+import { getChainRpcConfig } from '@/lib/rpc/endpoints';
 import type { PortfolioToken } from './portfolioService';
 
 /**
@@ -59,33 +60,66 @@ export async function fetchNativeBalance(params: {
       return null;
     }
 
-    // Create public client for RPC calls
-    const client = createPublicClient({
-      chain: chainConfig.wagmiChain,
-      transport: http(chainConfig.rpcUrl, {
-        timeout: RPC_TIMEOUT,
-      }),
-    });
+    const rpcConfig = getChainRpcConfig(chainId);
+    const rpcEndpoints = (rpcConfig?.endpoints ?? [])
+      .slice()
+      .sort((a, b) => a.priority - b.priority)
+      .map((endpoint) => endpoint.url);
 
-    // Fetch balance with timeout
-    const balance = await Promise.race([
-      client.getBalance({ address }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('RPC timeout')), RPC_TIMEOUT)
-      ),
-    ]);
-
-    // Skip if balance is zero
-    if (balance === 0n) {
-      return null;
+    // Ensure we at least try the registry URL even if RPC config is missing
+    if (!rpcEndpoints.includes(chainConfig.rpcUrl)) {
+      rpcEndpoints.push(chainConfig.rpcUrl);
     }
 
-    return {
-      chainId,
-      balance,
-      symbol: chainConfig.nativeCurrency.symbol,
-      decimals: chainConfig.nativeCurrency.decimals,
-    };
+    const errors: string[] = [];
+
+    for (const rpcUrl of rpcEndpoints) {
+      if (abortSignal?.aborted) {
+        return null;
+      }
+
+      try {
+        const client = createPublicClient({
+          chain: chainConfig.wagmiChain,
+          transport: http(rpcUrl, {
+            timeout: RPC_TIMEOUT,
+          }),
+        });
+
+        const balance = await Promise.race([
+          client.getBalance({ address }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('RPC timeout')), RPC_TIMEOUT)
+          ),
+        ]);
+
+        if (balance === 0n) {
+          return null;
+        }
+
+        return {
+          chainId,
+          balance,
+          symbol: chainConfig.nativeCurrency.symbol,
+          decimals: chainConfig.nativeCurrency.decimals,
+        };
+      } catch (rpcError) {
+        const message =
+          rpcError instanceof Error ? rpcError.message : String(rpcError);
+        const summary = message.split('\n')[0]?.trim() ?? message;
+        errors.push(`${rpcUrl} → ${summary}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      console.warn(
+        `⚠️ Skipping balance fetch for chain ${chainId}. All ${rpcEndpoints.length} RPC endpoints failed: ${errors.join(
+          '; '
+        )}`
+      );
+    }
+
+    return null;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`❌ Failed to fetch balance on chain ${chainId}:`, errorMsg);

@@ -57,6 +57,7 @@ export async function POST(request: Request) {
 
     const session = await getSessionRecord(sessionId);
     if (!session) {
+      console.log(`[API] Session not found for ID: ${sessionId}`);
       return NextResponse.json({ success: false, error: "SESSION_NOT_FOUND" }, { status: 404 });
     }
 
@@ -333,7 +334,16 @@ export async function POST(request: Request) {
         );
       }
 
-      await updateSessionRecord(session.id, { wagerWei: normalizedWager });
+      // Store wagerTxHash if provided
+      const txHashInput =
+        typeof body?.txHash === "string" && body.txHash.startsWith("0x")
+          ? body.txHash
+          : undefined;
+
+      await updateSessionRecord(session.id, {
+        wagerWei: normalizedWager,
+        wagerTxHash: txHashInput,
+      });
 
       return NextResponse.json({
         success: true,

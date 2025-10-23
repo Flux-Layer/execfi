@@ -14,6 +14,7 @@ import {
   DEGENSHOOT_CHAIN_ID,
   DEGENSHOOT_GAME_ID,
 } from "./addresses";
+import { getPrimaryRpcUrl } from '../rpc/endpoints';
 
 export const DEGENSHOOT_ABI = DegenshootArtifact.abi;
 
@@ -23,14 +24,15 @@ export const DEGENSHOOT_CHAIN: Chain =
   DEGENSHOOT_CHAIN_ID === base.id ? base : baseSepolia;
 
 const DEFAULT_RPC_URL =
-  process.env.RPC_URL_BASE_SEPOLIA ??
-  DEGENSHOOT_CHAIN.rpcUrls?.default?.http?.[0] ??
-  "https://base-sepolia.g.alchemy.com/v2/demo";
+  process.env.RPC_URL_BASE_SEPOLIA ||
+  getPrimaryRpcUrl(DEGENSHOOT_CHAIN_ID) ||
+  DEGENSHOOT_CHAIN.rpcUrls?.default?.http?.[0] ||
+  "https://sepolia.base.org";
 
 export const DEGENSHOOT_DOMAIN = {
   name: "Degenshoot",
   version: "1",
-  chainId: BigInt(DEGENSHOOT_CHAIN_ID),
+  chainId: DEGENSHOOT_CHAIN_ID,
   verifyingContract: (DEGENSHOOT_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as Address,
 } as const;
@@ -51,7 +53,9 @@ export function createDegenshootWalletClient(provider: unknown, account: Address
 
 export const degenshootPublicClient = createPublicClient({
   chain: DEGENSHOOT_CHAIN,
-  transport: http(DEFAULT_RPC_URL),
+  transport: http(DEFAULT_RPC_URL, {
+    timeout: 10000, // 10 second timeout
+  }),
 });
 
 export function getGameSignerAccount() {

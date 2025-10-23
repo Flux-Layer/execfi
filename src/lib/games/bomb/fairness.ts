@@ -276,7 +276,7 @@ export async function verifyRow({
 
    for (let bomb = 0; bomb < Math.min(bombsPerRow, tileCount); bomb++) {
       if (numberPointer >= numbers.length) {
-         const extraHash = await deriveGameHash(serverSeed, clientSeed, nonce, `verify-${bomb}-${numberPointer}`);
+         const extraHash = await deriveGameHash(serverSeed, clientSeed, nonce, `extra-${bomb}-${numberPointer}`);
          numbers.push(...hashToUint32Array(extraHash));
       }
       const pick = numbers[numberPointer] % availableTiles.length;

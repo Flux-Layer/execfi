@@ -13,15 +13,37 @@ All interactions with XPRegistry occur through the provided proxy; the contracts
 
 ```
 contracts/
-  degenshoot/Degenshoot.sol  # EIP-712 result verifier + XP forwarder
-  vault/WagerVault.sol        # Escrow + settlement vault
-  interfaces/IXPRegistry.sol # Minimal interface for the existing XPRegistry proxy
-script/DeployAll.s.sol       # Deploy Degenshoot + WagerVault with one broadcast
-test/
-  Degenshoot.t.sol           # Unit tests for signature, replay, pause logic
-  WagerVault.t.sol           # Unit tests for escrow, payout, withdraw flows
+  src/
+    coinflip/
+      CoinFlipGame.sol          # EIP-712 verifier + vault hook
+      CoinFlipVault.sol         # Escrow + settlement for coin flip
+      interfaces/               # CoinFlip + vault interfaces
+    degenshoot/
+      Degenshoot.sol            # EIP-712 result verifier + XP forwarder
+      WagerVault.sol            # Escrow + settlement vault
+      interfaces/               # Degenshoot-facing interfaces
+    shared/IXPRegistry.sol      # Minimal interface for the existing XPRegistry proxy
+    xp-registry/XPRegistry.sol  # UUPS upgradeable XP registry
+  script/
+    coinflip/DeployCoinFlip.s.sol
+    coinflip/RegisterCoinFlipGame.s.sol
+    degenshoot/DeployAll.s.sol
+    xp-registry/DeployXPRegistry.s.sol
+  cache/
+    coinflip/
+    degenshoot/
+    xp-registry/
+  broadcast/
+    coinflip/
+    degenshoot/
+    xp-registry/
+  test/
+    CoinFlip.t.sol
+    Degenshoot.t.sol
+    WagerVault.t.sol
+    xp-registry/XPRegistry.t.sol
 foundry.toml                 # solc 0.8.24, optimizer 200 runs, via-IR enabled
-.env.example                 # Deployment env template
+.env.xpregistry.example      # XPRegistry script env template
 README.md                    # This file
 ```
 
@@ -98,7 +120,7 @@ export GAME_ID=1
 export TREASURY_ADDRESS=0x...
 export HOUSE_FEE_BPS=500
 
-forge script script/DeployAll.s.sol \
+forge script script/degenshoot/DeployAll.s.sol \
   --rpc-url $RPC_URL_BASE_SEPOLIA \
   --private-key $PRIVATE_KEY \
   --broadcast

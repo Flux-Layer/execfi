@@ -5,6 +5,7 @@ import {
   DEGENSHOOT_CHAIN_ID,
   XP_REGISTRY_ADDRESS,
 } from "./addresses";
+import { getPrimaryRpcUrl } from '../rpc/endpoints';
 
 export const XP_REGISTRY_ABI = [
   {
@@ -39,20 +40,25 @@ export const XP_REGISTRY_ABI = [
 export const XP_REGISTRY_CHAIN =
   DEGENSHOOT_CHAIN_ID === base.id ? base : baseSepolia;
 
+const XP_REGISTRY_CHAIN_ID = DEGENSHOOT_CHAIN_ID;
+
 const DEFAULT_RPC_URL =
-  process.env.RPC_URL_BASE_SEPOLIA ??
-  XP_REGISTRY_CHAIN.rpcUrls?.default?.http?.[0] ??
-  "https://base-sepolia.g.alchemy.com/v2/RPaPFgRE5Jopa1P1mHlyf_Bil8k_dbyq";
+  process.env.RPC_URL_BASE_SEPOLIA ||
+  getPrimaryRpcUrl(XP_REGISTRY_CHAIN_ID) ||
+  XP_REGISTRY_CHAIN.rpcUrls?.default?.http?.[0] ||
+  "https://sepolia.base.org";
 
 export const xpRegistryPublicClient = createPublicClient({
   chain: XP_REGISTRY_CHAIN,
-  transport: http(DEFAULT_RPC_URL),
+  transport: http(DEFAULT_RPC_URL, {
+    timeout: 10000,
+  }),
 });
 
 export const XP_DOMAIN = {
   name: "XPRegistry",
   version: "1",
-  chainId: BigInt(DEGENSHOOT_CHAIN_ID),
+  chainId: DEGENSHOOT_CHAIN_ID,
   verifyingContract: (XP_REGISTRY_ADDRESS ??
     "0x0000000000000000000000000000000000000000") as `0x${string}`,
 } as const;

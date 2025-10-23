@@ -75,6 +75,288 @@
     0 0 18px rgba(192,192,255,0.45);
 }
 
+/* Cyberpunk neon text glow with color cycling */
+@keyframes colorCycle {
+  0%, 100% {
+    color: #00ffff;
+    text-shadow:
+      0 0 8px rgba(0,255,255,0.9),
+      0 0 20px rgba(0,255,255,0.5),
+      0 0 30px rgba(0,255,255,0.3);
+  }
+  33% {
+    color: #7df9ff;
+    text-shadow:
+      0 0 8px rgba(125,249,255,0.9),
+      0 0 20px rgba(125,249,255,0.5),
+      0 0 30px rgba(125,249,255,0.3);
+  }
+  66% {
+    color: #ff00ff;
+    text-shadow:
+      0 0 8px rgba(255,0,255,0.9),
+      0 0 20px rgba(255,0,255,0.5),
+      0 0 30px rgba(255,0,255,0.3);
+  }
+}
+
+.neon-cyber {
+  animation: colorCycle 6s ease-in-out infinite;
+}
+
+/* Perspective grid background */
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.25; }
+}
+
+.perspective-grid {
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(to right, rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  transform: perspective(500px) rotateX(60deg) scale(2);
+  transform-origin: center center;
+  animation: gridPulse 4s ease-in-out infinite;
+}
+
+/* Scanline effect */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+.scanline {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(0, 255, 255, 0.3),
+    transparent
+  );
+  animation: scanline 4s linear infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Particle floating animation */
+@keyframes particleFloat {
+  0% {
+    transform: translate(0, 0) scale(0.8);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(
+      calc(-50px + var(--tx, 0px)),
+      calc(-100vh + var(--ty, 0px))
+    ) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.particle-float {
+  background: radial-gradient(circle, rgba(125,249,255,0.8) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: particleFloat linear infinite;
+  --tx: calc(Math.random() * 100px - 50px);
+  --ty: 0px;
+}
+
+/* Pulsing glow effect for outer ring */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+/* macOS-inspired loader exit */
+.macos-loader {
+  position: relative;
+  overflow: hidden;
+  background: rgba(10, 14, 24, 0.96);
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0px);
+  transition:
+    opacity 0.8s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.8s cubic-bezier(0.32, 0.72, 0, 1),
+    filter 0.8s cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 0.8s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.macos-loader::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.22) 0%, transparent 55%);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.macos-loader-exit {
+  background: rgba(8, 16, 32, 0.6);
+  opacity: 0;
+  transform: scale(1.04);
+  filter: blur(22px);
+}
+
+.macos-loader-exit::after {
+  opacity: 0.45;
+}
+
+.macos-content {
+  opacity: 0;
+  transform: scale(0.985);
+  filter: blur(18px);
+  transition:
+    opacity 0.8s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.8s cubic-bezier(0.32, 0.72, 0, 1),
+    filter 0.8s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.macos-content-ready {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0px);
+}
+
+/* Smooth spinner animations */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes spin-fast {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-very-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbit-1 {
+  from {
+    transform: rotate(0deg) translateX(80px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(80px) rotate(-360deg);
+  }
+}
+
+@keyframes orbit-2 {
+  from {
+    transform: rotate(0deg) translateX(58px) rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg) translateX(58px) rotate(360deg);
+  }
+}
+
+@keyframes orbit-3 {
+  from {
+    transform: rotate(0deg) translateX(36px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(36px) rotate(-360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 4s linear infinite;
+  transform-origin: center;
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 3s linear infinite;
+  transform-origin: center;
+}
+
+.animate-spin-fast {
+  animation: spin-fast 2s linear infinite;
+  transform-origin: center;
+}
+
+.animate-spin-very-slow {
+  animation: spin-very-slow 20s linear infinite;
+  transform-origin: center;
+}
+
+.animate-orbit-1 {
+  animation: orbit-1 4s linear infinite;
+  transform-origin: 100px 100px;
+}
+
+.animate-orbit-2 {
+  animation: orbit-2 3s linear infinite;
+  transform-origin: 100px 100px;
+}
+
+.animate-orbit-3 {
+  animation: orbit-3 2s linear infinite;
+  transform-origin: 100px 100px;
+}
+
+/* Shimmer effect for progress bar */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer-effect {
+  animation: shimmer 2s infinite;
+}
+
 html{
    box-sizing: border-box;
    padding: 0;

@@ -1,5 +1,7 @@
 "use client";
 
+import clsx from "clsx";
+import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import type {
   FairnessState,
   GameStatus,
@@ -25,6 +27,9 @@ type BombFairnessPanelProps = {
   isVerifying: boolean;
   verificationStatus: "idle" | "valid" | "invalid" | "error";
   verificationOutput: VerificationRowOutput[] | null;
+  className?: string;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
 export function BombFairnessPanel({
@@ -42,48 +47,94 @@ export function BombFairnessPanel({
   isVerifying,
   verificationStatus,
   verificationOutput,
+  className,
+  isCollapsed = false,
+  onToggleCollapse,
 }: BombFairnessPanelProps) {
   if (status === "idle" || !fairnessState) return null;
 
   const revealed = Boolean(fairnessState.revealed && fairnessState.serverSeed);
 
+  // Collapsed view for mobile
+  if (isCollapsed) {
+    return (
+      <div
+        className={clsx(
+          "mt-2 sm:mt-4 rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/70 p-3 text-[10px] sm:text-xs text-slate-200 md:hidden",
+          className,
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-semibold text-emerald-300">Provably Fair</div>
+            <span className="text-[10px] text-slate-400">
+              {revealed ? "Revealed" : "Hidden"}
+            </span>
+          </div>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="rounded-lg border border-slate-700 bg-slate-900/80 p-2 text-slate-400 transition hover:border-slate-600 hover:text-slate-300"
+              aria-label="Expand fairness panel"
+            >
+              <FiChevronUp className="text-base" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-200">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div
+      className={clsx(
+        "mt-2 sm:mt-4 rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4 text-[10px] sm:text-xs text-slate-200",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="text-sm font-semibold text-emerald-300">Provably Fair Verification</div>
-        <button
-          type="button"
-          onClick={() => {
-            void rerollTiles();
-          }}
-          disabled={isBuildingRound}
-          className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-60"
-        >
-          New Round
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              void rerollTiles();
+            }}
+            disabled={isBuildingRound}
+            className="rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-60"
+          >
+            New Round
+          </button>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="md:hidden rounded-lg border border-slate-700 bg-slate-900/80 p-2 text-slate-400 transition hover:border-slate-600 hover:text-slate-300"
+              aria-label="Collapse fairness panel"
+            >
+              <FiChevronDown className="text-base" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            void revealFairness();
-          }}
-          disabled={revealed || isBuildingRound || isRevealing || !canReveal}
-          className="rounded border border-emerald-500/40 px-3 py-1.5 text-[11px] font-medium text-emerald-200 transition hover:border-emerald-400/70 hover:text-emerald-100 disabled:opacity-60"
-        >
-          {revealed ? "Fairness revealed" : isRevealing ? "Revealing..." : "Reveal Fairness"}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            void verifyRound();
-          }}
-          disabled={!revealed || isVerifying || isBuildingRound}
-          className="rounded border border-white/10 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-60"
-        >
-          {isVerifying ? "Verifying..." : "Verify Hashes"}
-        </button>
+        {revealed && (
+          <button
+            type="button"
+            onClick={() => {
+              void verifyRound();
+            }}
+            disabled={!revealed || isVerifying || isBuildingRound}
+            className="rounded border border-white/10 px-3 py-1.5 text-[11px] font-medium text-slate-200 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-60"
+          >
+            {isVerifying ? "Verifying..." : "Verify Hashes"}
+          </button>
+        )}
+        {!revealed && isRevealing && (
+          <div className="text-[11px] text-emerald-200">Revealing fairness...</div>
+        )}
       </div>
 
       {roundSummary && (
