@@ -45,6 +45,7 @@ export default function BombGameWindow() {
   );
 }
 
+
 type BombGameContentProps = {
   minimized: boolean;
   fullscreen: boolean;

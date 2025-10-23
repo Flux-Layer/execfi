@@ -14,6 +14,7 @@ import DesktopShortcut from "@/components/desktop/DesktopShortcut";
 import { FaBomb } from "react-icons/fa6";
 import { TbCoin } from "react-icons/tb";
 import { useDock } from "@/context/DockContext";
+import StatusBar from "@/components/status/StatusBar";
 
 export default function HomePageClient() {
   const privyInstance = usePrivy();
@@ -27,7 +28,8 @@ export default function HomePageClient() {
   }, [openCoinFlip]);
   return (
     <main className="relative flex h-screen w-full items-center justify-center bg-black">
-      <div className="pointer-events-none absolute left-6 top-6 z-10 flex flex-col gap-3">
+      <StatusBar />
+      <div className="pointer-events-none absolute left-6 top-20 z-10 flex flex-col gap-3">
         <DesktopShortcut
           icon={<FaBomb className="h-6 w-6" />}
           label="Degen Shooter"
