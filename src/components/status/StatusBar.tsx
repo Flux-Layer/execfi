@@ -266,7 +266,7 @@ export default function StatusBar() {
 
   return (
     <div className="pointer-events-none fixed top-0 left-0 right-0 z-30 flex justify-center px-3 pt-1 sm:pt-2 lg:justify-end lg:px-5 lg:pt-3">
-      <div className="pointer-events-auto grid w-full max-w-md grid-cols-[auto_auto] items-center gap-x-3 gap-y-1 rounded-2xl border border-white/10 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-lg backdrop-blur-md sm:max-w-2xl sm:grid-cols-[auto_auto_auto] sm:px-4 sm:text-xs lg:max-w-none lg:flex lg:h-12 lg:items-center lg:gap-4 lg:px-5 lg:text-sm">
+      <div className="pointer-events-auto grid w-full max-w-md grid-cols-[auto_auto] items-center gap-x-3 gap-y-1 rounded-2xl border border-white/10 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-lg backdrop-blur-md sm:max-w-xl sm:grid-cols-[auto_auto_auto] sm:px-4 sm:text-xs lg:w-auto lg:max-w-fit lg:flex lg:h-12 lg:items-center lg:gap-4 lg:px-5 lg:text-sm">
         <div className="flex items-center gap-2 lg:gap-3">
           <span className="tracking-[0.3em] text-slate-400">
             ExecFi OS
