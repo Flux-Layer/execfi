@@ -1247,8 +1247,6 @@ useEffect(() => {
     return () => clearStatusTimeout();
   }, [clearStatusTimeout]);
 
-  if (minimized) return null;
-
   const windowClasses = clsx(
     "flex flex-col overflow-hidden bg-slate-950/95 pointer-events-auto",
     effectiveFullscreen
@@ -1279,6 +1277,8 @@ useEffect(() => {
       maxHeight: `calc(100vh - ${dockOffset}px)`,
     };
   }, [dockOffset, effectiveFullscreen, isReady, pos.x, pos.y]);
+
+  if (minimized) return null;
 
   return (
     <div className="pointer-events-none">

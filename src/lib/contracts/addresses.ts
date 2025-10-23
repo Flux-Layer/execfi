@@ -83,6 +83,10 @@ export const FARMING_GAME_ID = Number(
     2,
 );
 
+export const MALLWARE_GAME_ID = Number(
+  process.env.NEXT_PUBLIC_MALLWARE_GAME_ID ?? process.env.MALLWARE_GAME_ID ?? 99,
+);
+
 export const FARMING_CHAIN_ID = parseChainId(
   process.env.NEXT_PUBLIC_FARMING_CHAIN_ID,
   84532,

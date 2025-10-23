@@ -498,6 +498,10 @@ export function useBombGameState({
       rangeOverride?: { min: number; max: number },
       lockedCountsOverride?: number[] | null,
     ): Promise<string | null> => {
+      if (!activeAddress) {
+        setBetError("Connect wallet to start a session.");
+        return null;
+      }
       const range = rangeOverride ?? tileRangeRef.current;
       const lockedCounts =
         typeof lockedCountsOverride !== "undefined"

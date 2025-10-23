@@ -9,7 +9,9 @@ import {
    FiSettings,
    FiUser,
 } from "react-icons/fi";
-import { useRef, useState } from "react";
+import { FaBomb } from "react-icons/fa6";
+import { TbCoin } from "react-icons/tb";
+import { useMemo, useRef, useState } from "react";
 import HSMTerminalBody from "@/components/terminal/HSMTerminalBody";
 import TerminalHeader from "@/components/terminal/TerminalHeader";
 import { useDock } from "@/context/DockContext";
@@ -17,10 +19,12 @@ import { NotesApp } from "@/components/apps/ExecFiNotes";
 import { ProfilePreview } from "@/components/apps/Profile";
 import { AboutPreview } from "@/components/apps/About";
 import { SettingsPreview } from "@/components/apps/Settings";
+import BombGamePreview from "@/components/apps/previews/BombGamePreview";
+import CoinFlipGamePreview from "@/components/apps/previews/CoinFlipGamePreview";
 import { useResponsive } from "@/hooks/useResponsive";
 
-const DOCK_ITEMS = [
-   { key: "home", label: "Home", href: "#home", icon: <FiHome /> },
+const BASE_DOCK_ITEMS = [
+   { key: "home", label: "Home", href: "https://execfi.xyz", icon: <FiHome /> },
    { key: "about", label: "About", href: "#about", icon: <FiInfo /> },
    { key: "pricing", label: "Notes", href: "/execfi", icon: <FiFileText /> },
    {
@@ -43,17 +47,22 @@ export default function Dock() {
       terminalState,
       docsState,
       profileState,
+      gameState,
+      coinFlipState,
       aboutState,
       settingsState,
-      minimizeAllApps,
       openTerminal,
       openDocs,
       openProfile,
+      openGame,
+      openCoinFlip,
       openAbout,
       openSettings,
       minimizeTerminal,
       minimizeDocs,
       minimizeProfile,
+      minimizeGame,
+      minimizeCoinFlip,
       minimizeAbout,
       minimizeSettings,
    } = useDock();
@@ -61,6 +70,27 @@ export default function Dock() {
    const [hovered, setHovered] = useState<string | null>(null);
    const previewContainerRef = useRef<HTMLDivElement | null>(null);
    const previewInputRef = useRef<HTMLInputElement | null>(null);
+   const dockItems = useMemo(
+      () => {
+         const items = [...BASE_DOCK_ITEMS];
+         if (gameState.open || gameState.minimized) {
+            items.push({
+               key: "degenshoot",
+               label: "Degen Shooter",
+               icon: <FaBomb />,
+            });
+         }
+         if (coinFlipState.open || coinFlipState.minimized) {
+            items.push({
+               key: "coinflip",
+               label: "CoinFlip",
+               icon: <TbCoin />,
+            });
+         }
+         return items;
+      },
+      [coinFlipState.minimized, coinFlipState.open, gameState.minimized, gameState.open],
+   );
    return (
       <div className="pointer-events-none fixed bottom-0 md:bottom-6 left-0 md:left-1/2 right-0 md:right-auto z-40 md:-translate-x-1/2">
          <nav
@@ -71,7 +101,7 @@ export default function Dock() {
                          md:shadow-2xl md:shadow-black/40 backdrop-blur-xl relative
                          justify-around md:justify-start py-2 md:py-3
                          safe-area-inset-bottom ">
-            {DOCK_ITEMS.map((item) => {
+            {dockItems.map((item) => {
                const isHover = hovered === item.key && !isMobile;
                const isTerminal = item.key === "terminal";
                const terminalMinimized = isTerminal && terminalState.minimized;
@@ -82,13 +112,26 @@ export default function Dock() {
                const isProfile = item.key === "profile";
                const profileMinimized = isProfile && profileState.minimized;
                const profileActive = isProfile && profileState.open && !profileState.minimized;
+               const isGame = item.key === "degenshoot";
+               const gameMinimized = isGame && gameState.minimized;
+               const gameActive = isGame && gameState.open && !gameState.minimized;
+               const isCoinFlip = item.key === "coinflip";
+               const coinFlipMinimized = isCoinFlip && coinFlipState.minimized;
+               const coinFlipActive = isCoinFlip && coinFlipState.open && !coinFlipState.minimized;
                const isAbout = item.key === "about";
                const aboutMinimized = isAbout && aboutState.minimized;
                const aboutActive = isAbout && aboutState.open && !aboutState.minimized;
                const isSettings = item.key === "settings";
                const settingsMinimized = isSettings && settingsState.minimized;
                const settingsActive = isSettings && settingsState.open && !settingsState.minimized;
-               const isActive = terminalActive || docsActive || profileActive || aboutActive || settingsActive;
+               const isActive =
+                  terminalActive ||
+                  docsActive ||
+                  profileActive ||
+                  aboutActive ||
+                  settingsActive ||
+                  gameActive ||
+                  coinFlipActive;
 
                return (
                   <div
@@ -104,7 +147,7 @@ export default function Dock() {
                     aria-label={item.label}
                     onClick={() => {
                         if (item.key === "home") {
-                           minimizeAllApps();
+                           window.location.href = "https://execfi.xyz";
                            return;
                         }
 
@@ -113,6 +156,18 @@ export default function Dock() {
                               minimizeTerminal();
                            } else {
                               openTerminal();
+                           }
+                        } else if (isGame) {
+                           if (gameState.open && !gameState.minimized) {
+                              minimizeGame();
+                           } else {
+                              openGame();
+                           }
+                        } else if (isCoinFlip) {
+                           if (coinFlipState.open && !coinFlipState.minimized) {
+                              minimizeCoinFlip();
+                           } else {
+                              openCoinFlip();
                            }
                         } else if (item.key === "pricing") {
                            if (docsState.open && !docsState.minimized) {
@@ -144,12 +199,24 @@ export default function Dock() {
                        if (e.key === "Enter" || e.key === " ") {
                            e.preventDefault();
                            if (item.key === "home") {
-                              minimizeAllApps();
+                              window.location.href = "https://execfi.xyz";
                            } else if (isTerminal) {
                               if (terminalState.open && !terminalState.minimized) {
                                  minimizeTerminal();
                               } else {
                                  openTerminal();
+                              }
+                           } else if (isGame) {
+                              if (gameState.open && !gameState.minimized) {
+                                 minimizeGame();
+                              } else {
+                                 openGame();
+                              }
+                           } else if (isCoinFlip) {
+                              if (coinFlipState.open && !coinFlipState.minimized) {
+                                 minimizeCoinFlip();
+                              } else {
+                                 openCoinFlip();
                               }
                            } else if (item.key === "pricing") {
                               if (docsState.open && !docsState.minimized) {
@@ -182,19 +249,34 @@ export default function Dock() {
                      <motion.span
                         animate={{
                            scale:
-                              terminalMinimized || docsMinimized || profileMinimized || aboutMinimized || settingsMinimized
+                              terminalMinimized ||
+                              docsMinimized ||
+                              profileMinimized ||
+                              aboutMinimized ||
+                              settingsMinimized ||
+                              gameMinimized ||
+                              coinFlipMinimized
                                  ? 1.2
                                  : isHover
                                     ? 1.15
                                     : (isTerminal && terminalState.open) ||
                                        (isProfile && profileState.open) ||
                                        (isAbout && aboutState.open) ||
-                                       (isSettings && settingsState.open)
+                                       (isSettings && settingsState.open) ||
+                                       (isGame && gameState.open) ||
+                                       (isCoinFlip && coinFlipState.open)
                                        ? 1.05
                                        : 1,
                            y: !isMobile && isHover
                               ? -6
-                              : !isMobile && (terminalMinimized || docsMinimized || profileMinimized || aboutMinimized || settingsMinimized)
+                              : !isMobile &&
+                                  (terminalMinimized ||
+                                     docsMinimized ||
+                                     profileMinimized ||
+                                     aboutMinimized ||
+                                     settingsMinimized ||
+                                     gameMinimized ||
+                                     coinFlipMinimized)
                                  ? -3
                                  : 0,
                         }}
@@ -228,7 +310,9 @@ export default function Dock() {
                            {isHover &&
                               !(
                                  (isTerminal && terminalMinimized) ||
-                                 (isDocs && docsMinimized)
+                                 (isDocs && docsMinimized) ||
+                                 (isGame && gameMinimized) ||
+                                 (isCoinFlip && coinFlipMinimized)
                               ) && (
                                  <motion.div
                                     initial={{ opacity: 0, y: 6 }}
@@ -295,6 +379,24 @@ export default function Dock() {
             </AnimatePresence>
 
             <AnimatePresence>
+               {gameState.minimized && hovered === "degenshoot" && (
+                  <motion.div
+                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                  >
+                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                        <div className="absolute inset-0">
+                           <BombGamePreview />
+                        </div>
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
+
+            <AnimatePresence>
                {docsState.minimized && hovered === "pricing" && (
                   <motion.div
                      initial={{ opacity: 0, y: 12, scale: 0.96 }}
@@ -319,6 +421,24 @@ export default function Dock() {
                                  <NotesApp />
                               </div>
                            </div>
+                        </div>
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+               {coinFlipState.minimized && hovered === "coinflip" && (
+                  <motion.div
+                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                  >
+                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                        <div className="absolute inset-0">
+                           <CoinFlipGamePreview />
                         </div>
                      </div>
                   </motion.div>

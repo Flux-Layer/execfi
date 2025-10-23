@@ -28,10 +28,6 @@ export function OnboardingSpotlight({ step }: OnboardingSpotlightProps) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasScrolledRef = useRef(false);
 
-  if (!state) return null;
-
-  const isLastStep = step.order === state.totalSteps;
-
   useEffect(() => {
     if (!step.target) return;
 
@@ -124,6 +120,10 @@ export function OnboardingSpotlight({ step }: OnboardingSpotlightProps) {
       }
     };
   }, [step.target]);
+
+  if (!state) return null;
+
+  const isLastStep = step.order === state.totalSteps;
 
   const handleNext = async () => {
     // Trigger exit animation

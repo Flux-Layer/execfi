@@ -1,0 +1,249 @@
+"use client";
+
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import useUserXp from "@/hooks/useUserXp";
+import { useDock } from "@/context/DockContext";
+import { useTerminalInput } from "@/cli/hooks/useTerminalStore";
+
+const timeFormatter = new Intl.DateTimeFormat("id-ID", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+});
+
+const truncateAddress = (address: string) => {
+  if (!address) return "";
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+};
+
+export default function StatusBar() {
+  const { ready, authenticated, user, logout } = usePrivy();
+  const { openTerminal } = useDock();
+  const { setInputText, submitInput } = useTerminalInput();
+  const [mounted, setMounted] = useState(false);
+  const [clockDisplay, setClockDisplay] = useState<string>("—");
+  const [dateDisplay, setDateDisplay] = useState<string>("—");
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
+  const walletMenuRef = useRef<HTMLDivElement>(null);
+  const [xpTooltipOpen, setXpTooltipOpen] = useState(false);
+  const xpTooltipRef = useRef<HTMLDivElement>(null);
+
+  const walletAddress = ready && authenticated ? user?.wallet?.address ?? null : null;
+  const normalizedAddress = walletAddress ? (walletAddress as `0x${string}`) : null;
+  const walletConnected = Boolean(normalizedAddress);
+  const walletLabel = walletConnected ? truncateAddress(normalizedAddress!) : "Wallet not connected";
+
+  const {
+    formatted: { total: formattedTotalXp, breakdown: formattedXpBreakdown = [] },
+    isLoading: xpLoading,
+    isFetching: xpFetching,
+    isError: xpError,
+  } = useUserXp({ address: normalizedAddress });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const updateClock = () => {
+      const now = new Date();
+      setClockDisplay(timeFormatter.format(now));
+      setDateDisplay(dateFormatter.format(now));
+    };
+    updateClock();
+    const interval = window.setInterval(updateClock, 1000);
+    return () => window.clearInterval(interval);
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!walletMenuOpen) return;
+    const handleClick = (event: MouseEvent) => {
+      if (walletMenuRef.current && !walletMenuRef.current.contains(event.target as Node)) {
+        setWalletMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [walletMenuOpen]);
+
+  useEffect(() => {
+    setWalletMenuOpen(false);
+  }, [walletConnected]);
+
+  useEffect(() => {
+    if (!walletConnected) {
+      setXpTooltipOpen(false);
+    }
+  }, [walletConnected]);
+
+  useEffect(() => {
+    if (!xpTooltipOpen) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setXpTooltipOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [xpTooltipOpen]);
+
+  const toggleWalletMenu = () => {
+    setWalletMenuOpen((prev) => !prev);
+  };
+
+  const handleLogin = () => {
+    setWalletMenuOpen(false);
+    openTerminal();
+    setInputText("/login");
+    submitInput("/login");
+  };
+
+  const handleLogout = async () => {
+    setWalletMenuOpen(false);
+    try {
+      await logout?.();
+    } catch (error) {
+      console.error("Failed to logout", error);
+    }
+  };
+
+  const showXpTooltip = () => setXpTooltipOpen(true);
+  const hideXpTooltip = () => setXpTooltipOpen(false);
+  const toggleXpTooltip = () => setXpTooltipOpen((prev) => !prev);
+
+  const handleXpKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleXpTooltip();
+    }
+  };
+
+  const xpDisplay = walletConnected
+    ? xpLoading && !formattedTotalXp
+      ? "Loading…"
+      : xpError
+        ? "Unavailable"
+        : formattedTotalXp ?? "0"
+    : "—";
+
+  const xpBreakdownItems = walletConnected
+    ? formattedXpBreakdown.map((item) => ({
+        label: item.label,
+        value:
+          xpLoading && !item.value
+            ? "Loading…"
+            : xpError
+              ? "Unavailable"
+              : item.value ?? "0",
+      }))
+    : [];
+
+  return (
+    <div className="pointer-events-none fixed top-0 right-0 z-30 flex justify-end px-3 pt-2 md:px-5 md:pt-3">
+      <div className="pointer-events-auto flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-xs font-medium text-slate-200 shadow-lg backdrop-blur-md md:gap-5 md:px-5 md:text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-[0.3em] text-slate-400 md:text-xs">
+            ExecFi
+          </span>
+          <div className="hidden h-4 w-px bg-white/10 md:block" aria-hidden />
+          <div className="relative flex items-center gap-2" ref={walletMenuRef}>
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${walletConnected ? "bg-emerald-400" : "bg-amber-400"}`}
+              aria-hidden
+            />
+            <button
+              type="button"
+              onClick={toggleWalletMenu}
+              aria-haspopup="menu"
+              aria-expanded={walletMenuOpen}
+              className={`text-slate-300 transition-colors ${
+                walletMenuOpen ? "text-slate-100" : "hover:text-slate-100"
+              }`}
+            >
+              {walletLabel}
+            </button>
+            {walletMenuOpen && (
+              <div className="absolute right-0 top-full mt-4 w-44 rounded-xl border border-white/10 bg-slate-900/95 p-2 text-xs text-slate-200 shadow-lg">
+                {walletConnected ? (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/10"
+                  >
+                    <span className="font-medium">Logout</span>
+                    <span className="text-[10px] uppercase tracking-[0.2em] text-rose-300/80">CTRL+K</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleLogin}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/10"
+                  >
+                    Login
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="hidden h-5 w-px bg-white/10 md:block" aria-hidden />
+        <div
+          ref={xpTooltipRef}
+          className="relative flex items-center gap-2 md:gap-3"
+          role="button"
+          tabIndex={0}
+          onMouseEnter={showXpTooltip}
+          onMouseLeave={hideXpTooltip}
+          onFocus={showXpTooltip}
+          onBlur={hideXpTooltip}
+          onKeyDown={handleXpKeyDown}
+        >
+          <span className="text-slate-400">Total XP</span>
+          <span className={xpFetching ? "opacity-70" : "font-semibold"}>{xpDisplay}</span>
+          {xpTooltipOpen && (
+            <div className="absolute right-0 top-full z-10 mt-2 w-56 rounded-xl border border-white/10 bg-slate-900/95 p-3 text-xs text-slate-200 shadow-lg">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-slate-400">
+                XP Breakdown
+              </div>
+              {walletConnected ? (
+                <div className="space-y-2">
+                  <dl className="space-y-1">
+                    {xpBreakdownItems.map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between gap-3 rounded-lg px-2 py-1"
+                      >
+                        <dt className="text-slate-300">{item.label}</dt>
+                        <dd className="font-medium text-slate-100">{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="flex items-center justify-between border-t border-white/10 pt-2">
+                    <span className="text-slate-400">Total</span>
+                    <span className="font-semibold text-slate-50">{xpDisplay}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-slate-400">Connect wallet to view per-game breakdown.</p>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="hidden h-5 w-px bg-white/10 md:block" aria-hidden />
+        <div className="flex items-center gap-2 md:gap-3">
+          <span className="font-semibold tracking-wide">{clockDisplay}</span>
+          <span className="text-slate-300">{dateDisplay}</span>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -2,11 +2,24 @@ import { useCallback, useMemo } from "react";
 import { zeroAddress } from "viem";
 import { useReadContract } from "wagmi";
 import { XP_REGISTRY_ABI, XP_REGISTRY_CHAIN } from "@/lib/contracts/xpRegistry";
-import { DEGENSHOOT_GAME_ID, XP_REGISTRY_ADDRESS } from "@/lib/contracts/addresses";
+import {
+  COINFLIP_GAME_ID,
+  DEGENSHOOT_GAME_ID,
+  MALLWARE_GAME_ID,
+  XP_REGISTRY_ADDRESS,
+} from "@/lib/contracts/addresses";
 
 type UseUserXpOptions = {
   address?: `0x${string}` | null;
   gameId?: number;
+};
+
+type GameXpBreakdownItem = {
+  key: string;
+  id: number;
+  label: string;
+  xp: bigint | null;
+  formatted: string | null;
 };
 
 type UseUserXpResult = {
@@ -19,9 +32,15 @@ type UseUserXpResult = {
   isError: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
+  gameBreakdown: GameXpBreakdownItem[];
   formatted: {
     game: string | null;
     total: string | null;
+    breakdown: Array<{
+      key: string;
+      label: string;
+      value: string | null;
+    }>;
   };
 };
 
@@ -44,11 +63,39 @@ export function useUserXp(options: UseUserXpOptions = {}): UseUserXpResult {
   const enabled = Boolean(account && contractAddress);
   const chainId = XP_REGISTRY_CHAIN.id;
 
-  const xpQuery = useReadContract({
+  const degenshootXpQuery = useReadContract({
     abi: XP_REGISTRY_ABI,
     address: contractAddress ?? zeroAddress,
     functionName: "xp",
     args: [account ?? zeroAddress, BigInt(gameId)],
+    chainId,
+    query: {
+      enabled,
+      staleTime: 15_000,
+      refetchInterval: enabled ? 15_000 : undefined,
+      refetchOnWindowFocus: false,
+    },
+  });
+
+  const coinflipXpQuery = useReadContract({
+    abi: XP_REGISTRY_ABI,
+    address: contractAddress ?? zeroAddress,
+    functionName: "xp",
+    args: [account ?? zeroAddress, BigInt(COINFLIP_GAME_ID)],
+    chainId,
+    query: {
+      enabled,
+      staleTime: 15_000,
+      refetchInterval: enabled ? 15_000 : undefined,
+      refetchOnWindowFocus: false,
+    },
+  });
+
+  const mallwareXpQuery = useReadContract({
+    abi: XP_REGISTRY_ABI,
+    address: contractAddress ?? zeroAddress,
+    functionName: "xp",
+    args: [account ?? zeroAddress, BigInt(MALLWARE_GAME_ID)],
     chainId,
     query: {
       enabled,
@@ -73,27 +120,69 @@ export function useUserXp(options: UseUserXpOptions = {}): UseUserXpResult {
   });
 
   const refetch = useCallback(async () => {
-    await Promise.all([xpQuery.refetch(), totalQuery.refetch()]);
-  }, [totalQuery, xpQuery]);
+    await Promise.all([
+      degenshootXpQuery.refetch(),
+      coinflipXpQuery.refetch(),
+      mallwareXpQuery.refetch(),
+      totalQuery.refetch(),
+    ]);
+  }, [coinflipXpQuery, degenshootXpQuery, mallwareXpQuery, totalQuery]);
+
+  const breakdown = useMemo<GameXpBreakdownItem[]>(
+    () => [
+      {
+        key: "degenshoot",
+        id: DEGENSHOOT_GAME_ID,
+        label: "Degenshoot",
+        xp: degenshootXpQuery.data ?? null,
+        formatted: formatBigInt(degenshootXpQuery.data ?? null),
+      },
+      {
+        key: "coinflip",
+        id: COINFLIP_GAME_ID,
+        label: "CoinFlip",
+        xp: coinflipXpQuery.data ?? null,
+        formatted: formatBigInt(coinflipXpQuery.data ?? null),
+      },
+      {
+        key: "mallware",
+        id: MALLWARE_GAME_ID,
+        label: "Mallware",
+        xp: mallwareXpQuery.data ?? null,
+        formatted: formatBigInt(mallwareXpQuery.data ?? null),
+      },
+    ],
+    [coinflipXpQuery.data, degenshootXpQuery.data, mallwareXpQuery.data],
+  );
 
   const formatted = useMemo(
     () => ({
-      game: formatBigInt(xpQuery.data ?? null),
+      game: formatBigInt(degenshootXpQuery.data ?? null),
       total: formatBigInt(totalQuery.data ?? null),
+      breakdown: breakdown.map((item) => ({
+        key: item.key,
+        label: item.label,
+        value: item.formatted,
+      })),
     }),
-    [xpQuery.data, totalQuery.data],
+    [breakdown, degenshootXpQuery.data, totalQuery.data],
   );
+
+  const queries = [degenshootXpQuery, coinflipXpQuery, mallwareXpQuery, totalQuery];
+  const firstError =
+    degenshootXpQuery.error ?? coinflipXpQuery.error ?? mallwareXpQuery.error ?? totalQuery.error ?? null;
 
   return {
     enabled,
     hasRegistry: Boolean(contractAddress),
-    gameXp: xpQuery.data ?? null,
+    gameXp: degenshootXpQuery.data ?? null,
     totalXp: totalQuery.data ?? null,
-    isLoading: xpQuery.isLoading || totalQuery.isLoading,
-    isFetching: xpQuery.isFetching || totalQuery.isFetching,
-    isError: Boolean(xpQuery.error ?? totalQuery.error),
-    error: (xpQuery.error ?? totalQuery.error) ?? null,
+    isLoading: queries.some((query) => query.isLoading),
+    isFetching: queries.some((query) => query.isFetching),
+    isError: Boolean(firstError),
+    error: firstError,
     refetch,
+    gameBreakdown: breakdown,
     formatted,
   };
 }
