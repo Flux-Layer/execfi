@@ -180,7 +180,6 @@ export default function StatusBar() {
                     className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/10"
                   >
                     <span className="font-medium">Logout</span>
-                    <span className="text-[10px] uppercase tracking-[0.2em] text-rose-300/80">CTRL+K</span>
                   </button>
                 ) : (
                   <button
