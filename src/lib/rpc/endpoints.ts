@@ -36,6 +36,24 @@ function buildEndpoints(
     2741: 'ABSTRACT',
   };
 
+  // ANKR chain name mapping (chain ID -> ANKR chain identifier)
+  const ankrChainNames: Record<number, string> = {
+    1: 'eth',
+    11155111: 'eth_sepolia',
+    8453: 'base',
+    84532: 'base_sepolia',
+    137: 'polygon',
+    80002: 'polygon_amoy',
+    42161: 'arbitrum',
+    421614: 'arbitrum_sepolia',
+    10: 'optimism',
+    11155420: 'optimism_sepolia',
+    56: 'bsc',
+    97: 'bsc_testnet',
+    43114: 'avalanche',
+    43113: 'avalanche_fuji',
+  };
+
   const customUrl = chainKeys[chainId] ? getEnvRpcUrl(chainKeys[chainId]) : undefined;
   if (customUrl) {
     endpoints.push({
@@ -55,9 +73,30 @@ function buildEndpoints(
   }
 
   // Priority 3: ANKR Advanced API (primary fallback)
-  if (ankrUrl) {
+  // ANKR URL format: https://rpc.ankr.com/{chain} or https://rpc.ankr.com/{chain}/{token}
+  if (ankrUrl && ankrChainNames[chainId]) {
+    const ankrChainName = ankrChainNames[chainId];
+
+    let fullAnkrUrl: string;
+
+    // Extract token from multichain URL if present
+    // Multichain format: https://rpc.ankr.com/multichain/{token}
+    // Chain-specific format: https://rpc.ankr.com/{chain}/{token}
+    if (ankrUrl.includes('/multichain/')) {
+      const token = ankrUrl.split('/multichain/')[1];
+      fullAnkrUrl = `https://rpc.ankr.com/${ankrChainName}/${token}`;
+    } else if (ankrUrl === 'https://rpc.ankr.com' || ankrUrl === 'https://rpc.ankr.com/') {
+      // Public freemium endpoint
+      fullAnkrUrl = `https://rpc.ankr.com/${ankrChainName}`;
+    } else {
+      // Assume it's a base URL and append chain name
+      fullAnkrUrl = ankrUrl.endsWith('/')
+        ? `${ankrUrl}${ankrChainName}`
+        : `${ankrUrl}/${ankrChainName}`;
+    }
+
     endpoints.push({
-      url: `${ankrUrl}/${chainId}`,
+      url: fullAnkrUrl,
       provider: 'ankr',
       priority: 3,
     });
