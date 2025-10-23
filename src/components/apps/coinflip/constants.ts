@@ -17,10 +17,15 @@ export const COIN_VARIANTS = {
     transition: { duration: 0.4, ease: 'easeOut' },
   },
   flipping: {
-    rotateX: [0, 360, 720],
-    rotateY: [0, 180, 360],
-    scale: [1, 1.15, 1],
-    transition: { duration: 0.9, ease: 'easeInOut' },
+    rotateX: [0, 12, -12, 0],
+    rotateY: [0, 90, 180, 270, 360],
+    scale: [1, 1.08, 1],
+    transition: {
+      duration: 1.1,
+      ease: 'linear',
+      repeat: Infinity,
+      repeatType: 'loop',
+    },
   },
 } satisfies Variants;
 
@@ -35,7 +40,7 @@ export const FLOAT_IDLE_ANIMATION: TargetAndTransition = {
 export const FLOAT_FLIP_ANIMATION: TargetAndTransition = {
   y: [0, -18, -12, 0],
   rotateZ: [0, -6, 6, 0],
-  transition: { duration: 0.9, ease: 'easeInOut' },
+  transition: { duration: 0.9, ease: 'easeInOut', repeat: Infinity },
 };
 
 export const COIN_FACE_THEMES = {
@@ -54,7 +59,7 @@ export const COIN_FACE_THEMES = {
   },
   Tails: {
     label: 'Tails',
-    tagline: 'Tails',
+    tagline: 'Tails Arcade',
     Icon: TbFeather,
     labelTextClass: 'text-amber-200',
     topLabelClass: 'text-amber-100/85',
