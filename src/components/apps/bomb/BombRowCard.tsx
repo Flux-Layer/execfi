@@ -44,10 +44,10 @@ export const BombRowCard = forwardRef<HTMLDivElement, BombRowCardProps>(
     return (
       <div
         ref={ref}
-        className={`w-full max-w-3xl rounded-3xl border p-4 shadow-inner shadow-black/40 transition text-left ${cardStateClass}`}
+        className={`w-full max-w-3xl rounded-2xl sm:rounded-3xl border p-3 sm:p-4 shadow-inner shadow-black/40 transition text-left ${cardStateClass}`}
       >
-        <div className="mb-3 flex flex-col gap-3 text-xs">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] opacity-70">
+        <div className="mb-2 sm:mb-3 flex flex-col gap-2 sm:gap-3 text-xs">
+          <div className="flex items-center justify-between text-[9px] sm:text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.25em] opacity-70">
             <span>Row {stat?.rowNumber ?? originalIndex + 1}</span>
             <span
               className={`font-medium ${
@@ -57,12 +57,12 @@ export const BombRowCard = forwardRef<HTMLDivElement, BombRowCardProps>(
               {statusLabel}
             </span>
           </div>
-          <div className={`text-2xl font-semibold ${isCrashRow ? "text-red-300" : "text-emerald-300"}`}>
+          <div className={`text-xl sm:text-2xl font-semibold ${isCrashRow ? "text-red-300" : "text-emerald-300"}`}>
             {totalDisplay}
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-          <div className="flex flex-wrap items-center justify-center gap-4">
+        <div className="rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-950/70 p-2 sm:p-3 overflow-x-auto">
+          <div className="flex flex-nowrap items-center justify-center gap-2 sm:gap-3 md:gap-4">
             {layout.activeColumns.map((sourceColumn, idx) => {
               const isDisabled =
                 !hasStarted || status !== "idle" || originalIndex !== activeRowIndex || layout.selectedColumn !== null;
@@ -78,13 +78,13 @@ export const BombRowCard = forwardRef<HTMLDivElement, BombRowCardProps>(
                   onClick={() => onTileSelect(originalIndex, sourceColumn)}
                   className={`${tileClass} ${isBombTile ? "ring-2 ring-red-500/80" : ""}`}
                 >
-                  {isBombTile && <FaBomb className="h-9 w-9 text-red-400 drop-shadow-md" />}
+                  {isBombTile && <FaBomb className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 text-red-400 drop-shadow-md" />}
                 </button>
               );
             })}
           </div>
         </div>
-        <div className="mt-2 text-[10px] opacity-70">
+        <div className="mt-1.5 sm:mt-2 text-[9px] sm:text-[10px] opacity-70">
           {layout.activeColumns.length} tiles · {bombsPerRowDisplay} bomb{bombsPerRowDisplay > 1 ? "s" : ""}
         </div>
       </div>

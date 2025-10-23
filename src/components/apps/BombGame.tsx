@@ -103,14 +103,36 @@ function BombGameContent({
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [verificationSessionId, setVerificationSessionId] = useState<string | null>(null);
 
+  // Bet controls collapse state (mobile only)
+  const [isBetControlsCollapsed, setIsBetControlsCollapsed] = useState(false);
+
+  // Fairness panel collapse state (mobile only)
+  const [isFairnessPanelCollapsed, setIsFairnessPanelCollapsed] = useState(false);
+
+  // Auto-collapse bet controls when round starts on mobile
+  useEffect(() => {
+    if (isMobile && game.isRoundInProgress) {
+      setIsBetControlsCollapsed(true);
+    }
+  }, [isMobile, game.isRoundInProgress]);
+
+  // Auto-expand when round ends (lost or idle)
+  useEffect(() => {
+    if (isMobile && (game.status === 'lost' || game.status === 'idle')) {
+      setIsBetControlsCollapsed(false);
+    }
+  }, [isMobile, game.status]);
+
+  // Auto-collapse fairness panel when fairness is revealed on mobile
+  useEffect(() => {
+    if (isMobile && game.fairnessState?.revealed) {
+      setIsFairnessPanelCollapsed(true);
+    }
+  }, [isMobile, game.fairnessState?.revealed]);
+
   const handleVerifyClick = useCallback((sessionId: string) => {
     setVerificationSessionId(sessionId);
     setVerificationModalOpen(true);
-  }, []);
-
-  const handleDetailsClick = useCallback((sessionId: string) => {
-    // Placeholder for future detailed session view
-    console.log("Details for session:", sessionId);
   }, []);
 
   const transactionOverlayMessage = useMemo(() => {
@@ -239,28 +261,28 @@ function BombGameContent({
 
       {/* Game Tab */}
       {activeTab === "game" && (
-        <div className="relative flex h-full min-h-0 flex-col gap-4 bg-[radial-gradient(circle_at_center,#111827,#030712)] px-4 py-4 sm:px-6 sm:py-6">
+        <div className="relative flex h-full min-h-0 flex-col gap-3 sm:gap-4 bg-[radial-gradient(circle_at_center,#111827,#030712)] px-2 py-3 sm:px-4 sm:py-4 md:px-6 md:py-6 pb-16 md:pb-6">
           {roundBannerMessage && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-200 shadow-sm shadow-emerald-500/20">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs text-emerald-200 shadow-sm shadow-emerald-500/20">
               {roundBannerMessage}
             </div>
           )}
 
           {transactionOverlayMessage && (
             <div
-              className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-950/80 backdrop-blur-sm"
+              className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 sm:gap-3 bg-slate-950/80 backdrop-blur-sm"
               aria-live="polite"
               aria-busy="true"
             >
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-              <div className="text-sm font-medium text-emerald-100">
+              <div className="h-8 w-8 sm:h-10 sm:w-10 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+              <div className="text-xs sm:text-sm font-medium text-emerald-100">
                 {transactionOverlayMessage}
               </div>
-              <p className="text-xs text-slate-400">Waiting for confirmation...</p>
+              <p className="text-[10px] sm:text-xs text-slate-400">Waiting for confirmation...</p>
             </div>
           )}
 
-          <div className="flex flex-1 min-h-0 flex-col gap-4 lg:flex-row lg:items-start lg:gap-6 h-full overflow-y-scroll">
+          <div className="flex flex-1 min-h-0 flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:gap-6 h-full overflow-y-auto">
             <div className={`flex min-h-0 flex-1 flex-col ${showFairnessPanel ? "lg:pr-2" : ""}`}>
               <BombBoardSection
                 rowsForRender={game.rowsForRender}
@@ -291,9 +313,9 @@ function BombGameContent({
             </div>
 
             {showFairnessPanel && (
-              <div className="lg:w-[22rem] lg:flex-shrink-0 lg:self-stretch">
+              <div className="w-full lg:w-[22rem] lg:flex-shrink-0 lg:self-stretch">
                 <BombFairnessPanel
-                  className="w-full lg:sticky lg:top-4 lg:mt-0"
+                  className="w-full lg:sticky lg:top-4"
                   status={game.status}
                   isBuildingRound={game.isBuildingRound}
                   isRevealing={game.isRevealing}
@@ -308,6 +330,8 @@ function BombGameContent({
                   canReveal={game.canReveal}
                   verificationStatus={game.verificationStatus}
                   verificationOutput={game.verificationOutput}
+                  isCollapsed={isFairnessPanelCollapsed}
+                  onToggleCollapse={() => setIsFairnessPanelCollapsed(!isFairnessPanelCollapsed)}
                 />
               </div>
             )}
@@ -363,6 +387,8 @@ function BombGameContent({
                   game.isWithdrawing ||
                   game.isBuildingRound
               }
+              isCollapsed={isBetControlsCollapsed}
+              onToggleCollapse={() => setIsBetControlsCollapsed(!isBetControlsCollapsed)}
             />
           </div>
 
@@ -371,18 +397,17 @@ function BombGameContent({
 
       {/* History Tab */}
       {activeTab === 'history' && (
-        <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)]">
+        <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)] pb-16 md:pb-0">
           <BombHistoryTab
             activeAddress={activeAddress}
             onVerifyClick={handleVerifyClick}
-            onDetailsClick={handleDetailsClick}
           />
         </div>
       )}
 
       {/* Stats Tab */}
       {activeTab === 'stats' && (
-        <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)]">
+        <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_center,#111827,#030712)] pb-16 md:pb-0">
           <BombStatsTab
             activeAddress={activeAddress}
           />

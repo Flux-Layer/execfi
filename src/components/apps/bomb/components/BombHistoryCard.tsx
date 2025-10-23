@@ -6,7 +6,6 @@ import type { GameHistoryItem } from '@/types/game';
 interface BombHistoryCardProps {
   item: GameHistoryItem;
   onVerifyClick: (sessionId: string) => void;
-  onDetailsClick: (sessionId: string) => void;
 }
 
 // Simple time ago formatter (same as in BombHistoryTable)
@@ -29,7 +28,6 @@ function formatTimeAgo(date: Date): string {
 export function BombHistoryCard({
   item,
   onVerifyClick,
-  onDetailsClick,
 }: BombHistoryCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -112,18 +110,15 @@ export function BombHistoryCard({
             {item.canVerify && (
               <button
                 onClick={() => onVerifyClick(item.id)}
-                className="flex-1 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                disabled={item.isVerified}
+                className={`flex-1 rounded px-4 py-2 text-sm font-medium text-white ${
+                  item.isVerified
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 {item.isVerified ? '✓ Verified' : 'Verify'}
               </button>
             )}
-            <button
-              onClick={() => onDetailsClick(item.id)}
-              className="flex-1 rounded bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-600"
-            >
-              Details
-            </button>
           </div>
         </div>
       )}

@@ -221,7 +221,8 @@ export async function POST(request: Request) {
       status: "submitted",
       finalizedAt: session.finalizedAt ?? Date.now(),
     });
-    await removeSessionRecord(String(sessionId));
+    // Don't delete the session - users need it to reveal fairness and see it in history
+    // await removeSessionRecord(String(sessionId));
 
     return NextResponse.json({
       success: true,

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { FiInfo, FiSliders, FiVolume2, FiVolumeX } from "react-icons/fi";
+import { FiInfo, FiSliders, FiVolume2, FiVolumeX, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { CHIP_BUTTON_CLASS, CONTROL_BUTTON_CLASS, MIN_BET_AMOUNT, QUICK_BETS } from "./config";
 
 type BetControlsProps = {
@@ -36,6 +36,9 @@ type BetControlsProps = {
   onRestart?: () => void;
   restartLabel?: string;
   restartDisabled?: boolean;
+  // New props for collapsible functionality
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
 function BetControlsComponent({
@@ -70,23 +73,85 @@ function BetControlsComponent({
   onRestart,
   restartLabel,
   restartDisabled,
+  isCollapsed = false,
+  onToggleCollapse,
 }: BetControlsProps) {
   const insufficientBalance =
     typeof balanceNumericValue === "number" &&
     typeof betAmountValue === "number" &&
     balanceNumericValue < betAmountValue;
 
+  // Compact view when collapsed (mobile only)
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col gap-2 border-t border-slate-900/60 bg-slate-950/80 px-2 py-2 sm:px-4 sm:py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-1 gap-2">
+            <button
+              type="button"
+              onClick={onCashOut}
+              disabled={cashOutDisabled || insufficientBalance || balanceIsLoading}
+              className={`flex-1 rounded-full border px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                cashOutDisabled
+                  ? "border-slate-700 bg-slate-900/80 text-slate-400"
+                  : "border-amber-500 bg-amber-500/20 text-amber-200 hover:border-amber-400 hover:text-amber-100"
+              }`}
+            >
+              {cashOutLabel ?? "Cash Out"}
+            </button>
+            <button
+              type="button"
+              onClick={onStartRound}
+              disabled={startDisabled || insufficientBalance || balanceIsLoading}
+              className={`flex-1 rounded-full border px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                insufficientBalance
+                  ? "border-red-500 bg-red-500/20 text-red-200"
+                  : startDisabled
+                  ? "border-slate-700 bg-slate-900/80 text-slate-400"
+                  : "border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:border-emerald-400 hover:text-emerald-100"
+              }`}
+            >
+              {insufficientBalance
+                ? "Low Balance"
+                : balanceIsLoading
+                ? "Loading..."
+                : startLabel}
+            </button>
+          </div>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="rounded-lg border border-slate-700 bg-slate-900/80 p-2 text-slate-400 transition hover:border-slate-600 hover:text-slate-300"
+              aria-label="Expand controls"
+            >
+              <FiChevronUp className="text-base" />
+            </button>
+          )}
+        </div>
+        {balanceLabel && (
+          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400">
+            <span>{balanceLabel}</span>
+            <span className="font-mono text-slate-300">
+              {balanceIsLoading ? "..." : balanceValue ?? "—"}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-4 border-t border-slate-900/60 bg-slate-950/80 px-4 py-4 sm:px-6 sm:py-5">
+    <div className="flex flex-col gap-3 sm:gap-4 border-t border-slate-900/60 bg-slate-950/80 px-2 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5">
       {balanceLabel && (
-        <div className="flex flex-col gap-1 rounded-2xl border border-slate-800/60 bg-slate-900/70 px-4 py-3 text-xs font-medium text-slate-200 shadow-inner shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
-          <span className="uppercase tracking-wide text-slate-400">{balanceLabel}</span>
-          <span className="font-mono text-base text-slate-100">
+        <div className="flex flex-col gap-1 rounded-xl sm:rounded-2xl border border-slate-800/60 bg-slate-900/70 px-3 py-2 sm:px-4 sm:py-3 text-xs font-medium text-slate-200 shadow-inner shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-[10px] sm:text-xs uppercase tracking-wide text-slate-400">{balanceLabel}</span>
+          <span className="font-mono text-sm sm:text-base text-slate-100">
             {balanceIsLoading ? "Fetching..." : balanceValue ?? "—"}
           </span>
         </div>
       )}
-      <div className="flex flex-col gap-5 rounded-2xl border border-slate-900/60 bg-slate-950/60 p-4 text-[11px] text-slate-300 sm:p-5">
+      <div className="flex flex-col gap-4 sm:gap-5 rounded-xl sm:rounded-2xl border border-slate-900/60 bg-slate-950/60 p-3 sm:p-4 md:p-5 text-[11px] text-slate-300">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
           <label className="flex w-full flex-col gap-2 text-[11px] uppercase tracking-wide text-slate-400 sm:max-w-xs">
             <span>Bet amount (ETH)</span>
@@ -177,49 +242,62 @@ function BetControlsComponent({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 sm:justify-end">
-          <button
-            type="button"
-            onClick={onShowInfo}
-            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] sm:flex-none`}
-          >
-            <FiInfo className="text-sm" />
-            How It Works
-          </button>
-          <button
-            type="button"
-            onClick={onShowCustomizer}
-            disabled={disableCustomize}
-            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] disabled:opacity-60 sm:flex-none`}
-          >
-            <FiSliders className="text-sm" />
-            Customize Tiles
-          </button>
-          <button
-            type="button"
-            onClick={onReroll}
-            disabled={disableReroll}
-            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] disabled:opacity-60 sm:flex-none`}
-          >
-            Reroll Layout
-          </button>
-          <button
-            type="button"
-            onClick={onToggleSound}
-            className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] sm:flex-none`}
-          >
-            {soundOn ? (
-              <>
-                <FiVolume2 className="text-sm" />
-                Sounds on
-              </>
-            ) : (
-              <>
-                <FiVolumeX className="text-sm" />
-                Sounds off
-              </>
-            )}
-          </button>
+        <div className="flex flex-wrap gap-2 sm:justify-between">
+          <div className="flex flex-wrap gap-2 flex-1">
+            <button
+              type="button"
+              onClick={onShowInfo}
+              className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] sm:flex-none`}
+            >
+              <FiInfo className="text-sm" />
+              How It Works
+            </button>
+            <button
+              type="button"
+              onClick={onShowCustomizer}
+              disabled={disableCustomize}
+              className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] disabled:opacity-60 sm:flex-none`}
+            >
+              <FiSliders className="text-sm" />
+              Customize Tiles
+            </button>
+            <button
+              type="button"
+              onClick={onReroll}
+              disabled={disableReroll}
+              className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] disabled:opacity-60 sm:flex-none`}
+            >
+              Reroll Layout
+            </button>
+            <button
+              type="button"
+              onClick={onToggleSound}
+              className={`${CONTROL_BUTTON_CLASS} flex-1 min-w-[140px] sm:flex-none`}
+            >
+              {soundOn ? (
+                <>
+                  <FiVolume2 className="text-sm" />
+                  Sounds on
+                </>
+              ) : (
+                <>
+                  <FiVolumeX className="text-sm" />
+                  Sounds off
+                </>
+              )}
+            </button>
+          </div>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="md:hidden rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-400 transition hover:border-slate-600 hover:text-slate-300 flex items-center gap-1"
+              aria-label="Collapse controls"
+            >
+              <FiChevronDown className="text-sm" />
+              <span>Minimize</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

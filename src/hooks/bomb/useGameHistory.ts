@@ -17,7 +17,7 @@ interface UseGameHistoryReturn {
     offset: number;
     hasMore: boolean;
   };
-  fetchHistory: (params?: { limit?: number; offset?: number; status?: string }) => Promise<void>;
+  fetchHistory: (params?: { limit?: number; offset?: number; status?: string; excludeActive?: boolean }) => Promise<void>;
   refetchHistory: () => Promise<void>;
 
   stats: UserStatistics | null;
@@ -41,7 +41,10 @@ const emptyPagination: PaginationState = {
   hasMore: false,
 };
 
-export function useGameHistory(addressOverride?: `0x${string}` | undefined): UseGameHistoryReturn {
+export function useGameHistory(
+  addressOverride?: `0x${string}` | undefined,
+  options?: { excludeActive?: boolean }
+): UseGameHistoryReturn {
   const { selectedWallet } = useEOA();
   const { smartAccountAddress } = useSmartWallet();
 
@@ -98,7 +101,7 @@ export function useGameHistory(addressOverride?: `0x${string}` | undefined): Use
   }, []);
 
   const fetchHistory = useCallback(
-    async (params?: { limit?: number; offset?: number; status?: string }) => {
+    async (params?: { limit?: number; offset?: number; status?: string; excludeActive?: boolean }) => {
       if (!normalizedAddress) {
         setHistory(prev => (prev.length === 0 ? prev : []));
         setHistoryError('Wallet not connected');
@@ -120,6 +123,9 @@ export function useGameHistory(addressOverride?: `0x${string}` | undefined): Use
         });
         if (params?.status) {
           searchParams.set('status', params.status);
+        }
+        if (params?.excludeActive) {
+          searchParams.set('excludeActive', 'true');
         }
 
         const response = await fetch(`/api/degenshoot/history?${searchParams.toString()}`);
@@ -148,8 +154,8 @@ export function useGameHistory(addressOverride?: `0x${string}` | undefined): Use
 
   const refetchHistory = useCallback(async () => {
     const { limit, offset } = paginationRef.current;
-    await fetchHistory({ limit, offset });
-  }, [fetchHistory]);
+    await fetchHistory({ limit, offset, excludeActive: options?.excludeActive });
+  }, [fetchHistory, options?.excludeActive]);
 
   const fetchStats = useCallback(async () => {
     if (!normalizedAddress) {
@@ -217,9 +223,13 @@ export function useGameHistory(addressOverride?: `0x${string}` | undefined): Use
       return;
     }
 
-    void fetchHistory({ limit: DEFAULT_LIMIT, offset: 0 });
+    void fetchHistory({
+      limit: DEFAULT_LIMIT,
+      offset: 0,
+      excludeActive: options?.excludeActive
+    });
     void fetchStats();
-  }, [normalizedAddress, fetchHistory, fetchStats, setPaginationSafely]);
+  }, [normalizedAddress, fetchHistory, fetchStats, setPaginationSafely, options?.excludeActive]);
 
   return {
     history,

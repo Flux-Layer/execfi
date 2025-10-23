@@ -35,7 +35,7 @@ export function BombWindowFrame({
   children,
 }: BombWindowFrameProps) {
   return (
-    <div className="pointer-events-none">
+    <div className="pointer-events-none ">
       <div
         ref={windowRef}
         className={
@@ -57,7 +57,7 @@ export function BombWindowFrame({
           ref={containerRef}
           className={
             effectiveFullscreen
-              ? "pointer-events-auto relative flex h-full w-full flex-col overflow-x-hidden overflow-y-auto bg-slate-950/95 font-mono md:h-[calc(95vh-4rem)] md:w-[calc(100vw-4rem)] md:rounded-2xl md:border md:border-slate-800 md:shadow-2xl md:shadow-black/50"
+              ? "pointer-events-auto relative flex h-full w-full flex-col overflow-x-hidden overflow-y-auto bg-slate-950/95 font-mono md:h-[calc(95vh-4rem)] md:w-[calc(100vw-4rem)] md:rounded-2xl md:border md:border-slate-800 md:shadow-2xl md:shadow-black/50 "
               : "pointer-events-auto relative flex h-[32rem] w-full max-w-4xl flex-col overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-900 bg-slate-950/95 font-mono shadow-2xl shadow-black/60"
           }
         >
