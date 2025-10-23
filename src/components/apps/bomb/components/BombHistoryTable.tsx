@@ -61,6 +61,9 @@ export function BombHistoryTable({
               Rows
             </th>
             <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">
+              Tx Hash
+            </th>
+            <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">
               Actions
             </th>
           </tr>
@@ -85,6 +88,19 @@ export function BombHistoryTable({
               </td>
               <td className="px-4 py-3 text-right text-sm text-gray-300">
                 {item.rows}
+              </td>
+              <td className="px-4 py-3 text-center">
+                {item.withdrawTxHash && item.result === 'win' && (
+                  <a
+                    href={`https://sepolia.basescan.org/tx/${item.withdrawTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 underline"
+                    title="View cashout transaction"
+                  >
+                    {item.withdrawTxHash.slice(0, 6)}...{item.withdrawTxHash.slice(-4)}
+                  </a>
+                )}
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center justify-center gap-2">

@@ -148,8 +148,8 @@ export function BombVerificationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4">
-      <div className="w-full max-w-4xl rounded-lg border border-gray-700 bg-gray-900 shadow-xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 pb-24 md:pb-24">
+      <div className="w-full max-w-4xl rounded-lg border border-gray-700 bg-gray-900 shadow-xl max-h-[calc(100vh-12rem)] md:max-h-[calc(100vh-12rem)] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-700 p-3 sm:p-4 flex-shrink-0">
           <h2 className="text-lg sm:text-xl font-bold text-gray-100">Verify Game Fairness</h2>

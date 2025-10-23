@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/client';
+import { updateSessionRecord } from '../../sessionStore';
 
 export async function GET(
   request: NextRequest,
@@ -68,6 +69,47 @@ export async function GET(
     return NextResponse.json(safeSession);
   } catch (error) {
     console.error('Error fetching session details:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: sessionId } = await params;
+    const body = await request.json();
+
+    const { resultTxHash, withdrawTxHash, xpTxHash } = body;
+
+    if (!resultTxHash && !withdrawTxHash && !xpTxHash) {
+      return NextResponse.json(
+        { error: 'No transaction hash provided' },
+        { status: 400 }
+      );
+    }
+
+    const updates: { resultTxHash?: string; withdrawTxHash?: string; xpTxHash?: string } = {};
+    if (resultTxHash) updates.resultTxHash = resultTxHash;
+    if (withdrawTxHash) updates.withdrawTxHash = withdrawTxHash;
+    if (xpTxHash) updates.xpTxHash = xpTxHash;
+
+    const updatedSession = await updateSessionRecord(sessionId, updates);
+
+    if (!updatedSession) {
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ success: true, sessionId });
+  } catch (error) {
+    console.error('Error updating session:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

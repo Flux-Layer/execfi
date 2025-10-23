@@ -22,8 +22,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "SESSION_NOT_FINAL" }, { status: 409 });
     }
 
+    // Preserve "lost" status when revealing, only change to "revealed" for won games
+    const newStatus = session.status === "lost" ? "lost" : "revealed";
+
     await updateSessionRecord(sessionId, {
-      status: "revealed",
+      status: newStatus,
       finalizedAt: session.finalizedAt ?? Date.now(),
     });
 

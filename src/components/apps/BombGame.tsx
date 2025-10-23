@@ -314,9 +314,9 @@ function BombGameContent({
             </div>
 
             {showFairnessPanel && (
-              <div className="w-full lg:w-[22rem] lg:flex-shrink-0 lg:self-stretch">
+              <div className="w-full lg:w-[22rem] lg:flex-shrink-0">
                 <BombFairnessPanel
-                  className="w-full lg:sticky lg:top-4"
+                  className="w-full lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
                   status={game.status}
                   isBuildingRound={game.isBuildingRound}
                   isRevealing={game.isRevealing}
