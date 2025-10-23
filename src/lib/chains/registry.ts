@@ -22,6 +22,7 @@ import {
   liskSepolia, // listk testnet sepolia
 } from "viem/chains";
 import type { Token } from "../tokens";
+import { getPrimaryRpcUrl } from '../rpc/endpoints';
 
 export interface ChainConfig {
   id: number;
@@ -42,54 +43,22 @@ export interface ChainConfig {
 }
 
 /**
- * Environment-based RPC URL generation
+ * Environment-based RPC URL generation with fallback support
+ *
+ * @deprecated Use getPrimaryRpcUrl() from @/lib/rpc/endpoints instead
+ * This function is kept for backward compatibility
  */
 function getRpcUrl(chainId: number, fallbackUrl?: string): string {
-  const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_KEY;
-  const moralisMainnetKey = process.env.NEXT_PUBLIC_LISK_MAINNET;
-  const moralisTesnetKey = process.env.NEXT_PUBLIC_LISK_TESTNET;
+  console.warn(
+    '[DEPRECATED] getRpcUrl() in chain registry is deprecated. Use getPrimaryRpcUrl() from @/lib/rpc/endpoints'
+  );
 
-  const alchemyUrls: Record<number, string> = {
-    // base
-    8453: `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    84532: `https://holy-wiser-fog.base-sepolia.quiknode.pro/646da32894cdd82a4937d8fea8d65a16d754445f/`,
-
-    // eth
-    1: `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    11155111: `https://eth-sepolia.g.alchemy.com/v2/${alchemyKey}`,
-
-    // polygon
-    137: `https://polygon-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    80002: `https://polygon-amoy.g.alchemy.com/v2/${alchemyKey}`,
-
-    // arbitrum
-    42161: `https://arb-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    421614: `https://arb-sepolia.g.alchemy.com/v2/${alchemyKey}`,
-
-    // optimism
-    10: `https://opt-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    11155420: `https://opt-sepolia.g.alchemy.com/v2/${alchemyKey}`,
-
-    // avalanche - use public RPC, Alchemy doesn't support
-
-    // bsc
-    56: `https://bnb-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    97: `https://bnb-testnet.g.alchemy.com/v2/${alchemyKey}`,
-
-    // abstract
-    2741: `https://abstract-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-    11124: `https://abstract-testnet.g.alchemy.com/v2/${alchemyKey}`,
-
-    // lisk
-    1135: `https://site1.moralis-nodes.com/lisk/${moralisMainnetKey}`,
-    4202: `https://site1.moralis-nodes.com/lisk-sepolia/${moralisTesnetKey}`,
-  };
-
-  if (alchemyKey && alchemyUrls[chainId]) {
-    return alchemyUrls[chainId];
+  try {
+    return getPrimaryRpcUrl(chainId);
+  } catch (error) {
+    console.error(`Failed to get RPC URL for chain ${chainId}:`, error);
+    return fallbackUrl || 'https://rpc.ankr.com/eth';
   }
-
-  return fallbackUrl || `https://rpc.ankr.com/eth`;
 }
 
 /**
