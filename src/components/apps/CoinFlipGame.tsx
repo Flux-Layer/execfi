@@ -1015,10 +1015,13 @@ useEffect(() => {
     }
   }, [balanceData?.value, betValue]);
 
-  const coinFloatAnimation = isFlipping ? FLOAT_FLIP_ANIMATION : FLOAT_IDLE_ANIMATION;
-  const activeVariant: CoinVariantKey = isFlipping
+  const isCoinSpinning = isFlipping && !roundSummary;
+  const coinFloatAnimation = isCoinSpinning ? FLOAT_FLIP_ANIMATION : FLOAT_IDLE_ANIMATION;
+  const resolvedFace: "Heads" | "Tails" =
+    roundSummary?.outcome ?? currentResult ?? userChoice;
+  const activeVariant: CoinVariantKey = isCoinSpinning
     ? "flipping"
-    : currentResult === "Tails"
+    : resolvedFace === "Tails"
     ? "tails"
     : "heads";
 
