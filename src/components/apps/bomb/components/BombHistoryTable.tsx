@@ -5,7 +5,6 @@ import type { GameHistoryItem } from '@/types/game';
 interface BombHistoryTableProps {
   items: GameHistoryItem[];
   onVerifyClick: (sessionId: string) => void;
-  onDetailsClick: (sessionId: string) => void;
 }
 
 // Simple time ago formatter
@@ -28,7 +27,6 @@ function formatTimeAgo(date: Date): string {
 export function BombHistoryTable({
   items,
   onVerifyClick,
-  onDetailsClick,
 }: BombHistoryTableProps) {
   if (items.length === 0) {
     return (
@@ -102,12 +100,6 @@ export function BombHistoryTable({
                       {item.isVerified ? '✓ Verified' : 'Verify'}
                     </button>
                   )}
-                  <button
-                    onClick={() => onDetailsClick(item.id)}
-                    className="rounded bg-gray-700 px-3 py-1 text-xs font-medium text-white hover:bg-gray-600"
-                  >
-                    Details
-                  </button>
                 </div>
               </td>
             </tr>

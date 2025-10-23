@@ -35,10 +35,10 @@ export function BombBoardSection({
   summary,
 }: BombBoardSectionProps) {
   return (
-    <div className="flex-1 overflow-auto px-4 py-4 sm:px-6 sm:py-6">
-      <div className="flex flex-col items-center gap-4 pb-4 sm:gap-5">
+    <div className="flex-1 overflow-auto px-1 py-2 sm:px-4 sm:py-4 md:px-6 md:py-6">
+      <div className="flex flex-col items-center gap-3 pb-3 sm:gap-4 sm:pb-4 md:gap-5">
         {rowsForRender.length === 0 ? (
-          <div className="flex h-32 w-full max-w-3xl items-center justify-center text-xs text-slate-400">
+          <div className="flex h-32 w-full max-w-3xl items-center justify-center text-[10px] sm:text-xs text-slate-400">
             Initialising provably fair round...
           </div>
         ) : (

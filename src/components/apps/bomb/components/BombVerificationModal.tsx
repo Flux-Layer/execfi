@@ -148,24 +148,24 @@ export function BombVerificationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-4xl rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4">
+      <div className="w-full max-w-4xl rounded-lg border border-gray-700 bg-gray-900 shadow-xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-700 p-4">
-          <h2 className="text-xl font-bold text-gray-100">Verify Game Fairness</h2>
+        <div className="flex items-center justify-between border-b border-gray-700 p-3 sm:p-4 flex-shrink-0">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-100">Verify Game Fairness</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-200"
             aria-label="Close"
           >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* Content */}
-        <div className="max-h-[70vh] overflow-auto p-4">
+        <div className="overflow-auto p-3 sm:p-4 flex-1 min-h-0">
           {isLoading && <LoadingState />}
           {error && <ErrorState error={error} onRetry={loadAndVerify} />}
           {verificationResult && sessionData && (
@@ -178,10 +178,10 @@ export function BombVerificationModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-700 p-4">
+        <div className="border-t border-gray-700 p-3 sm:p-4 flex-shrink-0">
           <button
             onClick={onClose}
-            className="w-full rounded bg-gray-700 px-4 py-2 text-white hover:bg-gray-600"
+            className="w-full rounded bg-gray-700 px-4 py-2 text-sm sm:text-base text-white hover:bg-gray-600"
           >
             Close
           </button>
@@ -368,8 +368,8 @@ function RowVerificationCard({ row, rowData }: { row: RowVerificationResult; row
       </div>
 
       {/* Visual Tile Representation */}
-      <div className="mt-3 rounded-lg border border-gray-700 bg-gray-800/50 p-3">
-        <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="mt-2 sm:mt-3 rounded-lg border border-gray-700 bg-gray-800/50 p-2 sm:p-3">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           {Array.from({ length: tileCount }).map((_, idx) => {
             const isBomb = idx === bombPosition;
             const isSelected = idx === selectedColumn;
@@ -378,28 +378,28 @@ function RowVerificationCard({ row, rowData }: { row: RowVerificationResult; row
               <div
                 key={idx}
                 className={`
-                  relative flex h-12 w-12 items-center justify-center rounded-lg border transition
+                  relative flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-md sm:rounded-lg border transition
                   ${isBomb
-                    ? 'border-red-500/80 bg-red-900/30 ring-2 ring-red-500/50'
+                    ? 'border-red-500/80 bg-red-900/30 ring-1 sm:ring-2 ring-red-500/50'
                     : 'border-gray-600 bg-gray-700/50'
                   }
-                  ${isSelected && !isBomb ? 'border-green-500/80 bg-green-900/30 ring-2 ring-green-500/50' : ''}
-                  ${isSelected && isBomb ? 'border-red-500 bg-red-900/50 ring-2 ring-red-500' : ''}
+                  ${isSelected && !isBomb ? 'border-green-500/80 bg-green-900/30 ring-1 sm:ring-2 ring-green-500/50' : ''}
+                  ${isSelected && isBomb ? 'border-red-500 bg-red-900/50 ring-1 sm:ring-2 ring-red-500' : ''}
                 `}
               >
                 {isBomb && (
-                  <span className="text-2xl">💣</span>
+                  <span className="text-xl sm:text-2xl">💣</span>
                 )}
                 {isSelected && !isBomb && (
-                  <div className="h-2 w-2 rounded-full bg-green-400"></div>
+                  <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-green-400"></div>
                 )}
                 {/* Tile number label */}
-                <span className="absolute -bottom-4 text-[10px] text-gray-500">{idx}</span>
+                <span className="absolute -bottom-3.5 sm:-bottom-4 text-[9px] sm:text-[10px] text-gray-500">{idx}</span>
               </div>
             );
           })}
         </div>
-        <div className="mt-5 text-center text-xs text-gray-400">
+        <div className="mt-4 sm:mt-5 text-center text-[10px] sm:text-xs text-gray-400">
           {tileCount} tiles · {selectedColumn !== null && selectedColumn !== undefined ? `Selected: ${selectedColumn}` : 'No selection'}
         </div>
       </div>

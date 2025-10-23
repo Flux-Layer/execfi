@@ -9,13 +9,11 @@ import { BombPagination } from './BombPagination';
 interface BombHistoryTabProps {
   activeAddress?: `0x${string}` | undefined;
   onVerifyClick: (sessionId: string) => void;
-  onDetailsClick: (sessionId: string) => void;
 }
 
 function BombHistoryTabComponent({
   activeAddress,
   onVerifyClick,
-  onDetailsClick,
 }: BombHistoryTabProps) {
   const {
     history,
@@ -24,7 +22,7 @@ function BombHistoryTabComponent({
     pagination,
     fetchHistory,
     refetchHistory,
-  } = useGameHistory(activeAddress);
+  } = useGameHistory(activeAddress, { excludeActive: true });
 
   useEffect(() => {
     const handleVerified = () => {
@@ -35,11 +33,11 @@ function BombHistoryTabComponent({
   }, [refetchHistory]);
 
   const handlePageChange = (newOffset: number) => {
-    fetchHistory({ limit: pagination.limit, offset: newOffset });
+    fetchHistory({ limit: pagination.limit, offset: newOffset, excludeActive: true });
   };
 
   const handleLimitChange = (newLimit: number) => {
-    fetchHistory({ limit: newLimit, offset: 0 });
+    fetchHistory({ limit: newLimit, offset: 0, excludeActive: true });
   };
 
   if (isLoadingHistory) {
@@ -60,7 +58,7 @@ function BombHistoryTabComponent({
           <p className="text-red-400">Error loading history</p>
           <p className="mt-2 text-sm text-gray-400">{historyError}</p>
           <button
-            onClick={() => fetchHistory()}
+            onClick={() => fetchHistory({ excludeActive: true })}
             className="mt-4 rounded bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-600"
           >
             Retry
@@ -71,18 +69,17 @@ function BombHistoryTabComponent({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full overflow-y-auto">
       {/* Desktop Table View */}
       <div className="hidden md:block">
         <BombHistoryTable
           items={history}
           onVerifyClick={onVerifyClick}
-          onDetailsClick={onDetailsClick}
         />
       </div>
 
       {/* Mobile Card View */}
-      <div className="block md:hidden space-y-4 p-4">
+      <div className="block md:hidden space-y-4 p-4 overflow-y-auto">
         {history.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             <p className="text-lg">No game history found</p>
@@ -94,7 +91,6 @@ function BombHistoryTabComponent({
               key={item.id}
               item={item}
               onVerifyClick={onVerifyClick}
-              onDetailsClick={onDetailsClick}
             />
           ))
         )}

@@ -240,6 +240,10 @@ export function useBombGameState({
   >(null);
   const [isSessionStuck, setIsSessionStuck] = useState(false);
   const resultSubmittedRef = useRef(false);
+  const gameCompletionRef = useRef<{ status: GameStatus; sessionId: string | null }>({
+    status: "idle",
+    sessionId: null,
+  });
 
   const effectiveFullscreen = fullscreen || isMobile;
   const normalizedActiveAddress = activeAddress?.toLowerCase() ?? null;
@@ -249,6 +253,14 @@ export function useBombGameState({
   useEffect(() => {
     tileRangeRef.current = tileRange;
   }, [tileRange]);
+
+  // Track game completion to preserve status after cash out
+  useEffect(() => {
+    gameCompletionRef.current = {
+      status,
+      sessionId: finalizedSessionId,
+    };
+  }, [status, finalizedSessionId]);
 
   const hasInitialisedRef = useRef(false);
 
@@ -451,11 +463,17 @@ export function useBombGameState({
           setCurrentMultiplier(sessionMatch.currentMultiplier ?? 1);
         } else {
           setActiveRowIndex(0);
-          setStatus("idle");
-          setLostRow(null);
-          setShowGameOver(false);
-          setHasStarted(false);
-          setBetAmount(null);
+          // Don't reset status if the game was completed (won or lost) and finalized
+          const completion = gameCompletionRef.current;
+          const isCompleted = (completion.status === "won" || completion.status === "lost") && completion.sessionId;
+          if (!isCompleted) {
+            setStatus("idle");
+            setLostRow(null);
+            setShowGameOver(false);
+            setHasStarted(false);
+            setBetAmount(null);
+          }
+          // Always reset these regardless of completion status
           pendingSessionRef.current = null;
           setPendingSession(null);
           setCurrentMultiplier(1);
@@ -523,8 +541,9 @@ export function useBombGameState({
       setBetError((prev) => (prev && prev.includes("Session") ? null : prev));
 
       setSessionId(nextSessionId);
-      setFinalizedSessionId(null);
-      setRoundSummary(null);
+      // Note: We intentionally don't clear finalizedSessionId here
+      // This preserves the finalized session after cash out, allowing Reveal Fairness to work
+      console.log("[DEBUG] requestSessionSeeds - NOT clearing finalizedSessionId");
       pendingSessionRef.current = null;
       setPendingSession(null);
       setCurrentMultiplier(1);
@@ -593,6 +612,7 @@ export function useBombGameState({
       setLostRow(null);
       setShowGameOver(false);
       setSessionId(null);
+      console.log("[DEBUG] restartStuckSession - Clearing finalizedSessionId");
       setFinalizedSessionId(null);
       setRoundSummary(null);
       setRows([]);
@@ -795,7 +815,8 @@ export function useBombGameState({
     if (!fairnessState || fairnessState.revealed) return false;
     const sessionKey = finalizedSessionId ?? sessionId;
     if (!sessionKey) return false;
-    return status === "lost" || status === "won";
+    // Allow reveal if status is lost/won, OR if there's a finalized session (game is complete)
+    return status === "lost" || status === "won" || Boolean(finalizedSessionId);
   }, [fairnessState, finalizedSessionId, sessionId, status]);
 
   const cashOutAmount = useMemo(() => {
@@ -960,6 +981,7 @@ export function useBombGameState({
     setRows([]);
     setActiveRowIndex(-1);
     setFairnessState(null);
+    console.log("[DEBUG] Address change useEffect - Clearing finalizedSessionId for address:", normalizedActiveAddress);
     setFinalizedSessionId(null);
     setRoundSummary(null);
   }, [normalizedActiveAddress]);
@@ -1294,9 +1316,12 @@ export function useBombGameState({
 
         setHasStarted(false);
         setSessionId(null);
-        setFinalizedSessionId(null);
+        // DON'T clear finalizedSessionId here! Users need it to verify the round after cashing out
+        // setFinalizedSessionId(null);
+        console.log("[DEBUG] finalizeResult - Preserving finalizedSessionId for verification");
         setCurrentMultiplier(1);
-        setRoundSummary(null);
+        // DON'T clear roundSummary either, users might want to see it
+        // setRoundSummary(null);
         saveStoredSession(null, normalizedActiveAddress);
       } catch (error) {
         console.error("[Bomb Game] Failed to finalise result:", error);
@@ -1351,6 +1376,7 @@ export function useBombGameState({
     setHasStarted(false);
     setActiveRowIndex(0);
     setSessionId(null);
+    console.log("[DEBUG] playAgain - Clearing finalizedSessionId (user starting new game)");
     setFinalizedSessionId(null);
     setRoundSummary(null);
     pendingSessionRef.current = null;
@@ -2021,6 +2047,7 @@ export function useBombGameState({
         setShowGameOver(true);
         setActiveRowIndex(-1);
         setHasStarted(true);
+        console.log("[DEBUG] handleCashOut - Setting finalizedSessionId to:", sessionId);
         setFinalizedSessionId(sessionId);
         setSessionId(null);
 

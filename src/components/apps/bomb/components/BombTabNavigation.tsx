@@ -39,7 +39,7 @@ export function BombTabNavigation({
       </div>
 
       {/* Mobile Bottom Tab Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-gray-700 bg-gray-900 pb-safe md:hidden">
+      <div className="fixed bottom-14 left-0 right-0 z-30 flex border-t border-gray-700 bg-gray-900 pb-safe md:hidden">
         <MobileTabButton
           icon="🎮"
           label="Game"

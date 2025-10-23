@@ -26,7 +26,7 @@ export function BombStatsTab({ activeAddress }: BombStatsTabProps) {
   }
 
   return (
-    <div className="overflow-auto p-4">
+    <div className="h-full overflow-y-auto p-4">
       {/* Overview Section */}
       <section>
         <h2 className="mb-4 text-lg font-semibold text-gray-200">Overview</h2>

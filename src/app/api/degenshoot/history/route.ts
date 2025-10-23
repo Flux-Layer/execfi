@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const offset = parseInt(searchParams.get('offset') || '0');
     const status = searchParams.get('status') || undefined;
+    const excludeActive = searchParams.get('excludeActive') === 'true';
     const sortBy = (searchParams.get('sortBy') || 'createdAt') as 'createdAt' | 'finalizedAt';
     const sortOrder = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
 
@@ -38,6 +39,12 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       where.status = status;
+    } else if (excludeActive) {
+      // Only show completed games (won or lost), exclude active/ongoing sessions
+      // Include 'cashout' and 'submitted' as they represent successfully completed games
+      where.status = {
+        in: ['completed', 'lost', 'cashout', 'submitted', 'revealed']
+      };
     }
 
     // Fetch sessions with pagination
@@ -73,7 +80,10 @@ export async function GET(request: NextRequest) {
         : '0';
 
       const result =
-        session.status === 'completed' ? 'win' :
+        session.status === 'completed' ||
+        session.status === 'cashout' ||
+        session.status === 'submitted' ||
+        session.status === 'revealed' ? 'win' :
         session.status === 'lost' ? 'loss' :
         'active';
 
