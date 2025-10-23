@@ -2,16 +2,19 @@ import type { Metadata } from "next";
 
 const SITE_NAME = "ExecFi";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://execfi.xyz").replace(/\/$/, "");
-const DEFAULT_TITLE = "ExecFi | AI-Powered Onchain Execution";
-const TITLE_TEMPLATE = "%s | ExecFi";
-const DEFAULT_DESCRIPTION = "ExecFi is a DeFi operating system with an AI terminal that executes secure, signless onchain workflows for digital asset.";
+const DEFAULT_TITLE = "ExecFi | Consumer Crypto Gaming Hub";
+const TITLE_TEMPLATE = "%s | ExecFi Gaming Hub";
+const DEFAULT_DESCRIPTION =
+  "ExecFi is the consumer crypto gaming hub built on Base smart wallet. Play Degen Shooter and Greenvale Farming with unified onchain XP, and instant email login.";
 const DEFAULT_IMAGE = "/og/execfi-card.png";
 const DEFAULT_KEYWORDS = [
   "ExecFi",
-  "onchain automation",
-  "DeFi copilot",
-  "crypto fee management",
-  "smart contract execution",
+  "crypto gaming",
+  "Base smart accounts",
+  "gasless gameplay",
+  "onchain XP",
+  "Degen Shooter",
+  "Greenvale Farming",
 ];
 const TWITTER_HANDLE = "@execfiHQ";
 
@@ -43,7 +46,7 @@ export function buildMetadata(options: MetadataBuilderOptions = {}): Metadata {
   const canonical = path
     ? new URL(path.replace(/^\//, ""), `${SITE_URL}/`).toString()
     : undefined;
-  const resolvedTitle = title ? `${title} | ${SITE_NAME}` : DEFAULT_TITLE;
+  const resolvedTitle = title ? `${title} | ${SITE_NAME} Gaming Hub` : DEFAULT_TITLE;
   const resolvedImage = resolvedImagePath.startsWith("http")
     ? resolvedImagePath
     : new URL(resolvedImagePath.replace(/^\//, ""), `${SITE_URL}/`).toString();

@@ -7,15 +7,14 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { APP_INFO } from "@/lib/constants/appInfo";
 import {
   FiGithub,
-  FiBook,
   FiTwitter,
-  FiMessageCircle,
   FiExternalLink,
   FiCheck,
   FiShield,
   FiActivity,
   FiChevronRight,
 } from "react-icons/fi";
+import { RiDiscordLine } from "react-icons/ri";
 
 export default function AboutWindow() {
   const {
@@ -146,26 +145,20 @@ const LINKS = [
   {
     label: "GitHub Repository",
     description: "View source code and contribute",
-    url: "https://github.com/your-org/execfi",
+    url: "https://github.com/Flux-Layer/execfi",
     icon: <FiGithub className="w-5 h-5" />,
-  },
-  {
-    label: "Documentation",
-    description: "Learn how to use ExecFi",
-    url: "https://docs.execfi.com",
-    icon: <FiBook className="w-5 h-5" />,
   },
   {
     label: "Twitter/X",
     description: "Follow for updates",
-    url: "https://twitter.com/execfi",
+    url: "https://twitter.com/execfiHQ",
     icon: <FiTwitter className="w-5 h-5" />,
   },
   {
     label: "Discord Community",
     description: "Get support and connect",
-    url: "https://discord.gg/execfi",
-    icon: <FiMessageCircle className="w-5 h-5" />,
+    url: "https://discord.gg/AChgaEpMxK",
+    icon: <RiDiscordLine className="w-5 h-5" />,
   },
 ];
 
@@ -177,7 +170,12 @@ function AboutApp() {
         <div className="flex items-center justify-center gap-3 mb-3">
           <div className="text-4xl font-bold text-emerald-400">{APP_INFO.name}</div>
         </div>
-        <p className="text-lg text-slate-300 mb-3">{APP_INFO.description}</p>
+        <p className="text-lg text-slate-300 mb-3">
+          GM, welcome to ExecFi — the GameFi operating system for Base. It still feels like a slick
+          desktop, but every window opens an onchain arcade loop, quest log, or DeFi control panel
+          ready to run with your wallet of choice, with optional Coinbase Smart Wallet support if
+          you want the one-tap experience.
+        </p>
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-xs text-slate-400">
           <span>v{APP_INFO.version}</span>
           <span className="text-slate-600">•</span>
@@ -189,9 +187,10 @@ function AboutApp() {
       <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
         <h2 className="text-xl font-semibold text-slate-100 mb-4">What is ExecFi?</h2>
         <p className="text-sm text-slate-300 leading-relaxed mb-4">
-          ExecFi transforms natural language commands into safe, verifiable blockchain transactions
-          using Privy Smart Accounts (ERC-4337). Execute DeFi operations through conversational
-          prompts with built-in safety policies and transparent verification.
+          gm fren — ExecFi is your always-on GameFi co-pilot. The desktop keeps arcade loops and
+          quests one click away, while the terminal still translates slash-commands and intents into
+          policy-checked, simulated transactions. The vibe stays playful; the rails stay transparent
+          and non-custodial. Let’s buidl the lobby together.
         </p>
         <div className="space-y-3">
           <div className="flex items-start gap-3">
@@ -199,8 +198,8 @@ function AboutApp() {
               <FiCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-200">Intent Parsing</h3>
-              <p className="text-xs text-slate-400">AI-powered command interpretation with clarification prompts</p>
+              <h3 className="text-sm font-medium text-slate-200">Arcade-first UX</h3>
+              <p className="text-xs text-slate-400">Cinematic CoinFlip &amp; Degen Shooter loops with provable fairness</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -208,8 +207,8 @@ function AboutApp() {
               <FiShield className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-200">Policy Engine</h3>
-              <p className="text-xs text-slate-400">Configurable transaction limits and spending policies</p>
+              <h3 className="text-sm font-medium text-slate-200">Questing layer</h3>
+              <p className="text-xs text-slate-400">Daily XP, Sunday hunts, and status boosts surfaced right in the HUD</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -217,43 +216,75 @@ function AboutApp() {
               <FiActivity className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-200">Smart Execution</h3>
-              <p className="text-xs text-slate-400">Non-custodial ERC-4337 accounts with simulation before execution</p>
+              <h3 className="text-sm font-medium text-slate-200">Smart execution</h3>
+              <p className="text-xs text-slate-400">AI-assisted terminal, policy guardrails, and receipts for every cashout</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Technical Stack */}
+      {/* Experiences */}
       <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
-        <h2 className="text-xl font-semibold text-slate-100 mb-4">Technical Stack</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <h2 className="text-xl font-semibold text-slate-100 mb-4">Daily Run</h2>
+        <div className="space-y-4 text-sm text-slate-300">
           <div>
-            <h3 className="text-xs uppercase tracking-wider text-slate-400 mb-2">Frontend</h3>
-            <ul className="space-y-1.5 text-sm text-slate-300">
-              <li>• Next.js 15.5.2</li>
-              <li>• React 19.1.0</li>
-              <li>• Tailwind CSS 4</li>
-              <li>• Framer Motion</li>
-            </ul>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">Flip with provable odds</h3>
+            <p className="text-xs text-slate-400">
+              A fully onchain coin flip with provable fairness, smart-wallet payouts, history
+              verification, and a cinematic interface.
+            </p>
           </div>
           <div>
-            <h3 className="text-xs uppercase tracking-wider text-slate-400 mb-2">Web3</h3>
-            <ul className="space-y-1.5 text-sm text-slate-300">
-              <li>• Wagmi 2.16.9</li>
-              <li>• Viem 2.37.8</li>
-              <li>• Privy 2.24.0</li>
-              <li>• LI.FI SDK 3.12.11</li>
-            </ul>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">Clear the Degen Shooter board</h3>
+            <p className="text-xs text-slate-400">
+              Master the mini strategy shooter: place mines, climb multipliers, reveal fairness, and
+              cash out through vault-linked smart contracts.
+            </p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">Ship quests from the terminal</h3>
+            <p className="text-xs text-slate-400">
+              Slash commands like <code>/login</code>, <code>/balance</code>, and natural-language intents drive DeFi
+              actions that feed back into your XP and quest progression.
+            </p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">Track XP like patch notes</h3>
+            <p className="text-xs text-slate-400">
+              Earn XP across mini apps, unlock Sunday quest rotations, and view breakdowns directly
+              from the status bar or terminal.
+            </p>
           </div>
         </div>
-        <div className="mt-4 pt-4 border-t border-white/10">
-          <h3 className="text-xs uppercase tracking-wider text-slate-400 mb-2">Blockchain</h3>
-          <ul className="space-y-1.5 text-sm text-slate-300">
-            <li>• Base / Base Sepolia (Chain ID: {APP_INFO.chains.mainnet.id} / {APP_INFO.chains.testnet.id})</li>
-            <li>• ERC-4337 Smart Accounts</li>
-            <li className="font-mono text-xs">• XP Registry: {APP_INFO.contracts.xpRegistry}</li>
-          </ul>
+      </section>
+
+      {/* FAQ */}
+      <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
+        <h2 className="text-xl font-semibold text-slate-100 mb-4">FAQ</h2>
+        <div className="space-y-4 text-sm text-slate-300">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">gm, do I need a smart account?</h3>
+            <p className="text-xs text-slate-400">
+              Nope. Bring any Base wallet and you’re good. We offer an optional Coinbase Smart
+              Wallet bridge if you want one-click sessions, but the arcade plays just fine with your
+              usual EOA.
+            </p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">How provably fair are the games?</h3>
+            <p className="text-xs text-slate-400">
+              CoinFlip and Degen Shooter are provably fair: every round publishes server/client
+              seeds, exposes verification modals, and ships API endpoints so you can replay the math
+              before claiming rewards.
+            </p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200 mb-1">Where does all this XP live?</h3>
+            <p className="text-xs text-slate-400">
+              XP is written to onchain registries and surfaced in the status bar. Sunday quests and
+              future drops reference the same ledger, so progress persists across sessions.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -281,30 +312,6 @@ function AboutApp() {
               <FiExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors" />
             </a>
           ))}
-        </div>
-      </section>
-
-      {/* Credits */}
-      <section className="mx-6 mb-6 rounded-2xl border border-white/10 bg-slate-900/80 p-6">
-        <h2 className="text-xl font-semibold text-slate-100 mb-4">Credits & Acknowledgments</h2>
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-slate-200 mb-2">Built With</h3>
-            <div className="flex flex-wrap gap-2">
-              {["React", "Next.js", "Tailwind CSS", "Privy", "Wagmi", "LI.FI"].map(tech => (
-                <span key={tech} className="px-2 py-1 rounded-md bg-slate-800/60 border border-slate-700 text-xs text-slate-300">
-                  {tech}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-slate-200 mb-2">Open Source Libraries</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              This project is made possible by numerous open-source contributors.
-              See package.json for a complete list of dependencies.
-            </p>
-          </div>
         </div>
       </section>
 

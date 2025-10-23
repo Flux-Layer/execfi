@@ -265,28 +265,28 @@ export default function StatusBar() {
     : [];
 
   return (
-    <div className="pointer-events-none fixed top-0 right-0 z-30 flex justify-end px-3 pt-2 md:px-5 md:pt-3">
-      <div className="pointer-events-auto flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-xs font-medium text-slate-200 shadow-lg backdrop-blur-md md:gap-5 md:px-5 md:text-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] tracking-[0.3em] text-slate-400 md:text-xs">
+    <div className="pointer-events-none fixed top-0 left-0 right-0 z-30 flex justify-center px-3 pt-1 sm:pt-2 lg:justify-end lg:px-5 lg:pt-3">
+      <div className="pointer-events-auto grid w-full max-w-md grid-cols-[auto_auto] items-center gap-x-3 gap-y-1 rounded-2xl border border-white/10 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-lg backdrop-blur-md sm:max-w-2xl sm:grid-cols-[auto_auto_auto] sm:px-4 sm:text-xs lg:max-w-none lg:flex lg:h-12 lg:items-center lg:gap-4 lg:px-5 lg:text-sm">
+        <div className="flex items-center gap-2 lg:gap-3">
+          <span className="tracking-[0.3em] text-slate-400">
             ExecFi OS
           </span>
-          <div className="hidden h-4 w-px bg-white/10 md:block" aria-hidden />
-          <div className="relative flex items-center gap-2" ref={walletMenuRef}>
+          <div className="hidden h-4 w-px bg-white/10 lg:block" aria-hidden />
+          <div className="relative flex items-center gap-1 lg:gap-2" ref={walletMenuRef}>
             <FaWallet className={walletConnected ? "text-emerald-400" : ""}/>
             <button
               type="button"
               onClick={toggleWalletMenu}
               aria-haspopup="menu"
               aria-expanded={walletMenuOpen}
-              className={`text-slate-300 transition-colors ${
+              className={`max-w-[140px] truncate text-left text-slate-300 transition-colors ${
                 walletMenuOpen ? "text-slate-100" : "hover:text-slate-100"
               }`}
             >
               {walletLabel}
             </button>
             {walletMenuOpen && (
-              <div className="absolute right-0 top-full mt-4 w-44 rounded-xl border border-white/10 bg-slate-900/95 p-2 text-xs text-slate-200 shadow-lg">
+              <div className="absolute left-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-slate-900/95 p-2 text-xs text-slate-200 shadow-lg lg:left-auto lg:right-0 lg:mt-4 lg:w-44">
                 {walletConnected ? (
                   <ScrambleActionButton
                     label="Disconnect"
@@ -304,10 +304,10 @@ export default function StatusBar() {
             )}
           </div>
         </div>
-        <div className="hidden h-5 w-px bg-white/10 md:block" aria-hidden />
+
         <div
           ref={xpTooltipRef}
-          className="relative flex items-center gap-2 md:gap-3"
+          className="relative flex items-center gap-2 lg:gap-3"
           role="button"
           tabIndex={0}
           onMouseEnter={showXpTooltip}
@@ -317,11 +317,11 @@ export default function StatusBar() {
           onKeyDown={handleXpKeyDown}
         >
           <span className="text-slate-400">Total XP</span>
-          <span className={xpFetching ? "opacity-70" : "font-semibold"}>
+          <span className={`font-semibold ${xpFetching ? "opacity-70" : ""}`}>
             {xpDisplay}
           </span>
           {xpTooltipOpen && (
-            <div className="absolute right-0 top-full z-10 mt-2 w-56 rounded-xl border border-white/10 bg-slate-900/95 p-3 text-xs text-slate-200 shadow-lg">
+            <div className="absolute left-0 top-full z-10 mt-2 w-[calc(100vw-2.5rem)] max-w-xs rounded-xl border border-white/10 bg-slate-900/95 p-3 text-xs text-slate-200 shadow-lg sm:left-auto sm:right-0 sm:w-56 sm:max-w-none">
               <div className="mb-2 text-[10px] uppercase tracking-[0.25em] text-slate-400">
                 XP Breakdown
               </div>
@@ -355,8 +355,8 @@ export default function StatusBar() {
             </div>
           )}
         </div>
-        <div className="hidden h-5 w-px bg-white/10 md:block" aria-hidden />
-        <div className="flex items-center gap-2 md:gap-3">
+
+        <div className="flex items-center gap-2 lg:gap-3">
           <span className="font-semibold tracking-wide">{clockDisplay}</span>
           <span className="text-slate-300">{dateDisplay}</span>
         </div>
