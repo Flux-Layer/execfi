@@ -194,9 +194,11 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   // Update context when wallet becomes available after initialization
   useEffect(() => {
     if (isInitialized && ready) {
+      const currentContext = store.getState().core;
       store.dispatch({
         type: "APP.INIT",
         coreContext: {
+          ...currentContext,
           ...(selectedWallet
             ? {
                 selectedWallet,
@@ -214,9 +216,11 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   // Update context when smart wallet becomes available after initialization
   useEffect(() => {
     if (isInitialized && ready && authenticated && user) {
+      const currentContext = store.getState().core;
       store.dispatch({
         type: "APP.INIT",
         coreContext: {
+          ...currentContext,
           ...(smartWalletReady && user
             ? {
                 userId: user.id,
@@ -236,9 +240,11 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   // Update context when Base Account becomes available after initialization
   useEffect(() => {
     if (isInitialized && ready) {
+      const currentContext = store.getState().core;
       store.dispatch({
         type: "APP.INIT",
         coreContext: {
+          ...currentContext,
           ...(baseAccount.isConnected
             ? {
                 baseAccountClients: {

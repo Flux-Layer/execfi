@@ -14,6 +14,7 @@ import {
   COINFLIP_CHAIN_ID,
   COINFLIP_GAME_ID,
 } from "./addresses";
+import { getPrimaryRpcUrl } from '../rpc/endpoints';
 
 export const COINFLIP_ABI = CoinFlipArtifact.abi;
 
@@ -23,9 +24,10 @@ export const COINFLIP_CHAIN: Chain =
   COINFLIP_CHAIN_ID === base.id ? base : baseSepolia;
 
 const DEFAULT_RPC_URL =
-  process.env.RPC_URL_BASE_SEPOLIA ??
-  COINFLIP_CHAIN.rpcUrls?.default?.http?.[0] ??
-  "https://base-sepolia.g.alchemy.com/v2/demo";
+  process.env.RPC_URL_BASE_SEPOLIA ||
+  getPrimaryRpcUrl(COINFLIP_CHAIN_ID) ||
+  COINFLIP_CHAIN.rpcUrls?.default?.http?.[0] ||
+  "https://sepolia.base.org";
 
 export const COINFLIP_DOMAIN = {
   name: "CoinFlipGame",
@@ -51,7 +53,9 @@ export function createCoinFlipWalletClient(provider: unknown, account: Address) 
 
 export const coinFlipPublicClient = createPublicClient({
   chain: COINFLIP_CHAIN,
-  transport: http(DEFAULT_RPC_URL),
+  transport: http(DEFAULT_RPC_URL, {
+    timeout: 10000,
+  }),
 });
 
 export function getCoinFlipSignerAccount() {
