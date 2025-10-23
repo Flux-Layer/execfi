@@ -1,13 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode, useCallback } from "react";
 import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import useSmartWallet from "@/hooks/useSmartWallet";
 import { useEOA } from "@/providers/EOAProvider";
 import { useChainSelection } from "@/hooks/useChainSelection";
 import { useBaseAccount } from "@/providers/base-account-context";
 import type { Store } from "../state/store";
-import type { AppState, Dispatch } from "../state/types";
+import type { AppState, CoreContext, Dispatch } from "../state/types";
 import { createPersistedStore, createStore } from "../state/store";
 import { FLOWS } from "../state/flows";
 import { loadPolicy, createDefaultPolicy } from "@/lib/policy/storage";
@@ -58,6 +58,21 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   }
 
   const store = storeRef.current;
+
+  const mergeCoreContext = useCallback(
+    (updates: Partial<CoreContext>) => {
+      const current = store.getState().core;
+      if (!current) return;
+      store.dispatch({
+        type: "APP.INIT",
+        coreContext: {
+          ...current,
+          ...updates,
+        },
+      });
+    },
+    [store]
+  );
 
   useEffect(() => {
     if (hasReportedInitialization.current) {
@@ -194,74 +209,68 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
   // Update context when wallet becomes available after initialization
   useEffect(() => {
     if (isInitialized && ready) {
-      const currentContext = store.getState().core;
-      store.dispatch({
-        type: "APP.INIT",
-        coreContext: {
-          ...currentContext,
-          ...(selectedWallet
-            ? {
-                selectedWallet,
-                eoaSendTransaction: sendTransaction,
-              }
-            : {
-                selectedWallet: undefined,
-                eoaSendTransaction: undefined,
-              }),
-        },
-      });
+      mergeCoreContext(
+        selectedWallet
+          ? {
+              selectedWallet,
+              eoaSendTransaction: sendTransaction,
+            }
+          : {
+              selectedWallet: undefined,
+              eoaSendTransaction: undefined,
+            }
+      );
     }
-  }, [selectedWallet, sendTransaction, isInitialized, ready, store]);
+  }, [selectedWallet, sendTransaction, isInitialized, ready, mergeCoreContext]);
 
   // Update context when smart wallet becomes available after initialization
   useEffect(() => {
     if (isInitialized && ready && authenticated && user) {
-      const currentContext = store.getState().core;
-      store.dispatch({
-        type: "APP.INIT",
-        coreContext: {
-          ...currentContext,
-          ...(smartWalletReady && user
-            ? {
-                userId: user.id,
-                saAddress: smartAccountAddress,
-                smartWalletClient: smartWalletClient,
-              }
-            : {
-                userId: undefined,
-                saAddress: undefined,
-                smartWalletClient: undefined,
-              }),
-        },
-      });
+      mergeCoreContext(
+        smartWalletReady && user
+          ? {
+              userId: user.id,
+              saAddress: smartAccountAddress,
+              smartWalletClient: smartWalletClient,
+            }
+          : {
+              userId: undefined,
+              saAddress: undefined,
+              smartWalletClient: undefined,
+            }
+      );
     }
-  }, [smartWalletReady, smartAccountAddress, smartWalletClient, user, authenticated, isInitialized, ready, store]);
+  }, [
+    smartWalletReady,
+    smartAccountAddress,
+    smartWalletClient,
+    user,
+    authenticated,
+    isInitialized,
+    ready,
+    mergeCoreContext,
+  ]);
 
   // Update context when Base Account becomes available after initialization
   useEffect(() => {
     if (isInitialized && ready) {
-      const currentContext = store.getState().core;
-      store.dispatch({
-        type: "APP.INIT",
-        coreContext: {
-          ...currentContext,
-          ...(baseAccount.isConnected
-            ? {
-                baseAccountClients: {
-                  sdk: baseAccount.sdk,
-                  provider: baseAccount.provider,
-                  address: baseAccount.baseAccountAddress as `0x${string}`,
-                  subAccountAddress: undefined,
-                  isConnected: true,
-                },
-              }
-            : {
-                baseAccountClients: undefined,
-              }),
-        },
-      });
+      mergeCoreContext(
+        baseAccount.isConnected
+          ? {
+              baseAccountClients: {
+                sdk: baseAccount.sdk,
+                provider: baseAccount.provider,
+                address: baseAccount.baseAccountAddress as `0x${string}`,
+                subAccountAddress: undefined,
+                isConnected: true,
+              },
+            }
+          : {
+              baseAccountClients: undefined,
+            }
+      );
     }
-  }, [baseAccount, isInitialized, ready, store]);
+  }, [baseAccount, isInitialized, ready, mergeCoreContext]);
 
   // Dispatch chain updates when selectedChainId changes
   useEffect(() => {

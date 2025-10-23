@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       data: {
         verifiedAt: new Date(),
         verifiedBy: userAddress.toLowerCase(),
-      },
+      } as any,
     });
 
     const response: VerificationResponse = { success: true };

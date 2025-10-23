@@ -77,6 +77,7 @@ export default function Dock() {
             items.push({
                key: "degenshoot",
                label: "Degen Shooter",
+               href: "#degenshoot",
                icon: <FaBomb />,
             });
          }
@@ -84,6 +85,7 @@ export default function Dock() {
             items.push({
                key: "coinflip",
                label: "CoinFlip",
+               href: "#coinflip",
                icon: <TbCoin />,
             });
          }
