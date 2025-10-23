@@ -191,6 +191,72 @@ export function TerminalStoreProvider({ children }: TerminalStoreProviderProps) 
     }
   }, [ready, authenticated, user, smartWalletReady, smartAccountAddress, smartWalletClient, selectedWallet, sendTransaction, selectedChainId, store, baseAccount, isInitialized, updateStepProgress, completeStep]);
 
+  // Update context when wallet becomes available after initialization
+  useEffect(() => {
+    if (isInitialized && ready) {
+      store.dispatch({
+        type: "APP.INIT",
+        coreContext: {
+          ...(selectedWallet
+            ? {
+                selectedWallet,
+                eoaSendTransaction: sendTransaction,
+              }
+            : {
+                selectedWallet: undefined,
+                eoaSendTransaction: undefined,
+              }),
+        },
+      });
+    }
+  }, [selectedWallet, sendTransaction, isInitialized, ready, store]);
+
+  // Update context when smart wallet becomes available after initialization
+  useEffect(() => {
+    if (isInitialized && ready && authenticated && user) {
+      store.dispatch({
+        type: "APP.INIT",
+        coreContext: {
+          ...(smartWalletReady && user
+            ? {
+                userId: user.id,
+                saAddress: smartAccountAddress,
+                smartWalletClient: smartWalletClient,
+              }
+            : {
+                userId: undefined,
+                saAddress: undefined,
+                smartWalletClient: undefined,
+              }),
+        },
+      });
+    }
+  }, [smartWalletReady, smartAccountAddress, smartWalletClient, user, authenticated, isInitialized, ready, store]);
+
+  // Update context when Base Account becomes available after initialization
+  useEffect(() => {
+    if (isInitialized && ready) {
+      store.dispatch({
+        type: "APP.INIT",
+        coreContext: {
+          ...(baseAccount.isConnected
+            ? {
+                baseAccountClients: {
+                  sdk: baseAccount.sdk,
+                  provider: baseAccount.provider,
+                  address: baseAccount.baseAccountAddress as `0x${string}`,
+                  subAccountAddress: undefined,
+                  isConnected: true,
+                },
+              }
+            : {
+                baseAccountClients: undefined,
+              }),
+        },
+      });
+    }
+  }, [baseAccount, isInitialized, ready, store]);
+
   // Dispatch chain updates when selectedChainId changes
   useEffect(() => {
     if (ready && selectedChainId) {
