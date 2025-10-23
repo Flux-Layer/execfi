@@ -8,31 +8,11 @@ export async function GET(
   try {
     const { id: sessionId } = await params;
 
-    const session = await prisma.gameSession.findUnique({
+    const sessionRaw = await prisma.gameSession.findUnique({
       where: { id: sessionId },
-      select: {
-        id: true,
-        serverSeed: true,
-        serverSeedHash: true,
-        clientSeed: true,
-        nonceBase: true,
-        rows: true,
-        status: true,
-        lockedTileCounts: true,
-        completedRows: true,
-        currentMultiplier: true,
-        wagerWei: true,
-        createdAt: true,
-        finalizedAt: true,
-        wagerTxHash: true,
-        resultTxHash: true,
-        xpTxHash: true,
-        verifiedAt: true,
-        verifiedBy: true,
-      },
     });
 
-    if (!session) {
+    if (!sessionRaw) {
       return NextResponse.json(
         { error: 'Session not found' },
         { status: 404 }
@@ -40,18 +20,50 @@ export async function GET(
     }
 
     // Only reveal server seed if session is finalized
-    if (session.status === 'active') {
+    if (sessionRaw.status === 'active') {
       return NextResponse.json(
         { error: 'Cannot access active session details' },
         { status: 403 }
       );
     }
 
-    const safeSession = JSON.parse(
-      JSON.stringify(session, (_key, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      )
-    );
+    const session = sessionRaw as typeof sessionRaw & {
+      wagerTxHash?: string | null;
+      resultTxHash?: string | null;
+      xpTxHash?: string | null;
+      verifiedAt?: Date | null;
+      verifiedBy?: string | null;
+    };
+
+    const createdAt =
+      typeof session.createdAt === 'bigint'
+        ? session.createdAt.toString()
+        : session.createdAt ?? null;
+    const finalizedAt =
+      typeof session.finalizedAt === 'bigint'
+        ? session.finalizedAt.toString()
+        : session.finalizedAt ?? null;
+
+    const safeSession = {
+      id: session.id,
+      serverSeed: session.serverSeed,
+      serverSeedHash: session.serverSeedHash,
+      clientSeed: session.clientSeed,
+      nonceBase: session.nonceBase,
+      rows: session.rows,
+      status: session.status,
+      lockedTileCounts: session.lockedTileCounts,
+      completedRows: session.completedRows,
+      currentMultiplier: session.currentMultiplier,
+      wagerWei: session.wagerWei,
+      createdAt,
+      finalizedAt,
+      wagerTxHash: session.wagerTxHash ?? null,
+      resultTxHash: session.resultTxHash ?? null,
+      xpTxHash: session.xpTxHash ?? null,
+      verifiedAt: session.verifiedAt ? session.verifiedAt.toISOString() : null,
+      verifiedBy: session.verifiedBy ?? null,
+    };
 
     return NextResponse.json(safeSession);
   } catch (error) {

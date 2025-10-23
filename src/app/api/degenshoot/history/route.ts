@@ -48,30 +48,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch sessions with pagination
-    const [sessions, totalCount] = await Promise.all([
+    const [sessionsRaw, totalCount] = await Promise.all([
       prisma.gameSession.findMany({
         where,
         orderBy: { [sortBy]: sortOrder },
         take: limit,
         skip: offset,
-        select: {
-          id: true,
-          createdAt: true,
-          finalizedAt: true,
-          status: true,
-          wagerWei: true,
-          currentMultiplier: true,
-          completedRows: true,
-          resultTxHash: true,
-          serverSeedHash: true,
-          serverSeed: true,
-          verifiedAt: true,
-          verifiedBy: true,
-          roundSummary: true,
-        },
       }),
       prisma.gameSession.count({ where }),
     ]);
+
+    type GameSessionWithTx = (typeof sessionsRaw)[number] & {
+      resultTxHash?: string | null;
+      verifiedAt?: Date | null;
+      verifiedBy?: string | null;
+    };
+    const sessions = sessionsRaw as GameSessionWithTx[];
 
     // Transform to display format
     const historyItems = sessions.map(session => {
@@ -95,7 +87,7 @@ export async function GET(request: NextRequest) {
         result: result as 'win' | 'loss' | 'active',
         multiplier: session.currentMultiplier,
         rows: session.completedRows,
-        payoutTxHash: session.resultTxHash,
+        payoutTxHash: session.resultTxHash ?? null,
         serverSeedHash: session.serverSeedHash,
         serverSeed: session.serverSeed,
         isVerified: !!session.verifiedAt,
