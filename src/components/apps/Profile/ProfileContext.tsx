@@ -13,6 +13,7 @@ import type { AppState, AccountMode } from "@/cli/state/types";
 import { useOnChainActivity } from "@/hooks/useOnChainActivity";
 import { mergeActivitySources, convertChatHistoryToActivity } from "@/lib/activity/aggregator";
 import type { OnChainActivity } from "@/lib/activity/types";
+import { debugLog } from "@/lib/utils/debugLog";
 
 // Legacy interface for backward compatibility
 export interface ProfileActivityEntry {
@@ -107,7 +108,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const handleAccountModeChange = useCallback(
     (mode: AccountMode) => {
       dispatch({ type: "ACCOUNT_MODE.UPDATE", accountMode: mode });
-      console.log(`🔄 Account mode switched to: ${mode}`);
+      debugLog(`🔄 Account mode switched to: ${mode}`);
     },
     [dispatch],
   );

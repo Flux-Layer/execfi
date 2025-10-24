@@ -13,7 +13,6 @@ export async function monitorTransfer(
   txHash: string,
   requiredConfirmations: number = 1
 ): Promise<TransferMonitoringResult> {
-  console.log(`🔍 [Transfer] Monitoring transaction ${txHash} on chain ${chainId}`);
 
   const chainConfig = getChainConfig(chainId);
   if (!chainConfig) {
@@ -36,7 +35,6 @@ export async function monitorTransfer(
     });
 
     if (receipt.status === "success") {
-      console.log(`✅ [Transfer] Transaction confirmed: ${txHash}`);
       return {
         status: "confirmed",
         confirmations: requiredConfirmations,

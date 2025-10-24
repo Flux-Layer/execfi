@@ -22,6 +22,7 @@ import { BombStatsTab } from "./bomb/components/BombStatsTab";
 import { BombVerificationModal } from "./bomb/components/BombVerificationModal";
 import { useBombGameState } from "./bomb/useBombGameState";
 import { DEGENSHOOT_CHAIN_ID } from "@/lib/contracts/addresses";
+import { debugLog } from "@/lib/utils/debugLog";
 
 export default function BombGameWindow() {
   const {
@@ -163,8 +164,7 @@ function BombGameContent({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // eslint-disable-next-line no-console
-    console.log("[BombGame] Balance context", {
+    debugLog("[BombGame] Balance context", {
       activeAddress,
       isBalanceLoading,
       balanceData,
