@@ -6,6 +6,7 @@ import { Prisma, type GameSession } from "@prisma/client";
 type PrismaGameSession = GameSession & {
   wagerTxHash?: string | null;
   resultTxHash?: string | null;
+  withdrawTxHash?: string | null;
   xpTxHash?: string | null;
 };
 
