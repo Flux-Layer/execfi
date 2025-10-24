@@ -1,6 +1,7 @@
 import { usePrivy, useSessionSigners, useWallets } from "@privy-io/react-auth";
 import { useEOA } from "./useEOA";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { debugLog } from "@/lib/utils/debugLog";
 
 export default function useSessionSigner() {
   const { selectedWallet } = useEOA();
@@ -20,11 +21,12 @@ export default function useSessionSigner() {
             a?.address === selectedWallet?.address &&
             !!a?.delegated,
         );
-        console.log({ delegatedAccount });
+        debugLog({ delegatedAccount });
 
         if (delegatedAccount) {
           setSessionSignerInitialized(true);
-          return console.log("Account has already been delegated");
+          debugLog("Account has already been delegated");
+          return;
         }
 
         const addSessionSignerResponse = await addSessionSigners({
@@ -37,10 +39,10 @@ export default function useSessionSigner() {
           ],
         });
 
-        console.log({ addSessionSignerResponse });
+        debugLog({ addSessionSignerResponse });
         setSessionSignerInitialized(true);
       } catch (err: any) {
-        console.log(err);
+        debugLog(err);
       }
     }
   }, [selectedWallet, ready, user]);
@@ -57,11 +59,11 @@ export default function useSessionSigner() {
         (a) => a?.type === "wallet" && !!a?.delegated,
       );
 
-      console.log({ walletsWithSessionSigners });
+      debugLog({ walletsWithSessionSigners });
     }
   }, [walletsReady, sessionSignerInitialized]);
   useEffect(() => {
-    console.log({ walletsWithSessionSigners });
+    debugLog({ walletsWithSessionSigners });
   }, [walletsWithSessionSigners]);
 
   return { sessionSignerInitialized, walletsWithSessionSigners };

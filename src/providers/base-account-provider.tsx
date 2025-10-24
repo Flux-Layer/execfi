@@ -5,6 +5,7 @@ import { createBaseAccountSDK } from '@base-org/account';
 import { getBaseAccountConfig } from '@/lib/config/base-account';
 import { getSubAccountOwner, deleteSubAccountKey } from '@/lib/config/sub-account-keys';
 import { usePrivy } from '@privy-io/react-auth';
+import { debugLog } from "@/lib/utils/debugLog";
 
 interface BaseAccountContextValue {
   sdk: any | null;
@@ -39,14 +40,12 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
     const config = getBaseAccountConfig();
     
     if (!config.enabled) {
-      console.log('⚠️ Base Account is disabled via config');
       setIsInitialized(true);
       return;
     }
 
     // Base Account works with browser-native passkeys (WebAuthn)
     // No Coinbase Wallet extension required!
-    console.log('✅ Initializing Base Account SDK with passkey support');
 
     try {
       // Configure SDK with Sub Account support
@@ -66,7 +65,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
             // Get the main Base Account address
             const mainAddress = address;
             if (!mainAddress) {
-              console.log('⚠️ No Base Account address yet, returning null owner');
               return { account: null };
             }
 
@@ -75,12 +73,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
             return { account: ownerAccount };
           },
         };
-
-        console.log('✅ Sub Account configuration enabled', {
-          creation: config.subAccounts.creation,
-          defaultAccount: config.subAccounts.defaultAccount,
-          funding: config.subAccounts.funding,
-        });
       }
 
       const baseAccountSDK = createBaseAccountSDK(sdkConfig);
@@ -89,12 +81,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
       setSdk(baseAccountSDK);
       setProvider(baseProvider);
       setIsInitialized(true);
-
-      console.log('✅ Base Account SDK initialized', {
-        appName: config.appName,
-        chains: config.supportedChainIds,
-        subAccountsEnabled: config.subAccounts.enabled,
-      });
     } catch (error) {
       console.error('❌ Failed to initialize Base Account SDK:', error);
       setIsInitialized(true); // Mark as initialized even on error
@@ -111,10 +97,8 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
 
     // Base Account uses browser-native passkeys (WebAuthn)
     // Works on any modern browser without extensions
-    console.log('🔑 Connecting to Base Account with passkey...');
 
     try {
-      console.log('🔄 Connecting to Base Account...');
       setConnectionError(null); // Clear previous errors
 
       // Use wallet_connect with signInWithEthereum capability
@@ -148,7 +132,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
       setConnectionError(null);
       setRetryCount(0); // Reset retry count on success
 
-      console.log('✅ Connected to Base Account:', userAddress);
 
       // If Sub Accounts are enabled, get the sub account address
       const config = getBaseAccountConfig();
@@ -156,11 +139,10 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
         try {
           const subAccount = await sdk.subAccount.get();
           if (subAccount?.address) {
-            setSubAccountAddress(subAccount.address);
-            console.log('✅ Sub Account address:', subAccount.address);
+            setSubAccountAddress(subAccount.address);;
           }
         } catch (error) {
-          console.log('⚠️ Sub Account not yet created (will be created on first transaction)');
+          debugLog('⚠️ Sub Account not yet created (will be created on first transaction)');
         }
       }
 
@@ -202,7 +184,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
     localStorage.removeItem('baseAccountAddress');
     localStorage.removeItem('baseAccountDeclined');
     
-    console.log('✅ Disconnected from Base Account');
   }, [address]);
 
   // Switch chain
@@ -217,7 +198,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
         params: [{ chainId: `0x${chainId.toString(16)}` }],
       });
 
-      console.log(`✅ Switched to chain ${chainId}`);
     } catch (error) {
       console.error(`❌ Failed to switch to chain ${chainId}:`, error);
       throw error;
@@ -232,7 +212,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
     if (wasConnected && savedAddress && provider) {
       setAddress(savedAddress);
       setIsConnected(true);
-      console.log('✅ Restored Base Account connection:', savedAddress);
     }
   }, [provider]);
 
@@ -268,7 +247,6 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
     }
 
     // User is logged in but doesn't have Base Account - show persistent prompt
-    console.log('💡 User authenticated without Base Account - showing setup prompt');
     setConnectionError('Set up your Base Account to unlock passkey authentication, gas-free transactions, one-tap USDC payments, and universal identity across Base-enabled apps.');
   }, [privyReady, privyAuthenticated, isConnected]);
 
@@ -305,19 +283,15 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
     // Automatically create Base Account with retry logic using passkey
     const createBaseAccount = async () => {
       try {
-        console.log('🔄 Auto-creating Base Account for authenticated user...');
-        console.log(`📊 Attempt ${retryCount + 1} of 3`);
         setAutoCreateAttempted(true);
         
         await connect();
         
-        console.log('✅ Base Account created successfully');
       } catch (error: any) {
-        console.log('⚠️ Base Account auto-creation failed:', error.message);
+        debugLog('⚠️ Base Account auto-creation failed:', error.message);
         
         // If user explicitly rejected, mark it so we don't ask again
         if (error.code === 4001 || error.message?.includes('rejected')) {
-          console.log('📝 User declined Base Account creation');
           localStorage.setItem('baseAccountDeclined', 'true');
         } else if (error.message?.includes('timeout')) {
           // On timeout, allow retry (don't mark as declined)
@@ -325,21 +299,16 @@ export function BaseAccountProvider({ children }: { children: React.ReactNode })
           setRetryCount(currentRetry);
           
           if (currentRetry < 3) {
-            console.log(`⏱️ Connection timed out. Will retry automatically (${currentRetry}/3)...`);
-            console.log('💡 Tip: If this keeps happening, install Coinbase Wallet extension');
             // Retry after a delay
             setAutoCreateAttempted(false); // Allow retry
             setTimeout(() => {
               // Trigger retry by toggling state
             }, 5000); // Wait 5 seconds before retry
           } else {
-            console.log('❌ Base Account creation failed after 3 attempts');
-            console.log('💡 Please install Coinbase Wallet extension from: https://www.coinbase.com/wallet/downloads');
-            console.log('💡 Or refresh the page to try again');
             // Don't mark as declined - user might want to try manually
           }
         } else {
-          console.log('❌ Unexpected error:', error);
+          debugLog('❌ Unexpected error:', error);
           // Don't mark as declined for unexpected errors
         }
       }

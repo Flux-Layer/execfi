@@ -16,6 +16,7 @@ import { ExecutionError, type ExecutionResult } from './execute';
 import { getTxUrl, formatSuccessMessage } from './explorer';
 import { getChainConfig } from './chains/registry';
 import { getPaymasterConfig } from './config/base-account';
+import { debugLog } from "@/lib/utils/debugLog";
 
 /**
  * Execute native ETH transfer using Base Account
@@ -26,7 +27,7 @@ export async function executeNativeTransferWithBaseAccount(
   fromAddress: `0x${string}`,
 ): Promise<ExecutionResult> {
   try {
-    console.log('🔄 Executing native transfer via Base Account...', {
+    debugLog('🔄 Executing native transfer via Base Account...', {
       to: norm.to,
       amount: formatEther(norm.amountWei),
       chainId: norm.chainId,
@@ -60,9 +61,9 @@ export async function executeNativeTransferWithBaseAccount(
           url: paymasterConfig.proxyUrl,
         },
       };
-      console.log('🎁 Gas sponsorship enabled for this transaction');
+      debugLog('🎁 Gas sponsorship enabled for this transaction');
     } else {
-      console.log('💰 User will pay gas for this transaction');
+      debugLog('💰 User will pay gas for this transaction');
     }
 
     // Execute via wallet_sendCalls
@@ -80,7 +81,7 @@ export async function executeNativeTransferWithBaseAccount(
       );
     }
 
-    console.log('✅ Transaction submitted via Base Account:', txHash);
+    debugLog('✅ Transaction submitted via Base Account:', txHash);
 
     const amount = formatEther(norm.amountWei);
     const message = formatSuccessMessage(amount, norm.chainId, txHash);
@@ -122,7 +123,7 @@ export async function executeERC20TransferWithBaseAccount(
   fromAddress: `0x${string}`,
 ): Promise<ExecutionResult> {
   try {
-    console.log('🔄 Executing ERC-20 transfer via Base Account...', {
+    debugLog('🔄 Executing ERC-20 transfer via Base Account...', {
       token: norm.token.symbol,
       to: norm.to,
       amount: formatUnits(norm.amountWei, norm.token.decimals),
@@ -169,7 +170,7 @@ export async function executeERC20TransferWithBaseAccount(
           url: paymasterConfig.proxyUrl,
         },
       };
-      console.log('🎁 Gas sponsorship enabled for this transaction');
+      debugLog('🎁 Gas sponsorship enabled for this transaction');
     }
 
     const result = await provider.request({
@@ -220,7 +221,7 @@ export async function executeBatchWithBaseAccount(
   fromAddress: `0x${string}`,
 ): Promise<ExecutionResult> {
   try {
-    console.log(`🔄 Executing ${calls.length} transactions in batch via Base Account...`);
+    debugLog(`🔄 Executing ${calls.length} transactions in batch via Base Account...`);
 
     const paymasterConfig = getPaymasterConfig();
     const shouldSponsorGas = 
@@ -241,7 +242,7 @@ export async function executeBatchWithBaseAccount(
           url: paymasterConfig.proxyUrl,
         },
       };
-      console.log('🎁 Gas sponsorship enabled for batch transaction');
+      debugLog('🎁 Gas sponsorship enabled for batch transaction');
     }
 
     const result = await provider.request({

@@ -7,8 +7,6 @@ const XP_REGISTRY_ADDRESS = "0xBf227816Afc11b5DD720d601ECC14Fc5901C380b" as `0x$
 const DEFAULT_ADMIN_ROLE = "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
 
 async function checkAdmin() {
-  console.log("🔍 Checking XPRegistry admin status...\n");
-  console.log(`Contract: ${XP_REGISTRY_ADDRESS}\n`);
 
   const publicClient = createPublicClient({
     chain: baseSepolia,
@@ -25,8 +23,6 @@ async function checkAdmin() {
     args: [DEFAULT_ADMIN_ROLE, currentAccount],
   });
 
-  console.log(`Current Account: ${currentAccount}`);
-  console.log(`Has Admin Role: ${hasRole ? "✅ YES" : "❌ NO"}\n`);
 
   if (!hasRole) {
     console.log("💡 To find the admin:");

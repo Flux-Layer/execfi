@@ -2,12 +2,12 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
-   FiHome,
-   FiInfo,
-   FiFileText,
-   FiTerminal,
-   FiSettings,
-   FiUser,
+  FiHome,
+  FiInfo,
+  FiFileText,
+  FiTerminal,
+  FiSettings,
+  FiUser,
 } from "react-icons/fi";
 import { FaBomb } from "react-icons/fa6";
 import { TbCoin } from "react-icons/tb";
@@ -24,511 +24,525 @@ import CoinFlipGamePreview from "@/components/apps/previews/CoinFlipGamePreview"
 import { useResponsive } from "@/hooks/useResponsive";
 
 const BASE_DOCK_ITEMS = [
-   { key: "home", label: "Home", href: "https://execfi.xyz", icon: <FiHome /> },
-   { key: "about", label: "About", href: "#about", icon: <FiInfo /> },
-   { key: "pricing", label: "Notes", href: "/execfi", icon: <FiFileText /> },
-   {
-      key: "terminal",
-      label: "Terminal",
-      href: "#terminal",
-      icon: <FiTerminal />,
-   },
-   {
-      key: "settings",
-      label: "Settings",
-      href: "#settings",
-      icon: <FiSettings />,
-   },
-   { key: "profile", label: "Profile", href: "#profile", icon: <FiUser /> },
+  { key: "home", label: "Home", href: "https://execfi.xyz", icon: <FiHome /> },
+  { key: "about", label: "About", href: "#about", icon: <FiInfo /> },
+  { key: "pricing", label: "Notes", href: "/execfi", icon: <FiFileText /> },
+  {
+    key: "terminal",
+    label: "Terminal",
+    href: "#terminal",
+    icon: <FiTerminal />,
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    href: "#settings",
+    icon: <FiSettings />,
+  },
+  { key: "profile", label: "Profile", href: "#profile", icon: <FiUser /> },
 ];
 
 export default function Dock() {
-   const {
-      terminalState,
-      docsState,
-      profileState,
-      gameState,
-      coinFlipState,
-      aboutState,
-      settingsState,
-      openTerminal,
-      openDocs,
-      openProfile,
-      openGame,
-      openCoinFlip,
-      openAbout,
-      openSettings,
-      minimizeTerminal,
-      minimizeDocs,
-      minimizeProfile,
-      minimizeGame,
-      minimizeCoinFlip,
-      minimizeAbout,
-      minimizeSettings,
-   } = useDock();
-   const { isMobile } = useResponsive();
-   const [hovered, setHovered] = useState<string | null>(null);
-   const previewContainerRef = useRef<HTMLDivElement | null>(null);
-   const previewInputRef = useRef<HTMLInputElement | null>(null);
-   const dockItems = useMemo(
-      () => {
-         const items = [...BASE_DOCK_ITEMS];
-         if (gameState.open || gameState.minimized) {
-            items.push({
-               key: "degenshoot",
-               label: "Degen Shooter",
-               href: "#degenshoot",
-               icon: <FaBomb />,
-            });
-         }
-         if (coinFlipState.open || coinFlipState.minimized) {
-            items.push({
-               key: "coinflip",
-               label: "CoinFlip",
-               href: "#coinflip",
-               icon: <TbCoin />,
-            });
-         }
-         return items;
-      },
-      [coinFlipState.minimized, coinFlipState.open, gameState.minimized, gameState.open],
-   );
-   return (
-      <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 md:bottom-6 md:left-1/2 md:right-auto md:px-0 md:pb-0 md:-translate-x-1/2">
-         <nav
-            data-onboarding-id="dock"
-            className="pointer-events-auto relative flex w-full flex-nowrap items-end justify-center gap-2 overflow-x-auto rounded-t-2xl border-t border-white/10 bg-slate-950/95 px-3 py-2 text-slate-200 backdrop-blur-xl scrollbar-hide safe-area-inset-bottom sm:justify-between md:w-auto md:flex-wrap md:justify-center md:gap-4 md:rounded-3xl md:border md:border-white/10 md:border-t-0 md:bg-slate-900/70 md:px-6 md:py-3 md:shadow-2xl md:shadow-black/40"
-         >
-            {dockItems.map((item) => {
-               const isHover = hovered === item.key && !isMobile;
-               const isTerminal = item.key === "terminal";
-               const terminalMinimized = isTerminal && terminalState.minimized;
-               const terminalActive = isTerminal && terminalState.open && !terminalState.minimized;
-               const isDocs = item.key === "pricing";
-               const docsMinimized = isDocs && docsState.minimized;
-               const docsActive = isDocs && docsState.open && !docsState.minimized;
-               const isProfile = item.key === "profile";
-               const profileMinimized = isProfile && profileState.minimized;
-               const profileActive = isProfile && profileState.open && !profileState.minimized;
-               const isGame = item.key === "degenshoot";
-               const gameMinimized = isGame && gameState.minimized;
-               const gameActive = isGame && gameState.open && !gameState.minimized;
-               const isCoinFlip = item.key === "coinflip";
-               const coinFlipMinimized = isCoinFlip && coinFlipState.minimized;
-               const coinFlipActive = isCoinFlip && coinFlipState.open && !coinFlipState.minimized;
-               const isAbout = item.key === "about";
-               const aboutMinimized = isAbout && aboutState.minimized;
-               const aboutActive = isAbout && aboutState.open && !aboutState.minimized;
-               const isSettings = item.key === "settings";
-               const settingsMinimized = isSettings && settingsState.minimized;
-               const settingsActive = isSettings && settingsState.open && !settingsState.minimized;
-               const isActive =
-                  terminalActive ||
-                  docsActive ||
-                  profileActive ||
-                  aboutActive ||
-                  settingsActive ||
-                  gameActive ||
-                  coinFlipActive;
+  const {
+    terminalState,
+    docsState,
+    profileState,
+    gameState,
+    coinFlipState,
+    aboutState,
+    settingsState,
+    openTerminal,
+    openDocs,
+    openProfile,
+    openGame,
+    openCoinFlip,
+    openAbout,
+    openSettings,
+    minimizeTerminal,
+    minimizeDocs,
+    minimizeProfile,
+    minimizeGame,
+    minimizeCoinFlip,
+    minimizeAbout,
+    minimizeSettings,
+  } = useDock();
+  const { isMobile } = useResponsive();
+  const [hovered, setHovered] = useState<string | null>(null);
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
+  const previewInputRef = useRef<HTMLInputElement | null>(null);
+  const dockItems = useMemo(() => {
+    const items = [...BASE_DOCK_ITEMS];
+    if (gameState.open || gameState.minimized) {
+      items.push({
+        key: "degenshoot",
+        label: "Degen Shooter",
+        href: "#degenshoot",
+        icon: <FaBomb />,
+      });
+    }
+    if (coinFlipState.open || coinFlipState.minimized) {
+      items.push({
+        key: "coinflip",
+        label: "CoinFlip",
+        href: "#coinflip",
+        icon: <TbCoin />,
+      });
+    }
+    return items;
+  }, [
+    coinFlipState.minimized,
+    coinFlipState.open,
+    gameState.minimized,
+    gameState.open,
+  ]);
+  return (
+    <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 md:bottom-6 md:left-1/2 md:right-auto md:px-0 md:pb-0 md:-translate-x-1/2">
+      <nav
+        data-onboarding-id="dock"
+        className="pointer-events-auto relative flex w-full flex-nowrap items-end justify-center gap-2 overflow-x-auto rounded-t-2xl border-t border-white/10 bg-slate-950/95 px-3 py-2 text-slate-200 backdrop-blur-xl scrollbar-hide sm:justify-between md:w-auto md:justify-center md:gap-4 md:rounded-3xl md:border md:border-white/10 md:border-t-0 md:bg-slate-900/70 md:px-6 md:py-3 md:shadow-2xl md:shadow-black/40"
+      >
+        {dockItems.map((item) => {
+          const isHover = hovered === item.key && !isMobile;
+          const isTerminal = item.key === "terminal";
+          const terminalMinimized = isTerminal && terminalState.minimized;
+          const terminalActive =
+            isTerminal && terminalState.open && !terminalState.minimized;
+          const isDocs = item.key === "pricing";
+          const docsMinimized = isDocs && docsState.minimized;
+          const docsActive = isDocs && docsState.open && !docsState.minimized;
+          const isProfile = item.key === "profile";
+          const profileMinimized = isProfile && profileState.minimized;
+          const profileActive =
+            isProfile && profileState.open && !profileState.minimized;
+          const isGame = item.key === "degenshoot";
+          const gameMinimized = isGame && gameState.minimized;
+          const gameActive = isGame && gameState.open && !gameState.minimized;
+          const isCoinFlip = item.key === "coinflip";
+          const coinFlipMinimized = isCoinFlip && coinFlipState.minimized;
+          const coinFlipActive =
+            isCoinFlip && coinFlipState.open && !coinFlipState.minimized;
+          const isAbout = item.key === "about";
+          const aboutMinimized = isAbout && aboutState.minimized;
+          const aboutActive =
+            isAbout && aboutState.open && !aboutState.minimized;
+          const isSettings = item.key === "settings";
+          const settingsMinimized = isSettings && settingsState.minimized;
+          const settingsActive =
+            isSettings && settingsState.open && !settingsState.minimized;
+          const isActive =
+            terminalActive ||
+            docsActive ||
+            profileActive ||
+            aboutActive ||
+            settingsActive ||
+            gameActive ||
+            coinFlipActive;
 
-               return (
-                  <div
-                     role="button"
-                     tabIndex={0}
-                     key={item.key}
-                     data-onboarding-id={`dock-${item.key}`}
-                     className="relative flex min-w-[54px] flex-shrink-0 flex-col items-center justify-center text-slate-200 focus:outline-none md:min-w-[46px]"
-                     onMouseEnter={() => !isMobile && setHovered(item.key)}
-                     onMouseLeave={() => !isMobile && setHovered(null)}
-                     onFocus={() => !isMobile && setHovered(item.key)}
-                     onBlur={() => !isMobile && setHovered(null)}
-                    aria-label={item.label}
-                    onClick={() => {
-                        if (item.key === "home") {
-                           window.location.href = "https://execfi.xyz";
-                           return;
-                        }
+          return (
+            <div
+              role="button"
+              tabIndex={0}
+              key={item.key}
+              data-onboarding-id={`dock-${item.key}`}
+              className="relative flex min-w-[54px] flex-shrink-0 flex-col items-center justify-center text-slate-200 focus:outline-none md:min-w-[46px]"
+              onMouseEnter={() => !isMobile && setHovered(item.key)}
+              onMouseLeave={() => !isMobile && setHovered(null)}
+              onFocus={() => !isMobile && setHovered(item.key)}
+              onBlur={() => !isMobile && setHovered(null)}
+              aria-label={item.label}
+              onClick={() => {
+                if (item.key === "home") {
+                  window.location.href = "https://execfi.xyz";
+                  return;
+                }
 
-                        if (isTerminal) {
-                           if (terminalState.open && !terminalState.minimized) {
-                              minimizeTerminal();
-                           } else {
-                              openTerminal();
-                           }
-                        } else if (isGame) {
-                           if (gameState.open && !gameState.minimized) {
-                              minimizeGame();
-                           } else {
-                              openGame();
-                           }
-                        } else if (isCoinFlip) {
-                           if (coinFlipState.open && !coinFlipState.minimized) {
-                              minimizeCoinFlip();
-                           } else {
-                              openCoinFlip();
-                           }
-                        } else if (item.key === "pricing") {
-                           if (docsState.open && !docsState.minimized) {
-                              minimizeDocs();
-                           } else {
-                              openDocs();
-                           }
-                        } else if (isProfile) {
-                           if (profileState.open && !profileState.minimized) {
-                              minimizeProfile();
-                           } else {
-                              openProfile();
-                           }
-                        } else if (isAbout) {
-                           if (aboutState.open && !aboutState.minimized) {
-                              minimizeAbout();
-                           } else {
-                              openAbout();
-                           }
-                        } else if (isSettings) {
-                           if (settingsState.open && !settingsState.minimized) {
-                              minimizeSettings();
-                           } else {
-                              openSettings();
-                           }
-                        }
-                     }}
-                     onKeyDown={(e) => {
-                       if (e.key === "Enter" || e.key === " ") {
-                           e.preventDefault();
-                           if (item.key === "home") {
-                              window.location.href = "https://execfi.xyz";
-                           } else if (isTerminal) {
-                              if (terminalState.open && !terminalState.minimized) {
-                                 minimizeTerminal();
-                              } else {
-                                 openTerminal();
-                              }
-                           } else if (isGame) {
-                              if (gameState.open && !gameState.minimized) {
-                                 minimizeGame();
-                              } else {
-                                 openGame();
-                              }
-                           } else if (isCoinFlip) {
-                              if (coinFlipState.open && !coinFlipState.minimized) {
-                                 minimizeCoinFlip();
-                              } else {
-                                 openCoinFlip();
-                              }
-                           } else if (item.key === "pricing") {
-                              if (docsState.open && !docsState.minimized) {
-                                 minimizeDocs();
-                              } else {
-                                 openDocs();
-                              }
-                           } else if (isProfile) {
-                              if (profileState.open && !profileState.minimized) {
-                                 minimizeProfile();
-                              } else {
-                                 openProfile();
-                              }
-                           } else if (isAbout) {
-                              if (aboutState.open && !aboutState.minimized) {
-                                 minimizeAbout();
-                              } else {
-                                 openAbout();
-                              }
-                           } else if (isSettings) {
-                              if (settingsState.open && !settingsState.minimized) {
-                                 minimizeSettings();
-                              } else {
-                                 openSettings();
-                              }
-                           }
-                        }
-                     }}
-                  >
-                     <motion.span
-                        animate={{
-                           scale:
-                              terminalMinimized ||
-                              docsMinimized ||
-                              profileMinimized ||
-                              aboutMinimized ||
-                              settingsMinimized ||
-                              gameMinimized ||
-                              coinFlipMinimized
-                                 ? 1.2
-                                 : isHover
-                                    ? 1.15
-                                    : (isTerminal && terminalState.open) ||
-                                       (isProfile && profileState.open) ||
-                                       (isAbout && aboutState.open) ||
-                                       (isSettings && settingsState.open) ||
-                                       (isGame && gameState.open) ||
-                                       (isCoinFlip && coinFlipState.open)
-                                       ? 1.05
-                                       : 1,
-                           y: !isMobile && isHover
-                              ? -6
-                              : !isMobile &&
-                                  (terminalMinimized ||
-                                     docsMinimized ||
-                                     profileMinimized ||
-                                     aboutMinimized ||
-                                     settingsMinimized ||
-                                     gameMinimized ||
-                                     coinFlipMinimized)
-                                 ? -3
-                                 : 0,
+                if (isTerminal) {
+                  if (terminalState.open && !terminalState.minimized) {
+                    minimizeTerminal();
+                  } else {
+                    openTerminal();
+                  }
+                } else if (isGame) {
+                  if (gameState.open && !gameState.minimized) {
+                    minimizeGame();
+                  } else {
+                    openGame();
+                  }
+                } else if (isCoinFlip) {
+                  if (coinFlipState.open && !coinFlipState.minimized) {
+                    minimizeCoinFlip();
+                  } else {
+                    openCoinFlip();
+                  }
+                } else if (item.key === "pricing") {
+                  if (docsState.open && !docsState.minimized) {
+                    minimizeDocs();
+                  } else {
+                    openDocs();
+                  }
+                } else if (isProfile) {
+                  if (profileState.open && !profileState.minimized) {
+                    minimizeProfile();
+                  } else {
+                    openProfile();
+                  }
+                } else if (isAbout) {
+                  if (aboutState.open && !aboutState.minimized) {
+                    minimizeAbout();
+                  } else {
+                    openAbout();
+                  }
+                } else if (isSettings) {
+                  if (settingsState.open && !settingsState.minimized) {
+                    minimizeSettings();
+                  } else {
+                    openSettings();
+                  }
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (item.key === "home") {
+                    window.location.href = "https://execfi.xyz";
+                  } else if (isTerminal) {
+                    if (terminalState.open && !terminalState.minimized) {
+                      minimizeTerminal();
+                    } else {
+                      openTerminal();
+                    }
+                  } else if (isGame) {
+                    if (gameState.open && !gameState.minimized) {
+                      minimizeGame();
+                    } else {
+                      openGame();
+                    }
+                  } else if (isCoinFlip) {
+                    if (coinFlipState.open && !coinFlipState.minimized) {
+                      minimizeCoinFlip();
+                    } else {
+                      openCoinFlip();
+                    }
+                  } else if (item.key === "pricing") {
+                    if (docsState.open && !docsState.minimized) {
+                      minimizeDocs();
+                    } else {
+                      openDocs();
+                    }
+                  } else if (isProfile) {
+                    if (profileState.open && !profileState.minimized) {
+                      minimizeProfile();
+                    } else {
+                      openProfile();
+                    }
+                  } else if (isAbout) {
+                    if (aboutState.open && !aboutState.minimized) {
+                      minimizeAbout();
+                    } else {
+                      openAbout();
+                    }
+                  } else if (isSettings) {
+                    if (settingsState.open && !settingsState.minimized) {
+                      minimizeSettings();
+                    } else {
+                      openSettings();
+                    }
+                  }
+                }
+              }}
+            >
+              <motion.span
+                animate={{
+                  scale:
+                    terminalMinimized ||
+                    docsMinimized ||
+                    profileMinimized ||
+                    aboutMinimized ||
+                    settingsMinimized ||
+                    gameMinimized ||
+                    coinFlipMinimized
+                      ? 1.2
+                      : isHover
+                      ? 1.15
+                      : (isTerminal && terminalState.open) ||
+                        (isProfile && profileState.open) ||
+                        (isAbout && aboutState.open) ||
+                        (isSettings && settingsState.open) ||
+                        (isGame && gameState.open) ||
+                        (isCoinFlip && coinFlipState.open)
+                      ? 1.05
+                      : 1,
+                  y:
+                    !isMobile && isHover
+                      ? -6
+                      : !isMobile &&
+                        (terminalMinimized ||
+                          docsMinimized ||
+                          profileMinimized ||
+                          aboutMinimized ||
+                          settingsMinimized ||
+                          gameMinimized ||
+                          coinFlipMinimized)
+                      ? -3
+                      : 0,
+                }}
+                transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                className="flex h-11 w-11 md:h-12 md:w-12 items-center justify-center rounded-2xl bg-slate-800/85 text-lg md:text-xl shadow-inner"
+              >
+                {item.icon}
+              </motion.span>
+
+              {/* Mobile: Active indicator */}
+              {isMobile && isActive && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                />
+              )}
+
+              {/* Mobile: Label below icon */}
+              {isMobile && (
+                <span className="text-[10px] text-slate-400 mt-1 font-medium">
+                  {item.label}
+                </span>
+              )}
+
+              {/* Desktop: Hover tooltip */}
+              {!isMobile && (
+                <AnimatePresence>
+                  {isHover &&
+                    !(
+                      (isTerminal && terminalMinimized) ||
+                      (isDocs && docsMinimized) ||
+                      (isGame && gameMinimized) ||
+                      (isCoinFlip && coinFlipMinimized)
+                    ) && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 6 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 260,
+                          damping: 20,
                         }}
-                        transition={{ type: "spring", stiffness: 260, damping: 20 }}
-                        className="flex h-11 w-11 md:h-12 md:w-12 items-center justify-center rounded-2xl bg-slate-800/85 text-lg md:text-xl shadow-inner"
-                     >
-                        {item.icon}
-                     </motion.span>
-                     
-                     {/* Mobile: Active indicator */}
-                     {isMobile && isActive && (
-                        <motion.div
-                           layoutId="activeTab"
-                           className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500"
-                           initial={{ opacity: 0 }}
-                           animate={{ opacity: 1 }}
-                           exit={{ opacity: 0 }}
+                        className="pointer-events-none absolute -top-14 left-1/2 flex -translate-x-1/2 flex-col items-center"
+                      >
+                        <div className="rounded-full border border-white/15 bg-slate-900/90 px-3 py-1 text-xs font-medium text-slate-100 shadow-lg">
+                          {item.label}
+                        </div>
+                        <div
+                          className="mt-1 h-2 w-3 border border-white/15 bg-slate-900/90"
+                          style={{ clipPath: "polygon(50% 100%, 0 0, 100% 0)" }}
                         />
-                     )}
-                     
-                     {/* Mobile: Label below icon */}
-                     {isMobile && (
-                        <span className="text-[10px] text-slate-400 mt-1 font-medium">
-                           {item.label}
-                        </span>
-                     )}
+                      </motion.div>
+                    )}
+                </AnimatePresence>
+              )}
 
-                     {/* Desktop: Hover tooltip */}
-                     {!isMobile && (
-                        <AnimatePresence>
-                           {isHover &&
-                              !(
-                                 (isTerminal && terminalMinimized) ||
-                                 (isDocs && docsMinimized) ||
-                                 (isGame && gameMinimized) ||
-                                 (isCoinFlip && coinFlipMinimized)
-                              ) && (
-                                 <motion.div
-                                    initial={{ opacity: 0, y: 6 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 6 }}
-                                    transition={{
-                                       type: "spring",
-                                       stiffness: 260,
-                                       damping: 20,
-                                    }}
-                                    className="pointer-events-none absolute -top-14 left-1/2 flex -translate-x-1/2 flex-col items-center"
-                                 >
-                                    <div className="rounded-full border border-white/15 bg-slate-900/90 px-3 py-1 text-xs font-medium text-slate-100 shadow-lg">
-                                       {item.label}
-                                    </div>
-                                    <div
-                                       className="mt-1 h-2 w-3 border border-white/15 bg-slate-900/90"
-                                       style={{ clipPath: "polygon(50% 100%, 0 0, 100% 0)" }}
-                                    />
-                                 </motion.div>
-                              )}
-                        </AnimatePresence>
-                     )}
-
-                     {/* Previews moved outside item wrapper to only appear when icon is hovered, not the preview itself */}
+              {/* Previews moved outside item wrapper to only appear when icon is hovered, not the preview itself */}
+            </div>
+          );
+        })}
+        {/* Desktop: Global hover previews anchored to dock center */}
+        {!isMobile && (
+          <>
+            <AnimatePresence>
+              {terminalState.minimized && hovered === "terminal" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                >
+                  <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                    <div
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        width: 768,
+                        height: 384,
+                        transform: "scale(0.55)",
+                        transformOrigin: "center",
+                      }}
+                    >
+                      <div className="h-full w-full font-mono text-left">
+                        <TerminalHeader
+                          isFullscreen={false}
+                          showClock={false}
+                        />
+                        <div className="h-[calc(100%-3rem)] overflow-hidden">
+                          <HSMTerminalBody
+                            inputRef={previewInputRef}
+                            containerRef={previewContainerRef}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-               );
-            })}
-            {/* Desktop: Global hover previews anchored to dock center */}
-            {!isMobile && (
-            <>
-            <AnimatePresence>
-               {terminalState.minimized && hovered === "terminal" && (
-                  <motion.div
-                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-                  >
-                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
-                        <div
-                           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-                           style={{
-                              width: 768,
-                              height: 384,
-                              transform: "scale(0.55)",
-                              transformOrigin: "center",
-                           }}
-                        >
-                           <div className="h-full w-full font-mono text-left">
-                              <TerminalHeader isFullscreen={false} showClock={false} />
-                              <div className="h-[calc(100%-3rem)] overflow-hidden">
-                                 <HSMTerminalBody
-                                    inputRef={previewInputRef}
-                                    containerRef={previewContainerRef}
-                                 />
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
+                </motion.div>
+              )}
             </AnimatePresence>
 
             <AnimatePresence>
-               {gameState.minimized && hovered === "degenshoot" && (
-                  <motion.div
-                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-                  >
-                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
-                        <div className="absolute inset-0">
-                           <BombGamePreview />
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
+              {gameState.minimized && hovered === "degenshoot" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                >
+                  <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                    <div className="absolute inset-0">
+                      <BombGamePreview />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
 
             <AnimatePresence>
-               {docsState.minimized && hovered === "pricing" && (
-                  <motion.div
-                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[20rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-                  >
-                     <div className="w-[420px] h-[300px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
-                        <div
-                           className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
-                           style={{
-                              width: 768,
-                              height: 448,
-                              transform: "scale(0.55)",
-                              transformOrigin: "center",
-                           }}
-                        >
-                           <div className="h-full w-full font-mono text-left">
-                              <TerminalHeader isFullscreen={false} showClock={false} />
-                              <div className="h-[calc(100%-3rem)] overflow-hidden">
-                                 <NotesApp />
-                              </div>
-                           </div>
+              {docsState.minimized && hovered === "pricing" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="absolute -top-[20rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                >
+                  <div className="w-[420px] h-[300px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                    <div
+                      className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        width: 768,
+                        height: 448,
+                        transform: "scale(0.55)",
+                        transformOrigin: "center",
+                      }}
+                    >
+                      <div className="h-full w-full font-mono text-left">
+                        <TerminalHeader
+                          isFullscreen={false}
+                          showClock={false}
+                        />
+                        <div className="h-[calc(100%-3rem)] overflow-hidden">
+                          <NotesApp />
                         </div>
-                     </div>
-                  </motion.div>
-               )}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
 
             <AnimatePresence>
-               {coinFlipState.minimized && hovered === "coinflip" && (
-                  <motion.div
-                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-                  >
-                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
-                        <div className="absolute inset-0">
-                           <CoinFlipGamePreview />
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
+              {coinFlipState.minimized && hovered === "coinflip" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                >
+                  <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                    <div className="absolute inset-0">
+                      <CoinFlipGamePreview />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
 
             <AnimatePresence>
-               {profileState.minimized && hovered === "profile" && (
-                  <motion.div
-                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-                  >
-                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
-                        <div
-                           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-                           style={{
-                              width: 768,
-                              height: 448,
-                              transform: "scale(0.55)",
-                              transformOrigin: "center",
-                           }}
-                        >
-                           <div className="h-full w-full font-mono text-left">
-                              <ProfilePreview />
-                           </div>
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
+              {profileState.minimized && hovered === "profile" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                >
+                  <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                    <div
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        width: 768,
+                        height: 448,
+                        transform: "scale(0.55)",
+                        transformOrigin: "center",
+                      }}
+                    >
+                      <div className="h-full w-full font-mono text-left">
+                        <ProfilePreview />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
 
             <AnimatePresence>
-               {aboutState.minimized && hovered === "about" && (
-                  <motion.div
-                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-                  >
-                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
-                        <div
-                           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-                           style={{
-                              width: 768,
-                              height: 448,
-                              transform: "scale(0.55)",
-                              transformOrigin: "center",
-                           }}
-                        >
-                           <div className="h-full w-full font-mono text-left">
-                              <AboutPreview />
-                           </div>
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
+              {aboutState.minimized && hovered === "about" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                >
+                  <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                    <div
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        width: 768,
+                        height: 448,
+                        transform: "scale(0.55)",
+                        transformOrigin: "center",
+                      }}
+                    >
+                      <div className="h-full w-full font-mono text-left">
+                        <AboutPreview />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
 
             <AnimatePresence>
-               {settingsState.minimized && hovered === "settings" && (
-                  <motion.div
-                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                     transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                     className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-                  >
-                     <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
-                        <div
-                           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-                           style={{
-                              width: 768,
-                              height: 512,
-                              transform: "scale(0.52)",
-                              transformOrigin: "center",
-                           }}
-                        >
-                           <div className="h-full w-full font-mono text-left">
-                              <SettingsPreview />
-                           </div>
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
+              {settingsState.minimized && hovered === "settings" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                  className="absolute -top-[16rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+                >
+                  <div className="w-[420px] h-[240px] rounded-2xl border border-white/15 bg-slate-900/95 shadow-2xl overflow-hidden relative">
+                    <div
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                      style={{
+                        width: 768,
+                        height: 512,
+                        transform: "scale(0.52)",
+                        transformOrigin: "center",
+                      }}
+                    >
+                      <div className="h-full w-full font-mono text-left">
+                        <SettingsPreview />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
-            </>
-            )}
-         </nav>
-      </div>
-   );
+          </>
+        )}
+      </nav>
+    </div>
+  );
 }

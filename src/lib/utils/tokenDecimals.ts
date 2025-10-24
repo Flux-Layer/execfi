@@ -30,12 +30,10 @@ export async function getTokenDecimals(
   // Check cache first
   const cached = decimalsCache.get(cacheKey);
   if (cached && (now - cached.timestamp) < DECIMALS_CACHE_TTL) {
-    console.log(`💾 [Decimals] Using cached decimals for ${tokenAddress} on chain ${chainId}: ${cached.decimals}`);
     return cached.decimals;
   }
 
   try {
-    console.log(`🔍 [Decimals] Fetching on-chain decimals for ${tokenAddress} on chain ${chainId}`);
 
     // Create contract instance
     const tokenContract = getContract({
@@ -52,7 +50,6 @@ export async function getTokenDecimals(
       throw new Error(`Invalid decimals value: ${decimals}. Expected 0-77.`);
     }
 
-    console.log(`✅ [Decimals] Fetched decimals for ${tokenAddress}: ${decimals}`);
 
     // Cache the result
     decimalsCache.set(cacheKey, {
@@ -142,7 +139,6 @@ export function clearDecimalsCache(tokenAddress?: string, chainId?: number) {
   if (tokenAddress && chainId) {
     const key = `${chainId}-${tokenAddress.toLowerCase()}`;
     decimalsCache.delete(key);
-    console.log(`🗑️ [Decimals] Cleared cache for ${tokenAddress} on chain ${chainId}`);
   } else if (chainId) {
     // Clear all entries for this chain
     for (const key of decimalsCache.keys()) {
@@ -150,11 +146,9 @@ export function clearDecimalsCache(tokenAddress?: string, chainId?: number) {
         decimalsCache.delete(key);
       }
     }
-    console.log(`🗑️ [Decimals] Cleared all cache for chain ${chainId}`);
   } else {
     // Clear entire cache
     decimalsCache.clear();
-    console.log(`🗑️ [Decimals] Cleared entire decimals cache`);
   }
 }
 
