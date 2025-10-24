@@ -194,7 +194,6 @@ export async function validateTransfer(
   fromAddress: `0x${string}`,
   policyConfig: PolicyConfig
 ): Promise<{ gasEstimate: bigint; gasCost: bigint }> {
-  console.log("🔍 [Transfer] Validating transfer:", norm);
 
   // Basic validation
   validateRecipient(norm.to);

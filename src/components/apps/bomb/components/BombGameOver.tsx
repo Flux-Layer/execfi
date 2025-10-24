@@ -2,36 +2,13 @@
 
 import { FaBomb } from "react-icons/fa6";
 
-type GameOverBannerProps = {
-  lostRow: number | null;
-  onReplay: () => void;
-};
-
-export function GameOverBanner({ lostRow, onReplay }: GameOverBannerProps) {
-  return (
-    <div className="border-t border-red-500/40 bg-red-500/10 px-6 py-4 text-xs text-red-200">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span>💥 Boom! You hit the bomb on round {lostRow !== null ? lostRow + 1 : ""}. Try again?</span>
-        <button
-          type="button"
-          onClick={onReplay}
-          className="rounded-full border border-red-400/60 bg-red-400/10 px-4 py-2 text-xs font-semibold text-red-100 transition hover:bg-red-400/20"
-        >
-          Play Again
-        </button>
-      </div>
-    </div>
-  );
-}
-
 type GameOverModalProps = {
   open: boolean;
   lostRow: number | null;
-  onReplay: () => void;
   onClose: () => void;
 };
 
-export function GameOverModal({ open, lostRow, onReplay, onClose }: GameOverModalProps) {
+export function GameOverModal({ open, lostRow, onClose }: GameOverModalProps) {
   if (!open) return null;
 
   return (
@@ -43,16 +20,8 @@ export function GameOverModal({ open, lostRow, onReplay, onClose }: GameOverModa
         <h2 className="mt-4 text-2xl font-semibold text-red-200">Game Over</h2>
         <p className="mt-2 text-sm text-slate-300">
           The bomb exploded on round {lostRow !== null ? lostRow + 1 : "-"}.
-          Try again and cash out before it does!
         </p>
         <div className="mt-6 flex justify-center gap-3">
-          <button
-            type="button"
-            onClick={onReplay}
-            className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
-          >
-            Play Again
-          </button>
           <button
             type="button"
             onClick={onClose}

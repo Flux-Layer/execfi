@@ -12,8 +12,7 @@ import { TutorialModal } from "@/components/tutorial/TutorialModal";
 import { BetControls } from "./bomb/BetControls";
 import HowItWorksModal from "./bomb/HowItWorksModal";
 import { BombBoardSection } from "./bomb/components/BombBoardSection";
-import { BombFairnessPanel } from "./bomb/components/BombFairnessPanel";
-import { GameOverBanner, GameOverModal } from "./bomb/components/BombGameOver";
+import { GameOverModal } from "./bomb/components/BombGameOver";
 import { BombTileCustomizerModal } from "./bomb/components/BombTileCustomizerModal";
 import { BombWindowFrame } from "./bomb/components/BombWindowFrame";
 import { BombTabNavigation } from "./bomb/components/BombTabNavigation";
@@ -22,6 +21,7 @@ import { BombStatsTab } from "./bomb/components/BombStatsTab";
 import { BombVerificationModal } from "./bomb/components/BombVerificationModal";
 import { useBombGameState } from "./bomb/useBombGameState";
 import { DEGENSHOOT_CHAIN_ID } from "@/lib/contracts/addresses";
+import { debugLog } from "@/lib/utils/debugLog";
 
 export default function BombGameWindow() {
   const {
@@ -107,9 +107,6 @@ function BombGameContent({
   // Bet controls collapse state (mobile only)
   const [isBetControlsCollapsed, setIsBetControlsCollapsed] = useState(false);
 
-  // Fairness panel collapse state (mobile only)
-  const [isFairnessPanelCollapsed, setIsFairnessPanelCollapsed] = useState(false);
-
   // Auto-collapse bet controls when round starts on mobile
   useEffect(() => {
     if (isMobile && game.isRoundInProgress) {
@@ -123,13 +120,6 @@ function BombGameContent({
       setIsBetControlsCollapsed(false);
     }
   }, [isMobile, game.status]);
-
-  // Auto-collapse fairness panel when fairness is revealed on mobile
-  useEffect(() => {
-    if (isMobile && game.fairnessState?.revealed) {
-      setIsFairnessPanelCollapsed(true);
-    }
-  }, [isMobile, game.fairnessState?.revealed]);
 
   const handleVerifyClick = useCallback((sessionId: string) => {
     setVerificationSessionId(sessionId);
@@ -156,15 +146,9 @@ function BombGameContent({
     return null;
   }, [game.activeRowIndex, game.isBuildingRound, game.isRoundInProgress, game.rows.length]);
 
-  const showFairnessPanel = useMemo(
-    () => game.status !== "idle" && !!game.fairnessState,
-    [game.status, game.fairnessState],
-  );
-
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // eslint-disable-next-line no-console
-    console.log("[BombGame] Balance context", {
+    debugLog("[BombGame] Balance context", {
       activeAddress,
       isBalanceLoading,
       balanceData,
@@ -284,7 +268,7 @@ function BombGameContent({
           )}
 
           <div className="flex flex-1 min-h-0 flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:gap-6 h-full overflow-y-auto">
-            <div className={`flex min-h-0 flex-1 flex-col ${showFairnessPanel ? "lg:pr-2" : ""}`}>
+            <div className="flex min-h-0 flex-1 flex-col">
               <BombBoardSection
                 rowsForRender={game.rowsForRender}
                 rowRefs={game.rowRefs}
@@ -302,40 +286,7 @@ function BombGameContent({
                   betAmount: game.betAmount,
                 }}
               />
-
-              {game.status === "lost" && (
-                <GameOverBanner
-                  lostRow={game.lostRow}
-                  onReplay={() => {
-                    void game.playAgain();
-                  }}
-                />
-              )}
             </div>
-
-            {showFairnessPanel && (
-              <div className="w-full lg:w-[22rem] lg:flex-shrink-0">
-                <BombFairnessPanel
-                  className="w-full lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
-                  status={game.status}
-                  isBuildingRound={game.isBuildingRound}
-                  isRevealing={game.isRevealing}
-                  rerollTiles={game.rerollTiles}
-                  revealFairness={game.revealFairness}
-                  verifyRound={game.verifyRound}
-                  isVerifying={game.isVerifying}
-                  fairnessState={game.fairnessState}
-                  rows={game.rows}
-                  rowStats={game.rowStats}
-                  roundSummary={game.roundSummary}
-                  canReveal={game.canReveal}
-                  verificationStatus={game.verificationStatus}
-                  verificationOutput={game.verificationOutput}
-                  isCollapsed={isFairnessPanelCollapsed}
-                  onToggleCollapse={() => setIsFairnessPanelCollapsed(!isFairnessPanelCollapsed)}
-                />
-              </div>
-            )}
           </div>
 
 
@@ -429,9 +380,6 @@ function BombGameContent({
       <GameOverModal
         open={game.status === "lost" && game.showGameOver}
         lostRow={game.lostRow}
-        onReplay={() => {
-          void game.playAgain();
-        }}
         onClose={game.dismissGameOver}
       />
 

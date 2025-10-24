@@ -38,6 +38,7 @@ import {
   saveStoredSession,
   DEFAULT_TILE_RANGE,
 } from "./utils";
+import { debugLog } from "@/lib/utils/debugLog";
 import {
   buildFairRows,
   calculateRowMultiplier,
@@ -308,19 +309,19 @@ export function useBombGameState({
 
   useEffect(() => {
     if (betTxHash) {
-      console.log("[BombGame] Bet transaction submitted:", betTxHash);
+      debugLog("[BombGame] Bet transaction submitted:", betTxHash);
     }
   }, [betTxHash]);
 
   useEffect(() => {
     if (resultTxHash) {
-      console.log("[BombGame] Result transaction submitted:", resultTxHash)
+      debugLog("[BombGame] Result transaction submitted:", resultTxHash)
     }
   }, [resultTxHash]);
 
   useEffect(() => {
     if (withdrawTxHash) {
-      console.log("[BombGame] Withdraw transaction submitted:", withdrawTxHash);
+      debugLog("[BombGame] Withdraw transaction submitted:", withdrawTxHash);
     }
   }, [withdrawTxHash]);
 
@@ -547,7 +548,7 @@ export function useBombGameState({
       setSessionId(nextSessionId);
       // Note: We intentionally don't clear finalizedSessionId here
       // This preserves the finalized session after cash out, allowing Reveal Fairness to work
-      console.log("[DEBUG] requestSessionSeeds - NOT clearing finalizedSessionId");
+      debugLog("[DEBUG] requestSessionSeeds - NOT clearing finalizedSessionId");
       pendingSessionRef.current = null;
       setPendingSession(null);
       setCurrentMultiplier(1);
@@ -616,7 +617,7 @@ export function useBombGameState({
       setLostRow(null);
       setShowGameOver(false);
       setSessionId(null);
-      console.log("[DEBUG] restartStuckSession - Clearing finalizedSessionId");
+      debugLog("[DEBUG] restartStuckSession - Clearing finalizedSessionId");
       setFinalizedSessionId(null);
       setRoundSummary(null);
       setRows([]);
@@ -985,7 +986,7 @@ export function useBombGameState({
     setRows([]);
     setActiveRowIndex(-1);
     setFairnessState(null);
-    console.log("[DEBUG] Address change useEffect - Clearing finalizedSessionId for address:", normalizedActiveAddress);
+    debugLog("[DEBUG] Address change useEffect - Clearing finalizedSessionId for address:", normalizedActiveAddress);
     setFinalizedSessionId(null);
     setRoundSummary(null);
   }, [normalizedActiveAddress]);
@@ -1008,7 +1009,7 @@ export function useBombGameState({
               const restoreData = await restoreResponse.json();
               if (restoreData.restored && restoreData.session) {
                 dbSession = restoreData.session;
-                console.log("[Bomb Game] Restored active session from database:", dbSession.id);
+                debugLog("[Bomb Game] Restored active session from database:", dbSession.id);
               }
             }
           } catch (restoreError) {
@@ -1097,7 +1098,7 @@ export function useBombGameState({
         } else {
           // No active session in database - clear localStorage to avoid stale data
           if (normalizedActiveAddress) {
-            console.log("[Bomb Game] No active session in database, clearing localStorage");
+            debugLog("[Bomb Game] No active session in database, clearing localStorage");
             saveStoredSession(null, normalizedActiveAddress);
           }
 
@@ -1316,12 +1317,12 @@ export function useBombGameState({
                   args: result.args,
                 };
               } catch (decodeErr) {
-                console.log("[BombGame] decodeErrorResult failed", decodeErr);
+                debugLog("[BombGame] decodeErrorResult failed", decodeErr);
               }
             }
           }
 
-          console.log({
+          debugLog({
             error: simulationError,
             shortMessage:
               revertError?.shortMessage ??
@@ -1380,7 +1381,7 @@ export function useBombGameState({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ resultTxHash: txHash }),
           });
-          console.log("[Bomb Game] Result transaction hash saved to database:", txHash);
+          debugLog("[Bomb Game] Result transaction hash saved to database:", txHash);
         } catch (dbError) {
           console.error("[Bomb Game] Failed to save result transaction hash:", dbError);
         }
@@ -1396,7 +1397,7 @@ export function useBombGameState({
           if (WAGER_VAULT_ADDRESS) {
             startedWithdraw = true;
             setIsWithdrawing(true);
-            console.log("[Bomb Game] Checking vault balance before withdraw…");
+            debugLog("[Bomb Game] Checking vault balance before withdraw…");
             const pendingBalance = (await wagerVaultPublicClient.readContract({
               address: WAGER_VAULT_ADDRESS,
               abi: WAGER_VAULT_ABI,
@@ -1405,7 +1406,7 @@ export function useBombGameState({
             })) as bigint;
 
             if (pendingBalance > 0n) {
-              console.log("[Bomb Game] Pending payout detected:", pendingBalance.toString());
+              debugLog("[Bomb Game] Pending payout detected:", pendingBalance.toString());
               const vaultClient = createWalletClient({
                 account,
                 chain: WAGER_VAULT_CHAIN,
@@ -1418,7 +1419,7 @@ export function useBombGameState({
                 args: [pendingBalance],
                 account,
               });
-              console.log("[Bomb Game] Withdraw transaction submitted:", withdrawHash);
+              debugLog("[Bomb Game] Withdraw transaction submitted:", withdrawHash);
               setWithdrawTxHash(withdrawHash);
 
               // Save withdraw transaction hash to database
@@ -1428,19 +1429,19 @@ export function useBombGameState({
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ withdrawTxHash: withdrawHash }),
                 });
-                console.log("[Bomb Game] Withdraw transaction hash saved to database:", withdrawHash);
+                debugLog("[Bomb Game] Withdraw transaction hash saved to database:", withdrawHash);
               } catch (dbError) {
                 console.error("[Bomb Game] Failed to save withdraw transaction hash:", dbError);
               }
 
               try {
                 await wagerVaultPublicClient.waitForTransactionReceipt({ hash: withdrawHash });
-                console.log("[Bomb Game] Withdraw transaction confirmed");
+                debugLog("[Bomb Game] Withdraw transaction confirmed");
               } catch (withdrawReceiptError) {
                 console.warn("[Bomb Game] Waiting for withdraw confirmation failed:", withdrawReceiptError);
               }
             } else {
-              console.log("[Bomb Game] No pending payout, skipping withdraw");
+              debugLog("[Bomb Game] No pending payout, skipping withdraw");
             }
           }
         } catch (withdrawError) {
@@ -1456,7 +1457,7 @@ export function useBombGameState({
         setSessionId(null);
         // DON'T clear finalizedSessionId here! Users need it to verify the round after cashing out
         // setFinalizedSessionId(null);
-        console.log("[DEBUG] finalizeResult - Preserving finalizedSessionId for verification");
+        debugLog("[DEBUG] finalizeResult - Preserving finalizedSessionId for verification");
         setCurrentMultiplier(1);
         // DON'T clear roundSummary either, users might want to see it
         // setRoundSummary(null);
@@ -1514,7 +1515,7 @@ export function useBombGameState({
     setHasStarted(false);
     setActiveRowIndex(0);
     setSessionId(null);
-    console.log("[DEBUG] playAgain - Clearing finalizedSessionId (user starting new game)");
+    debugLog("[DEBUG] playAgain - Clearing finalizedSessionId (user starting new game)");
     setFinalizedSessionId(null);
     setRoundSummary(null);
     pendingSessionRef.current = null;
@@ -1780,7 +1781,7 @@ export function useBombGameState({
     const hasSession = finalizedSessionId || sessionId;
 
     if (gameEnded && hasNotRevealed && hasSession && !isRevealing) {
-      console.log("[Bomb Game] Auto-revealing tiles after game end");
+      debugLog("[Bomb Game] Auto-revealing tiles after game end");
       void revealFairness();
     }
   }, [status, fairnessState, finalizedSessionId, sessionId, isRevealing, revealFairness]);
@@ -2195,7 +2196,7 @@ export function useBombGameState({
         setShowGameOver(true);
         setActiveRowIndex(-1);
         setHasStarted(true);
-        console.log("[DEBUG] handleCashOut - Setting finalizedSessionId to:", sessionId);
+        debugLog("[DEBUG] handleCashOut - Setting finalizedSessionId to:", sessionId);
         setFinalizedSessionId(sessionId);
         setSessionId(null);
 

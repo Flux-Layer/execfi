@@ -18,6 +18,7 @@ import {
 } from "@/lib/chains/registry";
 import { useEOA } from "./useEOA";
 import { useLoading } from "@/context/LoadingContext";
+import { debugLog } from "@/lib/utils/debugLog";
 
 interface ChainSelectionContextType {
   // Current chain state
@@ -99,17 +100,17 @@ export function ChainSelectionProvider({
             setSelectedChainId(chainId);
             trySwitchEOAChain(chainId);
             completeStep('chain-selection');
-            console.log(
+            debugLog(
               `🔗 Loaded saved chain: ${getChainConfig(chainId)?.name} (${chainId})`,
             );
           } else {
             // Clean up invalid saved value
             localStorage.removeItem(STORAGE_KEY);
             completeStep('chain-selection');
-            console.log(`🔗 Defaulting to Base (${DEFAULT_CHAIN_ID})`);
+            debugLog(`🔗 Defaulting to Base (${DEFAULT_CHAIN_ID})`);
           }
         } else {
-          console.log(
+          debugLog(
             `🔗 No saved chain, defaulting to Base (${DEFAULT_CHAIN_ID})`,
           );
           completeStep('chain-selection');
@@ -161,7 +162,7 @@ export function ChainSelectionProvider({
 
         // Check if already on this chain
         if (selectedChainId === chainId) {
-          console.log(
+          debugLog(
             `Already on ${getChainConfig(chainId)?.name} (${chainId})`,
           );
           resolve(true);
@@ -171,7 +172,7 @@ export function ChainSelectionProvider({
         const newChain = getChainConfig(chainId)!;
         const currentChain = getChainConfig(selectedChainId)!;
 
-        console.log(
+        debugLog(
           `🔄 Switching chain: ${currentChain.name} (${selectedChainId}) → ${newChain.name} (${chainId})`,
         );
 
@@ -179,7 +180,7 @@ export function ChainSelectionProvider({
         setSelectedChainId(chainId);
         await trySwitchEOAChain(chainId);
 
-        console.log(`✅ Chain switched to ${newChain.name} (${chainId})`);
+        debugLog(`✅ Chain switched to ${newChain.name} (${chainId})`);
         resolve(true);
       } catch (error) {
         const errorMessage =
@@ -226,13 +227,13 @@ export function ChainSelectionProvider({
 
         // Check if already on this chain
         if (selectedChainId === chainId) {
-          console.log(`Already on ${selectedChain.name} (${chainId})`);
+          debugLog(`Already on ${selectedChain.name} (${chainId})`);
           return true;
         }
 
         const newChain = getChainConfig(chainId)!;
 
-        console.log(
+        debugLog(
           `🔄 Switching chain: ${selectedChain.name} (${selectedChainId}) → ${newChain.name} (${chainId})`,
         );
 
@@ -240,7 +241,7 @@ export function ChainSelectionProvider({
         setSelectedChainId(chainId);
         await trySwitchEOAChain(chainId);
 
-        console.log(`✅ Chain switched to ${newChain.name} (${chainId})`);
+        debugLog(`✅ Chain switched to ${newChain.name} (${chainId})`);
         return true;
       } catch (error) {
         const errorMessage =

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useBaseAccount } from '@/providers/base-account-context';
+import { debugLog } from "@/lib/utils/debugLog";
 
 export default function BaseAccountStatus() {
   const { isConnected, error, promptSetup } = useBaseAccount();
@@ -54,7 +55,7 @@ export default function BaseAccountStatus() {
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => {
-                console.log('🔑 Prompting Base Account setup via Privy...');
+                debugLog('🔑 Prompting Base Account setup via Privy...');
                 promptSetup();
               }}
               className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm font-semibold rounded-lg transition-all shadow-lg hover:shadow-purple-500/50"
@@ -68,7 +69,7 @@ export default function BaseAccountStatus() {
           onClick={() => {
             setIsDismissed(true);
             localStorage.setItem('baseAccountDeclined', 'true');
-            console.log('❌ User declined Base Account setup');
+            debugLog('❌ User declined Base Account setup');
           }}
           className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
           aria-label="Close"

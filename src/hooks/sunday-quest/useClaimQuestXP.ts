@@ -3,6 +3,7 @@ import type { ConnectedWallet } from "@privy-io/react-auth";
 import { createWalletClient, createPublicClient, custom, http, type Address } from "viem";
 import { baseSepolia } from "viem/chains";
 import { XP_REGISTRY_ADDRESS } from "@/lib/sunday-quest/constants";
+import { debugLog } from "@/lib/utils/debugLog";
 
 // Extended ABI with addXPWithSig function
 const XP_REGISTRY_ABI = [
@@ -74,7 +75,7 @@ export function useClaimQuestXP() {
 
       // Switch to Base Sepolia if needed (same as degenshoot)
       if (walletChainId && walletChainId !== BASE_SEPOLIA_CHAIN_ID) {
-        console.log(`Switching from chain ${walletChainId} to Base Sepolia (${BASE_SEPOLIA_CHAIN_ID})`);
+        debugLog(`Switching from chain ${walletChainId} to Base Sepolia (${BASE_SEPOLIA_CHAIN_ID})`);
         await wallet.switchChain(BASE_SEPOLIA_HEX);
       }
 
@@ -103,7 +104,7 @@ export function useClaimQuestXP() {
         account: activeAddress,
       });
 
-      console.log("Transaction submitted:", txHash);
+      debugLog("Transaction submitted:", txHash);
 
       // Wait for transaction confirmation
       const receiptData = await publicClient.waitForTransactionReceipt({
@@ -111,7 +112,7 @@ export function useClaimQuestXP() {
         confirmations: 1,
       });
       
-      console.log("Transaction confirmed:", receiptData);
+      debugLog("Transaction confirmed:", receiptData);
       
       setIsPending(false);
       return { hash: txHash, receipt: receiptData };
