@@ -5,17 +5,43 @@ A comprehensive **Web3 gaming platform** built on the Base blockchain that combi
 ## Overview
 
 This is a full-stack GameFi platform featuring:
+- **ExecFi** - Natural language transaction execution engine with AI-powered intent parsing
 - **Degenshoot** - A skill-based tile-matching game with wager mechanics
-- **Greenvale** - An idle farming game with plant/water/harvest gameplay
 - **Sunday Quest** - A weekly quest system for earning XP
 - **Unified XP System** - Cross-game progression tracked on-chain
-- **Account Abstraction** - Smart wallet support via Base Account SDK
+- **Account Abstraction** - Smart wallet support via Base Account SDK and Privy Smart Accounts
 
-The platform leverages EIP-712 signatures, UUPS upgradeable contracts, and a modern React frontend to deliver a seamless Web3 gaming experience.
+The platform leverages EIP-712 signatures, UUPS upgradeable contracts, AI-assisted blockchain interactions via LI.FI, and a modern React frontend to deliver a seamless Web3 gaming experience.
 
 ---
 
 ## Features
+
+### ExecFi - Natural Language Transaction Engine
+
+ExecFi transforms natural language into safe, verifiable on-chain actions via an AI-powered intent pipeline:
+
+- **Intent Parsing** - AI-assisted natural language understanding with GPT-4o Mini
+- **Multi-Action Support** - Transfers, swaps, bridges, and bridge-swaps
+- **Smart Account Execution** - ERC-4337 compliant via Privy Smart Accounts
+- **Policy System** - Spending limits, daily caps, and recipient validation
+- **LI.FI Integration** - Optimal routing for cross-chain swaps and bridges
+- **Idempotency Protection** - Prevents duplicate transaction submissions
+- **Terminal UI** - Interactive CLI-style interface with autocomplete
+- **Multi-Chain** - Support for 9+ mainnets and testnets
+- **Execution Pipeline**: Parse → Normalize → Validate → Simulate → Execute → Monitor
+
+**Supported Operations**:
+- Native ETH and ERC-20 transfers
+- Same-chain token swaps (via LI.FI)
+- Cross-chain bridges (same token)
+- Cross-chain swaps (bridge + swap)
+- ENS and address resolution
+
+**Example Prompts**:
+- "Send 0.01 ETH on Base to 0x..."
+- "Swap 100 USDC for ETH on Arbitrum"
+- "Bridge 50 USDC from Base to Polygon"
 
 ### Games
 
@@ -26,15 +52,6 @@ The platform leverages EIP-712 signatures, UUPS upgradeable contracts, and a mod
 - Session-based architecture with cryptographic proofs
 - XP rewards integrated with XPRegistry
 - Pull-based withdrawals for winnings
-
-#### Greenvale (Farming Game)
-- Plant → Water → Harvest workflow
-- ERC-1155 items (seeds, water, tools)
-- ERC-721 land plots (NFTs)
-- Time-based growth mechanics with tool modifiers
-- Batch harvesting with single-transaction XP claiming
-- P2P marketplace for trading items
-- Fixed-price shop for purchasing resources
 
 #### Sunday Quest System
 - Weekly quest rotation with procedural generation
@@ -60,10 +77,13 @@ The platform leverages EIP-712 signatures, UUPS upgradeable contracts, and a mod
 - **Framework**: Next.js 15.5.2 (App Router)
 - **Language**: TypeScript 5
 - **Styling**: Tailwind CSS 4
-- **State Management**: React Query (TanStack) v5.87.4
+- **State Management**: React Query (TanStack) v5.87.4, Zustand
 - **Blockchain**: Wagmi v2.16.9 + Viem v2.37.8
 - **Auth**: Privy v2.24.0
-- **Smart Accounts**: Base Account SDK v2.4.0
+- **Smart Accounts**: Base Account SDK v2.4.0, Permissionless v0.2.57
+- **Cross-Chain**: LI.FI SDK v3.12.11
+- **AI/ML**: OpenRouter API (GPT-4o Mini)
+- **Validation**: Zod v4.1.9
 - **UI**: Lucide React, React Hot Toast, Motion
 - **PWA**: Progressive Web App support
 
@@ -93,47 +113,56 @@ The platform leverages EIP-712 signatures, UUPS upgradeable contracts, and a mod
 ```
 ├── src/
 │   ├── app/                    # Next.js App Router pages
-│   │   ├── api/                # Backend API routes (41 endpoints)
+│   │   ├── api/                # Backend API routes
+│   │   │   ├── intent/         # ExecFi AI intent parsing
+│   │   │   ├── prompt/         # General AI assistant
 │   │   │   ├── degenshoot/     # Bomb game session & signing
-│   │   │   ├── farming/        # Greenvale XP signing
 │   │   │   ├── sunday-quest/   # Quest verification & retrieval
 │   │   │   ├── onboarding/     # Device & wallet flows
 │   │   │   ├── indexer/        # Leaderboards & stats
 │   │   │   └── cron/           # Scheduled tasks
+│   │   ├── execfi/             # ExecFi documentation page
+│   │   ├── privy-auth/         # Privy authentication page
 │   │   └── sunday-quest/       # Sunday Quest page
+│   │
+│   ├── cli/                    # ExecFi CLI system
+│   │   ├── commands/           # CLI command registry
+│   │   ├── effects/            # State machine effects pipeline
+│   │   ├── state/              # Flow definitions and events
+│   │   └── utils/              # CLI utilities
 │   │
 │   ├── components/             # React components
 │   │   ├── apps/               # Full-featured applications
 │   │   │   ├── bomb/           # Degenshoot game UI
-│   │   │   ├── GreenvaleGame.tsx  # Farming game UI
+│   │   │   ├── ExecFiNotes.tsx # ExecFi documentation notes
 │   │   │   ├── Profile/        # User profile
 │   │   │   └── Settings/       # Settings interface
+│   │   ├── terminal/           # ExecFi terminal UI components
 │   │   ├── sunday-quest/       # Quest UI components
 │   │   ├── onboarding/         # Onboarding flow
 │   │   └── common/             # Shared components
 │   │
 │   ├── hooks/                  # Custom React hooks
-│   │   ├── useGreenvaleActions.ts  # Farming contract interactions
 │   │   ├── useUserXp.ts        # XP query hook
-│   │   └── useSessionSigner.tsx    # Session management
+│   │   ├── useSessionSigner.tsx    # Session management
+│   │   └── useTerminalStore.tsx    # Terminal state management
 │   │
 │   ├── lib/                    # Utility libraries
+│   │   ├── ai/                 # AI prompts, schemas, and parsing
 │   │   ├── contracts/          # ABIs, addresses, domain separators
 │   │   ├── games/              # Game-specific utilities
 │   │   ├── indexer/            # Data aggregation
 │   │   ├── sunday-quest/       # Quest system utilities
-│   │   └── execute.ts          # Transaction execution
+│   │   ├── policy/             # Transaction policy checking
+│   │   ├── idempotency.ts      # Duplicate transaction prevention
+│   │   ├── execute.ts          # Transaction execution
+│   │   └── execute-base-account.ts # Base Account execution
 │   │
 │   └── providers/              # React context providers
 │
 ├── contracts/                  # Solidity smart contracts
+│   ├── fee-entrypoint/        # FeeEntryPoint.sol (upgradeable fee system)
 │   ├── degenshoot/            # Degenshoot.sol + WagerVault.sol
-│   ├── FarmingCore.sol        # Main farming game logic
-│   ├── ParameterRegistry.sol  # Game configuration
-│   ├── Item1155.sol           # Multi-token items
-│   ├── Land721.sol            # Land NFTs
-│   ├── Shop.sol               # Fixed-price shop
-│   ├── Marketplace.sol        # P2P trading
 │   ├── xp-registry/           # XPRegistry proxy
 │   ├── script/                # Foundry deployment scripts
 │   └── test/                  # Contract tests
@@ -155,27 +184,26 @@ The platform leverages EIP-712 signatures, UUPS upgradeable contracts, and a mod
 - **Degenshoot**: `0x640b3AA6FE0B70F67535B0179b0d1d1d941aDf86`
 - **WagerVault**: `0x75123f823ed477DA70a2F1680C0Ddb3d4E1Bb745`
 
-#### Greenvale (Game ID: 2)
-- **FarmingCore**: TBD
-- **ParameterRegistry**: TBD
-- **Item1155**: TBD
-- **Land721**: TBD
-- **Shop**: TBD
-- **Marketplace**: TBD
-
 #### Shared
 - **XPRegistry Proxy**: `0xf77678E650a84FcA39aA66cd9EabcD1D28182035`
+
+#### FeeEntryPoint (Multi-chain)
+- **Purpose**: Upgradeable fee collection system for ETH and ERC-20 transfers
+- **Deployment**: CREATE2 deterministic deployment across chains
+- **Fee**: Configurable basis points (default 0.5%)
+- **Modes**: Forward immediately or park in contract
+- **Status**: Deployed on Base, Base Sepolia, Lisk, and Lisk Sepolia
 
 ### Contract Architecture
 
 ```
-ParameterRegistry (config hub)
-    ↓
-Shop, Marketplace, FarmingCore
-    ↓
-Item1155, Land721
+Degenshoot / WagerVault
     ↓
 XPRegistry (rewards)
+
+FeeEntryPoint (multi-chain)
+    ↓
+Fee collection & forwarding
 ```
 
 ### Key Features
@@ -266,18 +294,11 @@ forge script script/DeployAll.s.sol \
   --broadcast
 ```
 
-#### Greenvale Contracts
+#### FeeEntryPoint (Deterministic)
 ```bash
-forge script script/DeployGreenvale.s.sol \
-  --rpc-url $RPC_URL_BASE_SEPOLIA \
-  --private-key $PRIVATE_KEY \
-  --broadcast
-```
-
-#### Configure Greenvale
-```bash
-forge script script/ConfigGreenvale.s.sol \
-  --rpc-url $RPC_URL_BASE_SEPOLIA \
+cd contracts/fee-entrypoint
+forge script script/DeployDeterministic.s.sol \
+  --rpc-url $RPC_URL \
   --private-key $PRIVATE_KEY \
   --broadcast
 ```
@@ -302,6 +323,13 @@ NEXT_PUBLIC_PRIVY_SIGNER_ID=your-signer-id
 NEXT_PUBLIC_ALCHEMY_KEY=your-alchemy-key
 RPC_URL_BASE_SEPOLIA=https://base-sepolia.g.alchemy.com/v2/YOUR_KEY
 
+# ExecFi / AI
+OPENROUTER_API_KEY=your-openrouter-key
+NEXT_PUBLIC_LIFI_API_KEY=your-lifi-key
+LIFI_API_KEY=your-lifi-key
+NEXT_PUBLIC_ENABLE_LIFI_EXECUTION=true
+MAX_TX_AMOUNT_ETH=10
+
 # Degenshoot Contracts
 NEXT_PUBLIC_DEGENSHOOT_ADDRESS=0x640b3AA6FE0B70F67535B0179b0d1d1d941aDf86
 NEXT_PUBLIC_WAGER_VAULT_ADDRESS=0x75123f823ed477DA70a2F1680C0Ddb3d4E1Bb745
@@ -309,16 +337,6 @@ NEXT_PUBLIC_XP_REGISTRY_PROXY=0xf77678E650a84FcA39aA66cd9EabcD1D28182035
 NEXT_PUBLIC_DEGENSHOOT_CHAIN_ID=84532
 NEXT_PUBLIC_DEGENSHOOT_GAME_ID=1
 GAME_SIGNER_PRIVATE_KEY=your-game-signer-key
-
-# Greenvale Contracts
-NEXT_PUBLIC_PARAMETER_REGISTRY_ADDRESS=your-param-registry
-NEXT_PUBLIC_FARMING_CORE_ADDRESS=your-farming-core
-NEXT_PUBLIC_ITEM1155_ADDRESS=your-item1155
-NEXT_PUBLIC_LAND721_ADDRESS=your-land721
-NEXT_PUBLIC_SHOP_ADDRESS=your-shop
-NEXT_PUBLIC_MARKETPLACE_ADDRESS=your-marketplace
-NEXT_PUBLIC_FARMING_CHAIN_ID=84532
-NEXT_PUBLIC_FARMING_GAME_ID=2
 
 # Database
 DATABASE_URL=postgresql://user:pass@localhost:5432/gamefi
@@ -332,21 +350,22 @@ ONBOARDING_ENABLED=true
 ONBOARDING_SKIP_ALLOWED=false
 ```
 
-See `.env.sample` for the complete list of 80+ configuration options.
+See `.env.sample` for the complete list of configuration options.
 
 ---
 
 ## API Routes
 
-The backend provides 41 API endpoints organized by feature:
+The backend provides API endpoints organized by feature:
+
+### ExecFi
+- `POST /api/intent` - Parse natural language intent to structured action
+- `POST /api/prompt` - General AI assistant endpoint
 
 ### Degenshoot
 - `POST /api/degenshoot/sign` - Sign game result
 - `POST /api/degenshoot/session/new` - Create new session
 - `POST /api/degenshoot/session/restore` - Restore existing session
-
-### Farming (Greenvale)
-- `POST /api/farming/sign` - Sign XP claim
 
 ### Sunday Quest
 - `GET /api/sunday-quest/current` - Get current week's quests
@@ -420,6 +439,70 @@ const xpTypes = {
 const nonce = await registryContract.getNonce(user, gameId);
 const signature = await signer.signTypedData(xpDomain, xpTypes, xpValue);
 ```
+
+---
+
+## ExecFi Architecture
+
+### Intent Pipeline
+
+ExecFi implements a state machine-based execution pipeline with the following stages:
+
+1. **Parse** - Convert natural language to structured intent via OpenAI GPT-4o Mini
+2. **Normalize** - Resolve tokens, convert amounts, validate chain consistency
+3. **Validate** - Check balances, gas, policy rules, spending limits
+4. **Plan** (swaps/bridges) - Get optimal routes from LI.FI
+5. **Simulate** (transfers) - Test transaction without broadcasting
+6. **Confirm** - Display summary and await user confirmation
+7. **Execute** - Submit transaction via Privy Smart Account
+8. **Monitor** - Track on-chain confirmation and display explorer link
+
+### Supported Chains
+
+**Mainnets**: Base (8453), Ethereum (1), Polygon (137), Arbitrum (42161), Optimism (10), Avalanche (43114), BSC (56), Abstract (2741), Lisk (1135)
+
+**Testnets**: Base Sepolia (84532), Ethereum Sepolia (11155111), Polygon Amoy (80002), Arbitrum Sepolia (421614), Optimism Sepolia (11155420), Avalanche Fuji (43113), BSC Testnet (97), Lisk Sepolia (4202)
+
+### Intent Types
+
+```typescript
+// Transfer Intent
+{
+  action: "transfer",
+  chain: "base" | chainId,
+  token: { type: "native" | "erc20", symbol, decimals, address? },
+  amount: "0.5" | "MAX",
+  recipient: "0x..." | "ens.eth"
+}
+
+// Swap Intent
+{
+  action: "swap",
+  fromChain: chainId,
+  fromToken: symbol,
+  toToken: symbol,
+  amount: "100",
+  slippage?: number
+}
+
+// Bridge Intent
+{
+  action: "bridge",
+  fromChain: chainId,
+  toChain: chainId,
+  token: symbol,
+  amount: "50"
+}
+```
+
+### Security Features
+
+- **Idempotency Guard** - Prevents duplicate submissions via userId + intent hash
+- **Policy Checking** - Enforces spending limits, daily caps, recipient whitelists
+- **EIP-712 Signatures** - All intents are cryptographically signed
+- **Smart Account Only** - Non-custodial ERC-4337 execution
+- **Simulation First** - Test transactions before broadcasting
+- **Rate Limiting** - Protection against abuse
 
 ---
 
@@ -517,6 +600,17 @@ forge coverage
 
 ## Architecture Highlights
 
+### ExecFi Natural Language Pipeline
+1. User inputs natural language prompt
+2. AI parses intent with GPT-4o Mini (OpenRouter)
+3. Intent normalized to structured transaction
+4. Policy validation (limits, caps, whitelists)
+5. LI.FI route planning for swaps/bridges
+6. Transaction simulation for transfers
+7. User confirms summary
+8. Execute via Privy Smart Account (ERC-4337)
+9. Monitor on-chain and display explorer link
+
 ### Signature Verification Flow
 1. Frontend collects game results
 2. Backend API validates and signs with EIP-712
@@ -525,17 +619,16 @@ forge coverage
 5. Frontend submits on-chain with signatures
 
 ### Gas Optimization
-- Batch operations for ERC-1155 transfers
-- Single-transaction harvest + XP claim
-- Pull-based withdrawals in vault
+- Pull-based withdrawals in vault (Degenshoot)
 - Storage packing in contracts
 - Optimizer enabled (200 runs, via-IR)
+- Smart Account batching for ExecFi transactions
 
 ### Multi-chain Support
-- Base mainnet
-- Base Sepolia testnet
-- Lisk mainnet/testnet
-- LiFi for cross-chain swaps
+- **ExecFi**: 9+ mainnets (Base, Ethereum, Polygon, Arbitrum, Optimism, Avalanche, BSC, Abstract, Lisk) and 8 testnets
+- **Games**: Base mainnet/Sepolia, Lisk mainnet/testnet
+- **Cross-chain**: LI.FI integration for swaps and bridges
+- **Fee System**: FeeEntryPoint deployed deterministically across chains
 
 ---
 
