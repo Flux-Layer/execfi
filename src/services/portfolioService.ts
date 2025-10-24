@@ -118,7 +118,6 @@ export function ensureLifiConfigured(): void {
     });
 
     lifiInitialized = true;
-    console.log('✅ LiFi SDK configured successfully');
   } catch (error) {
     console.error('❌ Failed to configure LiFi SDK:', error);
     // Don't throw - let fallback handle it
@@ -290,7 +289,6 @@ async function fallbackChainSnapshot(
   address: `0x${string}`,
   chainIds: number[]
 ): Promise<PortfolioToken[]> {
-  console.log('🔄 Falling back to RPC balance fetching for chains:', chainIds);
 
   const supportedChains = getSupportedChains();
   const tokens: PortfolioToken[] = [];
@@ -330,11 +328,9 @@ async function fallbackChainSnapshot(
       }
 
       // Try Alchemy's automatic token discovery first (best method)
-      console.log(`🔄 Discovering tokens for chain ${chainId} (${chainConfig.name})...`);
       const alchemyTokens = await discoverTokensWithAlchemy(address, chainId, chainConfig.rpcUrl);
       
       if (alchemyTokens.length > 0) {
-        console.log(`✅ Alchemy discovered ${alchemyTokens.length} tokens with balance on ${chainConfig.name}`);
         
         // Process Alchemy-discovered tokens (they already have balances)
         for (const token of alchemyTokens) {
@@ -360,12 +356,10 @@ async function fallbackChainSnapshot(
       }
       
       // Fallback: Fetch comprehensive token list from LiFi
-      console.log(`🔄 Fetching token list from LiFi for chain ${chainId}...`);
       let tokenList = await getChainTokenList(chainId);
       
       // Fallback to registry tokens if LiFi token list is empty
       if (tokenList.length === 0 && chainConfig.tokens && chainConfig.tokens.length > 0) {
-        console.log(`⚠️ Using registry tokens as fallback for chain ${chainId}`);
         tokenList = chainConfig.tokens.map(token => ({
           address: token.address,
           symbol: token.symbol,
@@ -375,7 +369,6 @@ async function fallbackChainSnapshot(
         }));
       }
       
-      console.log(`✅ Will check ${tokenList.length} tokens for chain ${chainId}`);
 
       // Fetch ERC-20 token balances using multicall
       if (tokenList.length > 0) {
@@ -423,7 +416,6 @@ async function fallbackChainSnapshot(
             }
           }
           
-          console.log(`✅ Found ${tokens.filter(t => t.chainId === chainId).length} tokens with balance on ${chainConfig.name}`);
         } catch (multicallError) {
           console.warn(`⚠️ Multicall failed for chain ${chainId}:`, multicallError);
         }
@@ -435,7 +427,6 @@ async function fallbackChainSnapshot(
 
   // Fetch prices for all collected tokens
   if (tokenSymbols.size > 0) {
-    console.log(`🔄 Fetching prices for ${tokenSymbols.size} unique tokens...`);
     try {
       const prices = await getTokenPrices(Array.from(tokenSymbols));
 
@@ -449,7 +440,6 @@ async function fallbackChainSnapshot(
       }
 
       const priceCount = Object.keys(prices).length;
-      console.log(`✅ Fetched ${priceCount} prices for fallback tokens`);
     } catch (priceError) {
       console.warn('⚠️ Failed to fetch prices for fallback tokens:', priceError);
       // Continue without prices - tokens will show as price unavailable
@@ -470,10 +460,8 @@ async function fallbackChainSnapshot(
 
   const filtered = beforeFilter - filteredTokens.length;
   if (filtered > 0) {
-    console.log(`🔽 Filtered out ${filtered} tokens below $${MIN_USD_VALUE} threshold`);
   }
 
-  console.log(`✅ Fallback found ${filteredTokens.length} tokens across ${chainIds.length} chains`);
   return filteredTokens;
 }
 
@@ -543,7 +531,6 @@ async function fetchMainnetBalancesViaLifi(
       }
     }
 
-    console.log(`✅ LiFi SDK fetched ${tokens.length} mainnet tokens`);
   } catch (error) {
     console.error('❌ LiFi fetch error:', error);
     // Don't throw - return empty array to gracefully degrade
@@ -579,7 +566,6 @@ async function fetchTestnetBalancesViaRpc(
       })
     );
 
-    console.log(`✅ RPC fetched ${tokens.length} testnet tokens`);
     return tokens;
   } catch (error) {
     console.error('❌ RPC fetch error:', error);
@@ -618,13 +604,8 @@ export async function fetchPortfolioSnapshot(params: {
   const cacheKey = getCacheKey(address, chainIds);
   const cached = cache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
-    console.log('✅ Returning cached portfolio snapshot');
     return cached.snapshot;
   }
-
-  console.log(`🔄 Fetching portfolio for ${address}`);
-  console.log(`  📡 Mainnet chains (${mainnetChainIds.length}): ${mainnetChainIds.join(', ')}`);
-  console.log(`  🧪 Testnet chains (${testnetChainIds.length}): ${testnetChainIds.join(', ')}`);
 
   try {
     // PARALLEL FETCH: Mainnet (LiFi) + Testnet (RPC)
@@ -656,7 +637,6 @@ export async function fetchPortfolioSnapshot(params: {
       console.error('❌ Failed to fetch testnet balances:', testnetResults.reason);
     }
 
-    console.log(`✅ Fetched total ${tokens.length} tokens (${lifiResults.status === 'fulfilled' ? lifiResults.value.length : 0} mainnet, ${testnetResults.status === 'fulfilled' ? testnetResults.value.length : 0} testnet)`);
 
     // Sort by USD value descending, then by formatted amount
     tokens.sort((a, b) => {

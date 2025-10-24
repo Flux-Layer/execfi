@@ -40,7 +40,6 @@ async function resolveTransferToken(
   message?: string;
 }> {
   try {
-    console.log(`🔍 [Transfer] Multi-provider token resolution for '${symbol}' on chain ${chainId}`);
 
     // Build multi-provider search request (chain-specific for transfers)
     const searchRequest: MultiProviderSearchRequest = {
@@ -107,7 +106,6 @@ async function resolveTransferToken(
     const providersUsed = searchResult.metadata.providersSuccessful;
     const providerCount = providersUsed.length;
 
-    console.log(`✅ [Transfer] Found ${relevantMatches.length} matches from ${providerCount} providers`);
 
     // Single match - return directly
     if (relevantMatches.length === 1) {
@@ -150,7 +148,6 @@ async function resolveTransferToken(
 export async function normalizeTransferIntent(
   intent: TransferIntent
 ): Promise<NormalizedTransfer> {
-  console.log("🔄 [Transfer] Normalizing transfer intent:", intent);
 
   // Step 1: Resolve chain (ALWAYS from intent, never from current context)
   // BUG FIX: This was the issue - old code used preferredChainId from context
@@ -166,7 +163,6 @@ export async function normalizeTransferIntent(
     );
   }
 
-  console.log(`✅ [Transfer] Resolved chain to ${chainId}`);
 
   // Step 2: Validate and resolve recipient
   if (!intent.recipient || typeof intent.recipient !== "string") {
@@ -181,7 +177,6 @@ export async function normalizeTransferIntent(
   if (isEnsName(intent.recipient)) {
     try {
       recipientAddress = await resolveAddressOrEns(intent.recipient);
-      console.log(`✅ [Transfer] Resolved ENS '${intent.recipient}' to ${recipientAddress}`);
     } catch (error) {
       throw new TransferNormalizationError(
         `Could not resolve ENS name: ${intent.recipient}`,
@@ -207,7 +202,6 @@ export async function normalizeTransferIntent(
 
   // Check if USD-based amount
   if (isUSDBasedIntent(intent as any) && intent.amountUSD) {
-    console.log(`💵 [Transfer] Converting USD amount: ${intent.amountUSD}`);
     
     try {
       const usdAmount = parseIntentUSDAmount(intent.amountUSD);
@@ -221,7 +215,6 @@ export async function normalizeTransferIntent(
       const tokenAmount = await convertUSDToToken(usdAmount, tokenSymbol, chainId);
       transferAmount = tokenAmount;
       
-      console.log(`✅ [Transfer] Converted ${intent.amountUSD} → ${tokenAmount} ${tokenSymbol}`);
     } catch (error) {
       throw new TransferNormalizationError(
         `Failed to convert USD amount: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -278,8 +271,6 @@ export async function normalizeTransferIntent(
       );
     }
 
-    console.log(`✅ [Transfer] Normalized native transfer: ${intent.amount} ${intent.token.symbol} on chain ${chainId}`);
-
     return {
       kind: "native-transfer",
       chainId,
@@ -335,7 +326,6 @@ export async function normalizeTransferIntent(
           publicClient
         );
         verifiedDecimals = verification.actualDecimals;
-        console.log(`🔍 [Transfer] Fetched decimals for ${selectedToken.symbol}: ${verifiedDecimals}`);
       }
       
       token = {
@@ -348,7 +338,6 @@ export async function normalizeTransferIntent(
         logoURI: selectedToken.logoURI,
         verified: selectedToken.verified,
       };
-      console.log(`✅ [Transfer] Using pre-selected token with verified decimals:`, token);
     } else {
       // Resolve token on the intent chain
       const tokenResolution = await resolveTransferToken(intent.token.symbol, chainId);
@@ -421,7 +410,6 @@ export async function normalizeTransferIntent(
         verified: foundToken.verified || false,
       };
 
-      console.log(`✅ [Transfer] Resolved token with verified decimals:`, token);
     }
 
     // Parse amount with token decimals
@@ -449,7 +437,6 @@ export async function normalizeTransferIntent(
       };
     }
 
-    console.log(`✅ [Transfer] Normalized ERC-20 transfer: ${intent.amount} ${token.symbol} on chain ${chainId}`);
 
     return {
       kind: "erc20-transfer",

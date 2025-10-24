@@ -179,7 +179,6 @@ export async function fetchMultiChainNativeBalances(params: {
     return [];
   }
 
-  console.log(`🔄 Fetching native balances via RPC for ${validChainIds.length} chains: ${validChainIds.join(', ')}`);
 
   // Fetch all chains in parallel with retry
   const results = await Promise.allSettled(
@@ -195,7 +194,6 @@ export async function fetchMultiChainNativeBalances(params: {
     )
     .map(result => result.value);
 
-  console.log(`✅ Fetched ${balances.length} non-zero native balances via RPC`);
 
   return balances;
 }

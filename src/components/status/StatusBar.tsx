@@ -13,7 +13,12 @@ import { usePrivy } from "@privy-io/react-auth";
 import useUserXp from "@/hooks/useUserXp";
 import { useDock } from "@/context/DockContext";
 import { useTerminalInput } from "@/cli/hooks/useTerminalStore";
-import { TbPlugConnected, TbPlugConnectedX } from "react-icons/tb";
+import {
+  TbPlugConnected,
+  TbPlugConnectedX,
+  TbCopy,
+  TbCopyCheck,
+} from "react-icons/tb";
 import { FaWallet } from "react-icons/fa6";
 
 const timeFormatter = new Intl.DateTimeFormat("id-ID", {
@@ -141,6 +146,8 @@ export default function StatusBar() {
   const walletMenuRef = useRef<HTMLDivElement>(null);
   const [xpTooltipOpen, setXpTooltipOpen] = useState(false);
   const xpTooltipRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<number | null>(null);
 
   const walletAddress =
     ready && authenticated ? user?.wallet?.address ?? null : null;
@@ -217,6 +224,42 @@ export default function StatusBar() {
     setWalletMenuOpen((prev) => !prev);
   };
 
+  useEffect(() => {
+    if (!walletMenuOpen) {
+      setCopied(false);
+      if (copyTimeoutRef.current) {
+        window.clearTimeout(copyTimeoutRef.current);
+        copyTimeoutRef.current = null;
+      }
+    }
+  }, [walletMenuOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        window.clearTimeout(copyTimeoutRef.current);
+        copyTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCopyAddress = useCallback(async () => {
+    if (!normalizedAddress) return;
+    try {
+      await navigator.clipboard.writeText(normalizedAddress);
+      setCopied(true);
+      if (copyTimeoutRef.current) {
+        window.clearTimeout(copyTimeoutRef.current);
+      }
+      copyTimeoutRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyTimeoutRef.current = null;
+      }, 1600);
+    } catch (error) {
+      console.error("Failed to copy address", error);
+    }
+  }, [normalizedAddress]);
+
   const handleLogin = () => {
     setWalletMenuOpen(false);
     openTerminal();
@@ -288,11 +331,25 @@ export default function StatusBar() {
             {walletMenuOpen && (
               <div className="absolute left-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-slate-900/95 p-2 text-xs text-slate-200 shadow-lg lg:left-auto lg:right-0 lg:mt-4 lg:w-44">
                 {walletConnected ? (
-                  <ScrambleActionButton
-                    label="Disconnect"
-                    icon={<TbPlugConnected className="h-3.5 w-3.5" />}
-                    onClick={handleLogout}
-                  />
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyAddress}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-slate-200 transition-colors hover:border-indigo-400/60 hover:text-indigo-300"
+                    >
+                      {copied ? (
+                        <TbCopyCheck className="h-3.5 w-3.5" />
+                      ) : (
+                        <TbCopy className="h-3.5 w-3.5" />
+                      )}
+                      <span>{copied ? "Copied" : "Copy"}</span>
+                    </button>
+                    <ScrambleActionButton
+                      label="Disconnect"
+                      icon={<TbPlugConnected className="h-3.5 w-3.5" />}
+                      onClick={handleLogout}
+                    />
+                  </div>
                 ) : (
                   <ScrambleActionButton
                     label="Connect"

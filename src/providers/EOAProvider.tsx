@@ -46,7 +46,6 @@ export function EOAProvider({ children }: EOAProviderProps) {
   // Filter to get only Privy EOA wallets
   const privyWallets = React.useMemo(() => {
     if (!wallets || wallets.length === 0) return [];
-    console.log({wallets})
     return wallets.filter((wallet) => wallet.walletClientType === "privy");
   }, [wallets]);
 
@@ -55,7 +54,6 @@ export function EOAProvider({ children }: EOAProviderProps) {
     return privyWallets[selectedWalletIndex] || null;
   }, [privyWallets, selectedWalletIndex]);
   useEffect(() => {
-    console.log({ selectedWallet });
   }, [selectedWallet]);
 
   // Track loading state for EOA initialization

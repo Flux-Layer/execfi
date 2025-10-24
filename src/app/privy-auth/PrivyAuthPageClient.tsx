@@ -7,6 +7,7 @@ import TextInput from "@components/text-input";
 import SplashButton from "@components/splash-button";
 import { useEOA } from "@hooks/useEOA";
 import useSmartWallet from "@/hooks/useSmartWallet";
+import { debugLog } from "@/lib/utils/debugLog";
 import SmartAccountBalance from "@/components/SmartAccountBalance";
 export default function PrivyAuthPageClient() {
   const { authenticated, logout, user, exportWallet, login } = usePrivy();
@@ -35,7 +36,7 @@ export default function PrivyAuthPageClient() {
   } = useSmartWallet();
 
   useEffect(() => {
-    console.log({ smartWallets });
+    debugLog({ smartWallets });
   }, [smartWallets]);
 
   const [email, setEmail] = useState("");

@@ -95,7 +95,6 @@ export function BaseAccountProvider({ children }: BaseAccountProviderProps) {
 
     // User has Base Account linked but it's not in wallets array
     // This happens after re-login - need to reconnect
-    console.log('🔄 Base Account found in linkedAccounts, reconnecting...');
     
     const attemptReconnect = async () => {
       try {
@@ -103,7 +102,6 @@ export function BaseAccountProvider({ children }: BaseAccountProviderProps) {
         await connectWallet({
           walletList: ['base_account'],
         });
-        console.log('✅ Base Account reconnected');
       } catch (error) {
         console.error('❌ Failed to reconnect Base Account:', error);
       } finally {
@@ -158,12 +156,10 @@ export function BaseAccountProvider({ children }: BaseAccountProviderProps) {
     const attemptSetup = async () => {
       try {
         sessionStorage.setItem('baseAccountAutoCreateAttempted', 'true');
-        console.log('🔄 Auto-prompting Base Account setup...');
         
         // Open Privy login with Base Account preselected
         // Note: User may already be logged in with different method
         // In that case, they need to manually add Base Account wallet
-        console.log('💡 User can add Base Account from Privy settings');
       } catch (error) {
         console.error('Auto-setup failed:', error);
       }
@@ -177,12 +173,10 @@ export function BaseAccountProvider({ children }: BaseAccountProviderProps) {
   const promptSetup = () => {
     if (!privyAuthenticated) {
       // User not logged in - open Privy login with Base Account
-      console.log('🔑 Opening Privy login for Base Account...');
       login();
     } else {
       // User already logged in with email/other method
       // Base Account requires re-authentication to properly link
-      console.log('🔗 Base Account requires login to link properly...');
       
       // Show explanation to user
       alert(
